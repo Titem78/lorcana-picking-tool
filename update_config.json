@@ -1,0 +1,7 @@
+{
+  "_comment": "Configuration du systeme de mise a jour. Edite ce fichier pour pointer vers TON depot GitHub. L'app verifie l'API GitHub Releases au demarrage.",
+  "github_owner": "TON_PSEUDO_GITHUB",
+  "github_repo": "lorcana-picking-tool",
+  "check_on_startup": true,
+  "_comment_check": "Si false, l'app ne verifie pas au demarrage. Le bouton 'Verifier les MAJ' dans Options reste actif."
+}
