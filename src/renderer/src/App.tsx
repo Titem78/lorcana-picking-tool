@@ -26,8 +26,12 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     window.api.onUpdaterEvent((event, payload) => {
-      if (event === 'updater:downloaded') {
-        setUpdateMsg(`Mise à jour ${payload} téléchargée — elle s'installera à la fermeture.`)
+      if (event === 'updater:available') {
+        setUpdateMsg(`⬇ Mise à jour ${payload} détectée — téléchargement en cours…`)
+      } else if (event === 'updater:downloaded') {
+        setUpdateMsg(`✅ Mise à jour ${payload} téléchargée — elle s'installera à la fermeture.`)
+      } else if (event === 'updater:error') {
+        setUpdateMsg(`⚠ Mise à jour impossible : ${payload}`)
       }
     })
   }, [])
