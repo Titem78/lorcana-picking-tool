@@ -10,7 +10,7 @@
 //
 // Certaines polices rendent « À » et « é » comme « ? » : les regex tolèrent.
 
-import { CM_COLOR_CODE_TO_INK, CM_RARITY_CODE_TO_RARITY } from '@shared/constants'
+import { CM_RARITY_CODE_TO_RARITY } from '@shared/constants'
 
 export interface ParsedCardLine {
   quantity: number
@@ -19,8 +19,8 @@ export interface ParsedCardLine {
   language: string
   condition: string
   set_code: string // numéro de chapitre, ex. "12"
-  color_code: string // code Cardmarket, ex. "WIL"
-  color_label: string // encre canonique, ex. "Amber" (repli si Lorcast indisponible)
+  color_code: string // abréviation Cardmarket du chapitre, ex. "WIL" (Wilds Unknown) — PAS une couleur !
+  color_label: string // toujours vide : l'encre vient exclusivement de Lorcast
   rarity_code: string
   price: string
   comment: string
@@ -272,7 +272,10 @@ function buildCard(
     name: raw.name.trim(),
     number: raw.number.replace(/^0+(?=\d)/, ''),
     comment: raw.comment.trim(),
-    color_label: CM_COLOR_CODE_TO_INK[raw.color_code] ?? raw.color_code,
+    // Les 3 lettres (WIL, FAB, WHI...) abrègent le NOM DU CHAPITRE, pas une
+    // encre — l'ancienne correspondance WHI→Amber affichait des couleurs
+    // fantaisistes. L'encre vient uniquement de l'enrichissement Lorcast.
+    color_label: '',
     is_foil: FOIL_RE.test(raw.comment)
   }
 }

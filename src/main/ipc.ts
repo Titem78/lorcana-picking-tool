@@ -112,6 +112,9 @@ export function registerIpc(): void {
   ipcMain.handle('picking:setAccessoryImage', (e, userId: number, lineName: string) =>
     picking.setAccessoryImage(userId, lineName, BrowserWindow.fromWebContents(e.sender)!)
   )
+  ipcMain.handle('picking:setAccessoryImageUrl', (_e, userId: number, lineName: string, url: string) =>
+    picking.setAccessoryImageFromUrl(userId, lineName, url)
+  )
 
   // --- Exports / imports --------------------------------------------------------
   ipcMain.handle('exports:historyCsv', (e, userId: number) =>

@@ -10,6 +10,9 @@ import CardThumb from '@/components/CardThumb'
  */
 export default function PickingPage({ user }: { user: User }): React.JSX.Element {
   const [list, setList] = useState<PickingList | null>(null)
+  const [imageFor, setImageFor] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageMsg, setImageMsg] = useState('')
 
   const refresh = (): void => {
     window.api.picking.list().then(setList)
@@ -70,6 +73,79 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
           }}
         />
       </div>
+
+      {imageFor && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setImageFor(null)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+              width: 520,
+              maxWidth: '92vw'
+            }}
+          >
+            <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>📷 Visuel — {imageFor}</h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 12 }}>
+              Sur la page produit Cardmarket : clic droit sur la photo → « Copier l&apos;adresse de
+              l&apos;image » → colle ici. Ou choisis un fichier sur ton PC.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                placeholder="https://…"
+                value={imageUrl}
+                style={{ flex: 1 }}
+                autoFocus
+                onChange={(e) => setImageUrl(e.target.value)}
+              />
+              <button
+                className="primary"
+                disabled={!imageUrl.trim()}
+                onClick={() => {
+                  setImageMsg('Téléchargement…')
+                  window.api.picking
+                    .setAccessoryImageUrl(user.id, imageFor, imageUrl.trim())
+                    .then(() => {
+                      setImageFor(null)
+                      refresh()
+                    })
+                    .catch((err: Error) => setImageMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+                }}
+              >
+                Télécharger
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button
+                onClick={() =>
+                  window.api.picking.setAccessoryImage(user.id, imageFor).then(() => {
+                    setImageFor(null)
+                    refresh()
+                  })
+                }
+              >
+                📁 Choisir un fichier…
+              </button>
+              <span style={{ flex: 1, color: 'var(--text-dim)', fontSize: '0.85rem' }}>{imageMsg}</span>
+              <button onClick={() => setImageFor(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pct === 100 && (
         <div
@@ -149,9 +225,11 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
                   item={item}
                   onSetQty={setQty}
                   onPickAll={pickAll}
-                  onSetAccessoryImage={(name) =>
-                    window.api.picking.setAccessoryImage(user.id, name).then(refresh)
-                  }
+                  onSetAccessoryImage={(name) => {
+                    setImageFor(name)
+                    setImageUrl('')
+                    setImageMsg('')
+                  }}
                 />
               ))}
             </div>
@@ -257,7 +335,26 @@ function PickingRow({
             <b style={{ fontSize: '1.08rem' }}>
               {item.total_qty}× {item.name}
             </b>
-            {item.is_foil && <span title="Foil">✨</span>}
+            {item.is_foil && (
+              <span
+                className="badge"
+                style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700 }}
+              >
+                ✨ FOIL
+              </span>
+            )}
+            {item.language && (
+              <span
+                className="badge"
+                style={
+                  item.language !== 'FR'
+                    ? { borderColor: '#58a6d3', color: '#58a6d3', fontWeight: 700 }
+                    : {}
+                }
+              >
+                {item.language}
+              </span>
+            )}
             {!/cartes/i.test(item.section) && (
               <span className="badge">🎲 {item.section}</span>
             )}
@@ -284,7 +381,6 @@ function PickingRow({
             </span>
             {item.ink && <span style={{ color: hex }}>⬤ {INK_LABELS_FR[item.ink] ?? item.ink}</span>}
             {item.rarity && <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>}
-            <span>{item.language}</span>
           </div>
           {!multi && (
             <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 4 }}>

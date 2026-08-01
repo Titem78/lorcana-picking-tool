@@ -120,12 +120,27 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         buyer: parsed.buyer_username,
         cards: parsed.cards.length
       })
+      // Contrôle d'exhaustivité : le PDF annonce « Contenu : X articles » —
+      // la somme des quantités importées doit correspondre exactement.
+      const totalQty = parsed.cards.reduce((s, c) => s + c.quantity, 0)
+      const mismatch =
+        parsed.article_count != null && totalQty !== parsed.article_count
+          ? `⚠ le PDF annonce ${parsed.article_count} article(s), ${totalQty} importé(s) — vérifie la commande !`
+          : undefined
+      if (mismatch) {
+        logActivity(userId, 'order.import_mismatch', {
+          orderId,
+          announced: parsed.article_count,
+          imported: totalQty
+        })
+      }
       results.push({
         file: path,
         status: 'ok',
         sale_id: parsed.sale_id,
         buyer_username: parsed.buyer_username,
-        cards: parsed.cards.length
+        cards: parsed.cards.length,
+        message: mismatch
       })
     } catch (err) {
       results.push({ file: path, status: 'error', message: String((err as Error).message ?? err) })

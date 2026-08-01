@@ -21,17 +21,9 @@ export const INK_HEX: Record<string, string> = {
   Steel: '#8b98a5'
 }
 
-/** Codes couleur utilisés par Cardmarket dans les PDF (ex. « 12RUB »). */
-export const CM_COLOR_CODE_TO_INK: Record<string, string> = {
-  AMB: 'Amber',
-  AME: 'Amethyst',
-  EME: 'Emerald',
-  RUB: 'Ruby',
-  SAP: 'Sapphire',
-  STE: 'Steel',
-  // Cardmarket a historiquement utilisé WHI (White) pour l'Ambre sur certains sets
-  WHI: 'Amber'
-}
+// NB : dans les PDF Cardmarket, « 12WIL » = chapitre 12 + abréviation du NOM
+// du chapitre (WIL = Wilds Unknown, FAB = Fabled, WHI = Whispers in the Well…).
+// Ce n'est PAS un code couleur — l'encre vient exclusivement de Lorcast.
 
 /** Raretés canoniques (mêmes valeurs que Lorcast). */
 export const RARITIES = [

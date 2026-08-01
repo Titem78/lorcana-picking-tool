@@ -97,7 +97,10 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
             <div key={i} style={{ padding: '3px 0', fontSize: '0.92rem' }}>
               {r.status === 'ok' && (
                 <>
-                  ✅ Vente #{r.sale_id} — {r.buyer_username} — {r.cards} carte(s) importée(s)
+                  ✅ Vente #{r.sale_id} — {r.buyer_username} — {r.cards} ligne(s) importée(s)
+                  {r.message && (
+                    <b style={{ color: 'var(--danger)' }}> {r.message}</b>
+                  )}
                 </>
               )}
               {r.status === 'duplicate' && <>⏭ Vente #{r.sale_id} déjà importée — ignorée</>}

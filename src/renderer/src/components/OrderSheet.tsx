@@ -208,6 +208,25 @@ export default function OrderSheet({
           </div>
         </div>
 
+        {order.article_count != null &&
+          lines.length > 0 &&
+          lines.reduce((s, l) => s + l.quantity, 0) !== order.article_count && (
+            <div
+              style={{
+                border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius)',
+                padding: '8px 12px',
+                marginBottom: 10,
+                color: 'var(--danger)',
+                fontSize: '0.9rem'
+              }}
+            >
+              ⚠ Le PDF annonce <b>{order.article_count} article(s)</b> mais{' '}
+              <b>{lines.reduce((s, l) => s + l.quantity, 0)}</b> ont été importés — certains
+              produits n&apos;ont peut-être pas été reconnus. Envoie-moi ce PDF pour correction.
+            </div>
+          )}
+
         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 6 }}>
           Cartes ({lines.length} ligne(s))
           {inControl && (

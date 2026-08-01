@@ -193,6 +193,56 @@ export function pickLine(userId: number, lineId: number, picked: boolean): void 
 }
 
 /**
+ * Associe un visuel depuis une URL (adresse d'image copiée depuis le
+ * navigateur, ex. image produit Cardmarket). Téléchargé avec une identité de
+ * navigateur ; si l'URL est une page HTML, on tente d'en extraire og:image.
+ */
+export async function setAccessoryImageFromUrl(
+  userId: number,
+  lineName: string,
+  url: string
+): Promise<string> {
+  const { join } = await import('path')
+  const { writeFileSync } = await import('fs')
+  const { imagesDir } = await import('./lorcast')
+
+  const UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+  let target = url.trim()
+  if (!/^https?:\/\//i.test(target)) throw new Error('Adresse invalide (elle doit commencer par https://)')
+
+  let res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
+  if (!res.ok) throw new Error(`Téléchargement refusé (HTTP ${res.status}) — copie plutôt l'adresse de l'IMAGE (clic droit → Copier l'adresse de l'image)`)
+  let contentType = res.headers.get('content-type') ?? ''
+
+  if (contentType.includes('text/html')) {
+    // C'est une page : on cherche l'image principale (og:image)
+    const html = await res.text()
+    const og = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/) ??
+      html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/)
+    if (!og) throw new Error("Pas d'image trouvée sur cette page — copie l'adresse de l'image directement")
+    target = og[1]
+    res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
+    if (!res.ok) throw new Error(`Image inaccessible (HTTP ${res.status})`)
+    contentType = res.headers.get('content-type') ?? ''
+  }
+
+  const extFromType = contentType.match(/image\/(png|jpeg|jpg|webp|avif|gif)/)?.[1]
+  const extFromUrl = target.split('?')[0].split('.').pop()?.toLowerCase()
+  const ext = extFromType ?? (['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif'].includes(extFromUrl ?? '') ? extFromUrl : 'jpg')
+  const fname = `accessory_${lineName.replace(/[^\w-]/g, '_').slice(0, 60)}.${ext === 'jpeg' ? 'jpg' : ext}`
+  writeFileSync(join(imagesDir(), fname), Buffer.from(await res.arrayBuffer()))
+  getDb()
+    .prepare(
+      `INSERT INTO accessory_images (line_name, image_file) VALUES (?, ?)
+       ON CONFLICT(line_name) DO UPDATE SET image_file = excluded.image_file`
+    )
+    .run(lineName, fname)
+  logActivity(userId, 'accessory.image_set', { lineName, fname, from: 'url' })
+  return fname
+}
+
+/**
  * Associe un visuel personnalisé (fichier image choisi par l'utilisateur) à un
  * produit accessoire — copié dans le cache et réutilisé partout ensuite.
  */

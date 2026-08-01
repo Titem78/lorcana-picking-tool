@@ -55,7 +55,9 @@ const api = {
     setQty: (userId: number, lineId: number, qty: number) =>
       ipcRenderer.invoke('picking:setQty', userId, lineId, qty),
     setAccessoryImage: (userId: number, lineName: string) =>
-      ipcRenderer.invoke('picking:setAccessoryImage', userId, lineName)
+      ipcRenderer.invoke('picking:setAccessoryImage', userId, lineName),
+    setAccessoryImageUrl: (userId: number, lineName: string, url: string) =>
+      ipcRenderer.invoke('picking:setAccessoryImageUrl', userId, lineName, url)
   },
 
   prepCheck: (userId: number, lineId: number, checked: boolean) =>
