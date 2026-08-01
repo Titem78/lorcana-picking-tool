@@ -181,6 +181,80 @@ export function registerIpc(): void {
     return orders.importPdfs(userId, [path])
   })
 
+  // --- Import depuis la page web Cardmarket affichée (onglet intégré) --------------
+  ipcMain.handle('orders:importParsed', async (_e, userId: number, data: Record<string, unknown>) => {
+    const d = data as {
+      sale_id?: string
+      buyer_username?: string
+      buyer_name?: string
+      buyer_address?: string
+      article_count?: number | null
+      item_value?: string
+      shipping_cost?: string
+      total?: string
+      shipping_method?: string
+      tracking_number?: string
+      refund_amount?: string
+      url?: string
+      cards?: Partial<{
+        quantity: number
+        name: string
+        number: string
+        language: string
+        condition: string
+        set_code: string
+        color_code: string
+        rarity_code: string
+        price: string
+        comment: string
+        is_foil: boolean
+      }>[]
+    }
+    if (!d.sale_id) throw new Error('Numéro de vente introuvable sur la page')
+    const parsed = {
+      sale_id: String(d.sale_id),
+      buyer_username: d.buyer_username ?? '',
+      buyer_name: d.buyer_name ?? '',
+      buyer_address: d.buyer_address ?? '',
+      seller: 'Made4Game',
+      sent_date: '',
+      article_count: d.article_count ?? null,
+      item_value: d.item_value ?? '',
+      shipping_cost: d.shipping_cost ?? '',
+      total: d.total ?? '',
+      shipping_method: d.shipping_method ?? '',
+      tracking_number: d.tracking_number ?? '',
+      refund_amount: d.refund_amount ?? '',
+      source_pdf: d.url ?? 'page Cardmarket',
+      cards: (d.cards ?? []).map((c) => ({
+        quantity: c.quantity ?? 1,
+        name: c.name ?? '',
+        number: (c.number ?? '').replace(/^0+(?=\d)/, ''),
+        language: c.language ?? '',
+        condition: c.condition ?? '',
+        set_code: c.set_code ?? '',
+        color_code: c.color_code ?? '',
+        color_label: '',
+        rarity_code: c.rarity_code ?? '',
+        price: c.price ?? '',
+        comment: c.comment ?? '',
+        is_foil: c.is_foil ?? false,
+        section: 'Lorcana Cartes'
+      }))
+    }
+    return [await orders.persistParsedOrder(userId, parsed, parsed.source_pdf)]
+  })
+
+  // --- Diagnostic : page Cardmarket non reconnue -----------------------------------
+  ipcMain.handle('orders:saveCmDebug', async (_e, html: string, text: string) => {
+    const { writeFileSync } = await import('fs')
+    const { join } = await import('path')
+    const dir = app.getPath('userData')
+    writeFileSync(join(dir, 'cm-page-debug.html'), html, 'utf-8')
+    writeFileSync(join(dir, 'cm-page-debug.txt'), text, 'utf-8')
+    return dir
+  })
+
   // --- Timbres La Poste -----------------------------------------------------------
   ipcMain.handle('stamps:import', (e, userId: number) =>
     stamps.importSheets(userId, BrowserWindow.fromWebContents(e.sender)!)

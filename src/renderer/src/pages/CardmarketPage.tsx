@@ -33,37 +33,113 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     const wv = webviewRef.current
     if (!wv) return
     setBusy(true)
-    setMsg('Recherche du PDF de la commande…')
+    setMsg('Lecture de la page…')
     try {
-      // Dans la page affichée : trouver le lien d'export PDF de la commande,
-      // le télécharger avec les cookies de la session, renvoyer en base64.
-      const result = (await wv.executeJavaScript(`(async () => {
-        const links = [...document.querySelectorAll('a')]
-        const pdfLink = links.map((a) => a.href).find((h) => /\\.pdf(\\?|$)|[?&]print|Print/i.test(h || ''))
-        if (!pdfLink) return { err: 'nolink', url: location.href }
-        const r = await fetch(pdfLink, { credentials: 'include' })
-        if (!r.ok) return { err: 'http' + r.status }
-        const buf = new Uint8Array(await r.arrayBuffer())
-        let bin = ''
-        const chunk = 0x8000
-        for (let i = 0; i < buf.length; i += chunk) {
-          bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + chunk)))
-        }
-        return { b64: btoa(bin), from: pdfLink }
-      })()`)) as { err?: string; b64?: string; url?: string }
+      // Extraction des données de la commande directement depuis la page de
+      // vente affichée (aucun PDF nécessaire).
+      const result = (await wv.executeJavaScript(`(() => {
+        const txt = document.body.innerText
+        const eur = (s) => (s ? s.replace(/\\s/g, ' ').trim().replace('€', 'EUR').replace(/EUR?$/, 'EUR') : '')
+        const sale = (document.querySelector('h1')?.textContent || txt).match(/#\\s*(\\d{6,})/)
+        if (!sale) return { err: 'nosale' }
 
-      if (result.err === 'nolink') {
+        // Pseudo de l'acheteur : premier lien vers un profil utilisateur
+        const userLink = [...document.querySelectorAll('a')].find((a) => /\\/Users\\//.test(a.getAttribute('href') || ''))
+        const buyer_username = userLink ? userLink.textContent.trim() : ''
+
+        // Sommaire
+        const num = (label) => {
+          const m = txt.match(new RegExp(label + "[^0-9]{0,30}([\\\\d.,]+)\\\\s*€"))
+          return m ? m[1] + ' EUR' : ''
+        }
+        const contenu = txt.match(/Contenu[^0-9]{0,20}(\\d+)\\s*Article/i)
+        const envoi = txt.match(/M[ée]thode d'envoi:?\\s*\\n?\\s*([^\\n]+)/)
+        const suivi = txt.match(/Num[ée]ro de suivi[^A-Z0-9]{0,20}([A-Z0-9]{8,})/i)
+        const remb = txt.match(/Rembours[^\\d]{0,30}([\\d.,]+)\\s*€/i)
+
+        // Adresse de livraison : lignes entre le titre et « France » (incluse)
+        let buyer_name = ''
+        let buyer_address = ''
+        const addr = txt.match(/Adresse de livraison\\s*\\n([\\s\\S]{0,300}?\\n[A-ZÉÈ][a-zé]+)\\n/)
+        if (addr) {
+          const lines = addr[1].split('\\n').map((l) => l.trim()).filter(Boolean)
+          buyer_name = lines[0] || ''
+          buyer_address = lines.slice(1).join('\\n')
+        }
+
+        // Tableau des cartes : la table dont l'en-tête contient « Nom »
+        const cards = []
+        for (const table of document.querySelectorAll('table')) {
+          const head = table.querySelector('thead')?.innerText || ''
+          if (!/Nom/i.test(head)) continue
+          for (const row of table.querySelectorAll('tbody tr')) {
+            const rtxt = row.innerText
+            const qty = rtxt.match(/(\\d+)\\s*x/)
+            const name = row.querySelector('a')?.textContent?.trim() || ''
+            const number = rtxt.match(/#(\\d+)/)
+            const setc = rtxt.match(/\\b(\\d{1,2})([A-Z]{3})\\b/)
+            const cond = rtxt.match(/\\b(NM|MT|M|EX|GD|LP|PL|PO)\\b/)
+            const price = rtxt.match(/([\\d.,]+)\\s*€\\s*$/m)
+            // Langue et foil : via les info-bulles/attributs des icônes
+            const titles = [...row.querySelectorAll('[title],[aria-label],[data-original-title],[data-bs-original-title]')]
+              .flatMap((el) => [el.getAttribute('title'), el.getAttribute('aria-label'), el.getAttribute('data-original-title'), el.getAttribute('data-bs-original-title')])
+              .filter(Boolean).join(' | ')
+            const langMap = { 'Français': 'FR', 'Anglais': 'EN', 'English': 'EN', 'French': 'FR', 'Allemand': 'DE', 'German': 'DE', 'Italien': 'IT', 'Italian': 'IT', 'Espagnol': 'ES', 'Spanish': 'ES' }
+            let language = ''
+            for (const [k, v] of Object.entries(langMap)) if (titles.includes(k)) { language = v; break }
+            const is_foil = /foil/i.test(titles) || /foil/i.test(rtxt)
+            if (!name || !qty) continue
+            cards.push({
+              quantity: parseInt(qty[1], 10),
+              name,
+              number: number ? number[1] : '',
+              language,
+              condition: cond ? cond[1] : '',
+              set_code: setc ? setc[1] : '',
+              color_code: setc ? setc[2] : '',
+              rarity_code: '',
+              price: price ? price[1] + ' EUR' : '',
+              comment: '',
+              is_foil
+            })
+          }
+          if (cards.length) break
+        }
+
+        return {
+          sale_id: sale[1],
+          buyer_username,
+          buyer_name,
+          buyer_address,
+          article_count: contenu ? parseInt(contenu[1], 10) : null,
+          item_value: num("Valeur de l'article"),
+          shipping_cost: num('Frais de port'),
+          total: num('Total'),
+          shipping_method: envoi ? envoi[1].trim() : '',
+          tracking_number: suivi ? suivi[1] : '',
+          refund_amount: remb ? remb[1] + ' EUR' : '',
+          url: location.href,
+          cards
+        }
+      })()`)) as { err?: string; sale_id?: string; cards?: unknown[] }
+
+      if (result.err === 'nosale' || !result.sale_id) {
+        setMsg("Cette page n'est pas la page d'une vente — ouvre une vente précise puis réessaie.")
+        return
+      }
+      if (!result.cards || result.cards.length === 0) {
+        // Page de vente mais tableau non reconnu : capture de diagnostic
+        const dump = (await wv.executeJavaScript(
+          `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
+        )) as { html: string; text: string }
+        const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
         setMsg(
-          "Pas de lien PDF trouvé sur cette page — ouvre la page d'UNE vente précise (avec son bouton d'export PDF) puis réessaie."
+          `⚠ Vente #${result.sale_id} détectée mais cartes illisibles — fichiers de diagnostic enregistrés dans ${dir} (cm-page-debug.html/.txt) : envoie-les-moi pour que j'affine.`
         )
         return
       }
-      if (result.err) {
-        setMsg(`Téléchargement refusé (${result.err}) — utilise l'export manuel pour cette fois.`)
-        return
-      }
       setMsg('Import de la commande…')
-      const results = (await window.api.importPdfBase64(user.id, result.b64!)) as ImportResult[]
+      const results = (await window.api.importParsed(user.id, result)) as ImportResult[]
       const r = results[0]
       if (r.status === 'ok') {
         setMsg(`✅ Vente #${r.sale_id} (${r.buyer_username}) importée — ${r.cards} ligne(s)${r.message ? ` ${r.message}` : ''}`)

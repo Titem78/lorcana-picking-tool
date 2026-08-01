@@ -9,9 +9,7 @@ import type { ImportResult, Order, OrderLine, OrderStatus } from '@shared/types'
  * insère commande + lignes. Une vente déjà importée est signalée en doublon.
  */
 export async function importPdfs(userId: number | null, paths: string[]): Promise<ImportResult[]> {
-  const db = getDb()
   const results: ImportResult[] = []
-
   for (const path of paths) {
     try {
       const parsed = await parseCardmarketPdf(path)
@@ -19,21 +17,34 @@ export async function importPdfs(userId: number | null, paths: string[]): Promis
         results.push({ file: path, status: 'error', message: 'Numéro de vente introuvable — est-ce bien un PDF de vente Cardmarket ?' })
         continue
       }
-      const dup = db.prepare('SELECT id FROM orders WHERE sale_id = ?').get(parsed.sale_id)
-      if (dup) {
-        results.push({ file: path, status: 'duplicate', sale_id: parsed.sale_id })
-        continue
-      }
-      if (parsed.cards.length === 0) {
-        results.push({
-          file: path,
-          status: 'error',
-          sale_id: parsed.sale_id,
-          message:
-            'Aucun produit reconnu dans ce PDF — commande non importée. Envoie-moi ce PDF pour que le format soit pris en charge.'
-        })
-        continue
-      }
+      results.push(await persistParsedOrder(userId, parsed, path))
+    } catch (err) {
+      results.push({ file: path, status: 'error', message: String((err as Error).message ?? err) })
+    }
+  }
+  return results
+}
+
+/** Import d'une commande déjà analysée (PDF ou page web Cardmarket). */
+export async function persistParsedOrder(
+  userId: number | null,
+  parsed: Awaited<ReturnType<typeof parseCardmarketPdf>>,
+  path: string
+): Promise<ImportResult> {
+  const db = getDb()
+  const dup = db.prepare('SELECT id FROM orders WHERE sale_id = ?').get(parsed.sale_id)
+  if (dup) {
+    return { file: path, status: 'duplicate', sale_id: parsed.sale_id }
+  }
+  if (parsed.cards.length === 0) {
+    return {
+      file: path,
+      status: 'error',
+      sale_id: parsed.sale_id,
+      message:
+        'Aucun produit reconnu — commande non importée. Envoie-moi la source pour que le format soit pris en charge.'
+    }
+  }
 
       // Enrichissement Lorcast hors transaction (réseau, tolérant au hors-ligne)
       const enriched = [] as {
@@ -135,19 +146,14 @@ export async function importPdfs(userId: number | null, paths: string[]): Promis
           imported: totalQty
         })
       }
-      results.push({
-        file: path,
-        status: 'ok',
-        sale_id: parsed.sale_id,
-        buyer_username: parsed.buyer_username,
-        cards: parsed.cards.length,
-        message: mismatch
-      })
-    } catch (err) {
-      results.push({ file: path, status: 'error', message: String((err as Error).message ?? err) })
-    }
+  return {
+    file: path,
+    status: 'ok',
+    sale_id: parsed.sale_id,
+    buyer_username: parsed.buyer_username,
+    cards: parsed.cards.length,
+    message: mismatch
   }
-  return results
 }
 
 const ORDER_SELECT = `

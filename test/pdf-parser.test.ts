@@ -79,6 +79,23 @@ describe.skipIf(!existsSync(DICE_SAMPLE))('parseCardmarketPdf — commande de d�
   })
 })
 
+// Autre PDF de vente réel : contrôle d'exhaustivité générique
+const SAMPLE3 = 'D:\\telechargement\\Vente_#1283342140.pdf'
+
+describe.skipIf(!existsSync(SAMPLE3))('parseCardmarketPdf — Vente #1283342140', () => {
+  it('importe toutes les lignes annoncées', async () => {
+    const order = await parseCardmarketPdf(SAMPLE3)
+    expect(order.sale_id).toBe('1283342140')
+    expect(order.cards.length).toBeGreaterThan(0)
+    const totalQty = order.cards.reduce((s, c) => s + c.quantity, 0)
+    expect(totalQty).toBe(order.article_count)
+    for (const c of order.cards) {
+      expect(c.price).toMatch(/EUR$/)
+      expect(c.set_code).toMatch(/^\d+$/)
+    }
+  })
+})
+
 // Planche de timbres La Poste réelle (numéros non versionnés : dépôt public)
 const STAMP_SHEET = 'D:\\telechargement\\Z0134948232-mtel.pdf'
 

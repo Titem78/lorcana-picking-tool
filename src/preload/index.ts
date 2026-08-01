@@ -113,6 +113,11 @@ const api = {
   importPdfBase64: (userId: number, b64: string) =>
     ipcRenderer.invoke('orders:importPdfBase64', userId, b64),
 
+  importParsed: (userId: number, data: unknown) =>
+    ipcRenderer.invoke('orders:importParsed', userId, data),
+
+  saveCmDebug: (html: string, text: string) => ipcRenderer.invoke('orders:saveCmDebug', html, text),
+
   onAutoImported: (cb: (results: unknown[]) => void) => {
     ipcRenderer.on('orders:auto-imported', (_e, results) => cb(results))
   },
