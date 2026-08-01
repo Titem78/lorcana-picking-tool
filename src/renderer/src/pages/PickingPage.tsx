@@ -144,7 +144,15 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {section.items.map((item) => (
-                <PickingRow key={item.key} item={item} onSetQty={setQty} onPickAll={pickAll} />
+                <PickingRow
+                  key={item.key}
+                  item={item}
+                  onSetQty={setQty}
+                  onPickAll={pickAll}
+                  onSetAccessoryImage={(name) =>
+                    window.api.picking.setAccessoryImage(user.id, name).then(refresh)
+                  }
+                />
               ))}
             </div>
           </section>
@@ -211,11 +219,13 @@ function QtyControl({
 function PickingRow({
   item,
   onSetQty,
-  onPickAll
+  onPickAll,
+  onSetAccessoryImage
 }: {
   item: PickingItem
   onSetQty: (s: PickingSubline, qty: number) => void
   onPickAll: (item: PickingItem, picked: boolean) => void
+  onSetAccessoryImage: (name: string) => void
 }): React.JSX.Element {
   const multi = item.sublines.length > 1
   const [open, setOpen] = useState(false)
@@ -233,7 +243,15 @@ function PickingRow({
       }}
     >
       <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-        <CardThumb line={item} size={96} />
+        <CardThumb
+          line={item}
+          size={96}
+          onMissingClick={
+            !/carte/i.test(item.section)
+              ? () => onSetAccessoryImage(item.name)
+              : undefined
+          }
+        />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <b style={{ fontSize: '1.08rem' }}>

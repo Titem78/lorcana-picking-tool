@@ -54,6 +54,11 @@ interface OdooCfg {
   productDiceName: string
   productOtherId: number | null
   productOtherName: string
+  productShippingId: number | null
+  productShippingName: string
+  taxId: number | null
+  taxName: string
+  taxRate: number
 }
 
 /**
@@ -154,7 +159,12 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
     productDiceId: null,
     productDiceName: '',
     productOtherId: null,
-    productOtherName: ''
+    productOtherName: '',
+    productShippingId: null,
+    productShippingName: '',
+    taxId: null,
+    taxName: '',
+    taxRate: 20
   })
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
@@ -277,7 +287,27 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
           search={(q) => window.api.odoo.searchProducts(cfg, q)}
           onSelect={(id, name) => setCfg({ ...cfg, productOtherId: id, productOtherName: name })}
         />
+        <OdooPicker
+          label="🚚 Frais de port"
+          selectedId={cfg.productShippingId}
+          selectedName={cfg.productShippingName}
+          search={(q) => window.api.odoo.searchProducts(cfg, q)}
+          onSelect={(id, name) =>
+            setCfg({ ...cfg, productShippingId: id, productShippingName: name })
+          }
+        />
       </div>
+
+      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+          <b>TVA sur les ventes</b> — les prix Cardmarket sont TTC : l&apos;app les convertit en
+          HT et applique cette taxe sur chaque ligne (le total TTC Odoo = le total Cardmarket).
+          Cherche par ex. « 20 ».
+        </span>
+        <TaxPicker cfg={cfg} onSelect={(id, name, rate) => setCfg({ ...cfg, taxId: id, taxName: name, taxRate: rate })} />
+      </div>
+
+      <AccessoryMapSection user={user} cfg={cfg} />
       <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button disabled={!complete || busy} onClick={test}>
           🔌 Tester la connexion
@@ -288,6 +318,105 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
         <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{status}</span>
       </div>
     </section>
+  )
+}
+
+/** Sélecteur de la taxe de vente (affiche aussi le taux, ex. 20 %). */
+function TaxPicker({
+  cfg,
+  onSelect
+}: {
+  cfg: OdooCfg
+  onSelect: (id: number | null, name: string, rate: number) => void
+}): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<{ id: number; name: string; amount: number }[] | null>(null)
+
+  if (cfg.taxId) {
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span className="badge" style={{ borderColor: 'var(--ok)', color: 'var(--text)' }}>
+          {cfg.taxName} — {cfg.taxRate} %
+        </span>
+        <button onClick={() => onSelect(null, '', 20)}>Changer</button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input
+        placeholder="ex. 20"
+        value={query}
+        style={{ width: 140 }}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && query.trim())
+            window.api.odoo.searchTaxes(cfg, query.trim()).then(setResults)
+        }}
+      />
+      <button
+        disabled={!query.trim()}
+        onClick={() => window.api.odoo.searchTaxes(cfg, query.trim()).then(setResults)}
+      >
+        🔎
+      </button>
+      {results !== null &&
+        (results.length === 0 ? (
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>aucune taxe trouvée</span>
+        ) : (
+          results.map((r) => (
+            <button
+              key={r.id}
+              style={{ fontSize: '0.85rem' }}
+              onClick={() => {
+                onSelect(r.id, r.name, r.amount)
+                setResults(null)
+              }}
+            >
+              {r.name} ({r.amount} %)
+            </button>
+          ))
+        ))}
+    </div>
+  )
+}
+
+/**
+ * Associations des accessoires gérés en stock : chaque produit rencontré dans
+ * les commandes (dés, troves, displays…) est relié à SON article Odoo, pour
+ * que le stock se décrémente correctement à la facturation.
+ */
+function AccessoryMapSection({ user, cfg }: { user: User; cfg: OdooCfg }): React.JSX.Element {
+  const [entries, setEntries] = useState<
+    { line_name: string; product_id: number | null; product_name: string | null }[]
+  >([])
+
+  const refresh = (): void => {
+    window.api.odoo.listAccessoryMap().then(setEntries)
+  }
+  useEffect(refresh, [])
+
+  if (entries.length === 0) return <></>
+
+  return (
+    <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+        <b>Accessoires gérés en stock</b> — associe chaque produit rencontré dans tes commandes à
+        son article Odoo exact (prioritaire sur les articles génériques ci-dessus) :
+      </span>
+      {entries.map((e) => (
+        <OdooPicker
+          key={e.line_name}
+          label={e.line_name.length > 28 ? e.line_name.slice(0, 28) + '…' : e.line_name}
+          selectedId={e.product_id}
+          selectedName={e.product_name ?? ''}
+          search={(q) => window.api.odoo.searchProducts(cfg, q)}
+          onSelect={(id, name) =>
+            window.api.odoo.setProductMap(user.id, e.line_name, id, name).then(refresh)
+          }
+        />
+      ))}
+    </div>
   )
 }
 

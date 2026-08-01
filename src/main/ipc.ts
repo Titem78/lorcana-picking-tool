@@ -107,6 +107,9 @@ export function registerIpc(): void {
   ipcMain.handle('picking:setQty', (_e, userId: number, lineId: number, qty: number) =>
     picking.setPickedQty(userId, lineId, qty)
   )
+  ipcMain.handle('picking:setAccessoryImage', (e, userId: number, lineName: string) =>
+    picking.setAccessoryImage(userId, lineName, BrowserWindow.fromWebContents(e.sender)!)
+  )
 
   // --- Exports / imports --------------------------------------------------------
   ipcMain.handle('exports:historyCsv', (e, userId: number) =>
@@ -130,6 +133,15 @@ export function registerIpc(): void {
   )
   ipcMain.handle('odoo:searchProducts', (_e, cfg: odoo.OdooConfig, query: string) =>
     odoo.searchProducts(cfg, query)
+  )
+  ipcMain.handle('odoo:searchTaxes', (_e, cfg: odoo.OdooConfig, query: string) =>
+    odoo.searchTaxes(cfg, query)
+  )
+  ipcMain.handle('odoo:listAccessoryMap', () => odoo.listAccessoryMap())
+  ipcMain.handle(
+    'odoo:setProductMap',
+    (_e, userId: number, lineName: string, productId: number | null, productName: string | null) =>
+      odoo.setProductMap(userId, lineName, productId, productName)
   )
   ipcMain.handle('odoo:send', (_e, userId: number, orderId: number) =>
     odoo.sendOrderToOdoo(userId, orderId)

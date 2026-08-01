@@ -49,6 +49,16 @@ export function buildPickingList(): PickingList {
   const sectionMap = new Map<number | null, PickingSection>()
   const orderIds = new Set<number>()
 
+  // Visuels personnalisés des accessoires (dés, troves, displays...)
+  const customImages = new Map(
+    (
+      db.prepare('SELECT line_name, image_file FROM accessory_images').all() as {
+        line_name: string
+        image_file: string
+      }[]
+    ).map((r) => [r.line_name, r.image_file])
+  )
+
   for (const line of lines) {
     orderIds.add(line.order_id)
     const loc: StorageLocation | null = resolveLocation(lineFacts(line), locations)
@@ -81,8 +91,8 @@ export function buildPickingList(): PickingList {
         rarity: line.rarity ?? canonicalRarity(line.rarity_code ?? ''),
         is_foil: line.is_foil === 1,
         language: line.language ?? '',
-        image_file: line.image_file,
-        image_large_file: line.image_large_file,
+        image_file: line.image_file ?? customImages.get(line.name) ?? null,
+        image_large_file: line.image_large_file ?? customImages.get(line.name) ?? null,
         total_qty: 0,
         picked_qty: 0,
         sublines: []
@@ -180,4 +190,38 @@ export function setPickedQty(userId: number, lineId: number, qty: number): void 
 /** Coche/décoche une ligne entière (compat : équivaut au compteur à fond ou à zéro). */
 export function pickLine(userId: number, lineId: number, picked: boolean): void {
   setPickedQty(userId, lineId, picked ? Number.MAX_SAFE_INTEGER : 0)
+}
+
+/**
+ * Associe un visuel personnalisé (fichier image choisi par l'utilisateur) à un
+ * produit accessoire — copié dans le cache et réutilisé partout ensuite.
+ */
+export async function setAccessoryImage(
+  userId: number,
+  lineName: string,
+  win: Electron.BrowserWindow
+): Promise<string | null> {
+  const { dialog } = await import('electron')
+  const { copyFileSync } = await import('fs')
+  const { extname, join } = await import('path')
+  const { imagesDir } = await import('./lorcast')
+
+  const res = await dialog.showOpenDialog(win, {
+    title: `Choisir un visuel pour « ${lineName} »`,
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif'] }],
+    properties: ['openFile']
+  })
+  if (res.canceled || !res.filePaths[0]) return null
+
+  const src = res.filePaths[0]
+  const fname = `accessory_${lineName.replace(/[^\w-]/g, '_').slice(0, 60)}${extname(src).toLowerCase()}`
+  copyFileSync(src, join(imagesDir(), fname))
+  getDb()
+    .prepare(
+      `INSERT INTO accessory_images (line_name, image_file) VALUES (?, ?)
+       ON CONFLICT(line_name) DO UPDATE SET image_file = excluded.image_file`
+    )
+    .run(lineName, fname)
+  logActivity(userId, 'accessory.image_set', { lineName, fname })
+  return fname
 }

@@ -117,5 +117,18 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE orders ADD COLUMN odoo_move_id INTEGER;
   ALTER TABLE orders ADD COLUMN odoo_sent_at TEXT;
   ALTER TABLE orders ADD COLUMN odoo_error TEXT;
+  `,
+
+  // 006 — accessoires : association aux articles Odoo (stock) + visuels perso
+  `
+  CREATE TABLE odoo_product_map (
+    line_name TEXT PRIMARY KEY,
+    product_id INTEGER NOT NULL,
+    product_name TEXT
+  );
+  CREATE TABLE accessory_images (
+    line_name TEXT PRIMARY KEY,
+    image_file TEXT NOT NULL
+  );
   `
 ]

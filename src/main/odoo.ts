@@ -33,6 +33,13 @@ export interface OdooConfig {
   productDiceName: string
   productOtherId: number | null
   productOtherName: string
+  /** article Odoo pour la ligne « Frais de port » */
+  productShippingId: number | null
+  productShippingName: string
+  /** taxe de vente appliquée à toutes les lignes (ex. TVA 20 %) */
+  taxId: number | null
+  taxName: string
+  taxRate: number // pourcentage, ex. 20 — sert à convertir le TTC Cardmarket en HT
 }
 
 export function getOdooConfig(): OdooConfig | null {
@@ -58,7 +65,12 @@ export function getOdooConfig(): OdooConfig | null {
     productDiceId: num(map.odoo_product_dice_id),
     productDiceName: map.odoo_product_dice_name || '',
     productOtherId: num(map.odoo_product_other_id),
-    productOtherName: map.odoo_product_other_name || ''
+    productOtherName: map.odoo_product_other_name || '',
+    productShippingId: num(map.odoo_product_shipping_id),
+    productShippingName: map.odoo_product_shipping_name || '',
+    taxId: num(map.odoo_tax_id),
+    taxName: map.odoo_tax_name || '',
+    taxRate: parseFloat(map.odoo_tax_rate ?? '') || 20
   }
 }
 
@@ -79,6 +91,11 @@ export function saveOdooConfig(userId: number, cfg: OdooConfig): void {
     up.run('odoo_product_dice_name', cfg.productDiceName ?? '')
     up.run('odoo_product_other_id', String(cfg.productOtherId ?? ''))
     up.run('odoo_product_other_name', cfg.productOtherName ?? '')
+    up.run('odoo_product_shipping_id', String(cfg.productShippingId ?? ''))
+    up.run('odoo_product_shipping_name', cfg.productShippingName ?? '')
+    up.run('odoo_tax_id', String(cfg.taxId ?? ''))
+    up.run('odoo_tax_name', cfg.taxName ?? '')
+    up.run('odoo_tax_rate', String(cfg.taxRate ?? 20))
   })
   tx()
   logActivity(userId, 'odoo.config_saved', { url: cfg.url, mode: cfg.partnerMode })
@@ -116,6 +133,62 @@ export async function searchProducts(
     { fields: ['id', 'name'], limit: 12 }
   )) as { id: number; name: string }[]
   return rows
+}
+
+/** Taxes de vente (pour choisir la TVA 20 %). Renvoie aussi le taux. */
+export async function searchTaxes(
+  cfg: OdooConfig,
+  query: string
+): Promise<{ id: number; name: string; amount: number }[]> {
+  const uid = await authenticate(cfg)
+  const rows = (await execute(
+    cfg,
+    uid,
+    'account.tax',
+    'search_read',
+    [[['type_tax_use', '=', 'sale'], ['name', 'ilike', query]]],
+    { fields: ['id', 'name', 'amount'], limit: 12 }
+  )) as { id: number; name: string; amount: number }[]
+  return rows
+}
+
+// --- Association nom de produit accessoire → article Odoo (gestion de stock) ---
+
+export interface AccessoryMapEntry {
+  line_name: string
+  product_id: number | null
+  product_name: string | null
+}
+
+/** Tous les accessoires rencontrés dans les commandes, avec leur association. */
+export function listAccessoryMap(): AccessoryMapEntry[] {
+  return getDb()
+    .prepare(
+      `SELECT DISTINCT l.name AS line_name, m.product_id, m.product_name
+       FROM order_lines l
+       LEFT JOIN odoo_product_map m ON m.line_name = l.name
+       WHERE l.section NOT LIKE '%carte%'
+       ORDER BY l.name`
+    )
+    .all() as AccessoryMapEntry[]
+}
+
+export function setProductMap(
+  userId: number,
+  lineName: string,
+  productId: number | null,
+  productName: string | null
+): void {
+  const db = getDb()
+  if (productId) {
+    db.prepare(
+      `INSERT INTO odoo_product_map (line_name, product_id, product_name) VALUES (?, ?, ?)
+       ON CONFLICT(line_name) DO UPDATE SET product_id = excluded.product_id, product_name = excluded.product_name`
+    ).run(lineName, productId, productName)
+  } else {
+    db.prepare('DELETE FROM odoo_product_map WHERE line_name = ?').run(lineName)
+  }
+  logActivity(userId, 'odoo.product_mapped', { lineName, productId, productName })
 }
 
 // --- JSON-RPC -------------------------------------------------------------------
@@ -229,16 +302,36 @@ export async function sendOrderToOdoo(
     }
 
     // 2. Lignes de facture : une par article + frais de port.
-    //    Chaque ligne est rattachée à l'article Odoo EXISTANT configuré selon le
-    //    type de produit (cartes / dés / autres) — jamais de création d'article.
-    const productFor = (section: string): number | null => {
-      if (/cartes/i.test(section)) return cfg.productCardsId
-      if (/dés|des|dice/i.test(section)) return cfg.productDiceId
+    //    Les prix Cardmarket sont TTC : on les convertit en HT (÷ 1 + taux) et
+    //    on applique la taxe de vente configurée (ex. TVA 20 %) sur CHAQUE
+    //    ligne — Odoo recalcule alors le TTC = prix Cardmarket, et le total HT
+    //    est correct pour la comptabilité.
+    if (!cfg.taxId) {
+      throw new Error(
+        'Choisis la taxe de vente (TVA 20 %) dans les Réglages Odoo avant d’envoyer'
+      )
+    }
+    const toHT = (ttc: number): number =>
+      Math.round((ttc / (1 + cfg.taxRate / 100)) * 10000) / 10000
+    const taxSpec = { tax_ids: [[6, 0, [cfg.taxId]]] }
+
+    // Article : association précise par nom (accessoires gérés en stock),
+    // sinon article générique du type, sinon ligne en texte libre.
+    const mapRows = db
+      .prepare('SELECT line_name, product_id FROM odoo_product_map')
+      .all() as { line_name: string; product_id: number }[]
+    const nameMap = new Map(mapRows.map((r) => [r.line_name, r.product_id]))
+    const productFor = (l: { section: string; name: string }): number | null => {
+      if (/carte/i.test(l.section)) return cfg.productCardsId
+      const mapped = nameMap.get(l.name)
+      if (mapped) return mapped
+      if (/dés|des|dice/i.test(l.section)) return cfg.productDiceId
       return cfg.productOtherId
     }
+
     const lines = getOrderLines(orderId)
     const invoiceLines: unknown[] = lines.map((l) => {
-      const productId = productFor(l.section)
+      const productId = productFor(l)
       return [
         0,
         0,
@@ -251,13 +344,24 @@ export async function sendOrderToOdoo(
             (l.condition ? ` ${l.condition}` : '') +
             (l.is_foil === 1 ? ' FOIL' : ''),
           quantity: l.quantity,
-          price_unit: eurToFloat(l.price)
+          price_unit: toHT(eurToFloat(l.price)),
+          ...taxSpec
         }
       ]
     })
     const shipping = eurToFloat(order.shipping_cost)
     if (shipping > 0) {
-      invoiceLines.push([0, 0, { name: 'Frais de port', quantity: 1, price_unit: shipping }])
+      invoiceLines.push([
+        0,
+        0,
+        {
+          ...(cfg.productShippingId ? { product_id: cfg.productShippingId } : {}),
+          name: 'Frais de port',
+          quantity: 1,
+          price_unit: toHT(shipping),
+          ...taxSpec
+        }
+      ])
     }
 
     // 3. Facture brouillon

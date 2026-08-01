@@ -16,10 +16,13 @@ interface ThumbLine {
  */
 export default function CardThumb({
   line,
-  size = 52
+  size = 52,
+  onMissingClick
 }: {
   line: ThumbLine
   size?: number
+  /** clic sur le placeholder quand il n'y a pas de visuel (ex. accessoires : associer une image) */
+  onMissingClick?: () => void
 }): React.JSX.Element {
   const [zoom, setZoom] = useState(false)
   const ink = line.ink ?? line.color_label ?? ''
@@ -28,16 +31,24 @@ export default function CardThumb({
   if (!line.image_file) {
     return (
       <div
-        title={line.name}
+        title={onMissingClick ? `${line.name} — clique pour ajouter un visuel` : line.name}
+        onClick={onMissingClick}
         style={{
           width: size,
           height: Math.round(size * 1.4),
           borderRadius: 4,
           background: `linear-gradient(160deg, ${hex}66, ${hex}22)`,
           border: `1px solid ${hex}`,
-          flexShrink: 0
+          flexShrink: 0,
+          cursor: onMissingClick ? 'pointer' : 'default',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: Math.round(size / 3)
         }}
-      />
+      >
+        {onMissingClick ? '📷' : ''}
+      </div>
     )
   }
 

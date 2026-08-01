@@ -53,7 +53,9 @@ const api = {
     pick: (userId: number, lineId: number, picked: boolean) =>
       ipcRenderer.invoke('picking:pick', userId, lineId, picked),
     setQty: (userId: number, lineId: number, qty: number) =>
-      ipcRenderer.invoke('picking:setQty', userId, lineId, qty)
+      ipcRenderer.invoke('picking:setQty', userId, lineId, qty),
+    setAccessoryImage: (userId: number, lineName: string) =>
+      ipcRenderer.invoke('picking:setAccessoryImage', userId, lineName)
   },
 
   prepCheck: (userId: number, lineId: number, checked: boolean) =>
@@ -78,6 +80,10 @@ const api = {
       ipcRenderer.invoke('odoo:searchPartners', cfg, query),
     searchProducts: (cfg: unknown, query: string) =>
       ipcRenderer.invoke('odoo:searchProducts', cfg, query),
+    searchTaxes: (cfg: unknown, query: string) => ipcRenderer.invoke('odoo:searchTaxes', cfg, query),
+    listAccessoryMap: () => ipcRenderer.invoke('odoo:listAccessoryMap'),
+    setProductMap: (userId: number, lineName: string, productId: number | null, productName: string | null) =>
+      ipcRenderer.invoke('odoo:setProductMap', userId, lineName, productId, productName),
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
   },
 
