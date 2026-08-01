@@ -46,7 +46,12 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
 
   return (
     <div>
-      <h1>📦 Commandes</h1>
+      <h1>① 📦 Commandes</h1>
+      <p style={{ color: 'var(--text-dim)', marginBottom: 14, maxWidth: 720 }}>
+        <b>Étape 1</b> : importe tes PDF de vente Cardmarket ici. Ensuite : ② Picking pour sortir
+        les cartes de toutes les commandes d&apos;un coup, ③ Préparation pour contrôler, emballer
+        et expédier chaque commande, ④ Historique pour retrouver tout ce qui est parti.
+      </p>
 
       <div
         onDragOver={(e) => {
@@ -103,9 +108,17 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
               )}
             </div>
           ))}
-          <button style={{ marginTop: 8 }} onClick={() => setResults(null)}>
-            OK
-          </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            {results.some((r) => r.status === 'ok') && (
+              <button
+                className="primary"
+                onClick={() => window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'picking' }))}
+              >
+                ② Lancer le picking →
+              </button>
+            )}
+            <button onClick={() => setResults(null)}>OK</button>
+          </div>
         </div>
       )}
 

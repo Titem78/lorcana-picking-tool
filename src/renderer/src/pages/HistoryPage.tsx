@@ -38,7 +38,7 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
 
   return (
     <div>
-      <h1>📚 Historique</h1>
+      <h1>④ 📚 Historique</h1>
 
       {stats && stats.months.length > 0 && (
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 24 }}>

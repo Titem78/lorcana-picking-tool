@@ -65,12 +65,15 @@ export function buildPickingList(): PickingList {
       sectionMap.set(locId, section)
     }
 
-    const key = [line.set_code, line.number, line.is_foil, line.language].join('|')
+    // Identité physique : pour une carte, chapitre+numéro suffit ; pour un
+    // accessoire (pas de numéro), le nom fait l'identité.
+    const key = [line.section, line.set_code, line.number || line.name, line.is_foil, line.language].join('|')
     let item = section.items.find((i) => i.key === key)
     if (!item) {
       item = {
         key,
         name: line.name,
+        section: line.section,
         lorcast_name: line.lorcast_name,
         number: line.number,
         set_code: line.set_code,

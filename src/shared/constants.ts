@@ -39,6 +39,7 @@ export const RARITIES = [
   'Uncommon',
   'Rare',
   'Super_rare',
+  'Epic',
   'Legendary',
   'Enchanted',
   'Promo'
@@ -49,17 +50,20 @@ export const RARITY_LABELS_FR: Record<string, string> = {
   Uncommon: 'Inhabituelle',
   Rare: 'Rare',
   Super_rare: 'Super rare',
+  Epic: 'Epic',
   Legendary: 'Légendaire',
   Enchanted: 'Enchantée',
   Promo: 'Promo'
 }
 
-/** Codes rareté des PDF Cardmarket → canonique. */
+/** Codes rareté des PDF Cardmarket → canonique. (La rareté Lorcast, obtenue
+ * par numéro de collection, fait foi quand elle est disponible.) */
 export const CM_RARITY_CODE_TO_RARITY: Record<string, string> = {
   C: 'Common',
   U: 'Uncommon',
   R: 'Rare',
   SR: 'Super_rare',
+  EP: 'Epic',
   L: 'Legendary',
   E: 'Enchanted',
   P: 'Promo'

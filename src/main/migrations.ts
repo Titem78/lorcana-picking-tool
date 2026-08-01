@@ -105,5 +105,10 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE order_lines ADD COLUMN prep_checked INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE order_lines ADD COLUMN image_large_file TEXT;
+  `,
+
+  // 004 — sections de produits Cardmarket (cartes, dés, scellé...)
+  `
+  ALTER TABLE order_lines ADD COLUMN section TEXT NOT NULL DEFAULT 'Lorcana Cartes';
   `
 ]

@@ -8,12 +8,14 @@ import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
 
+// L'ordre des onglets suit le flux de travail réel :
+// importer → picker → préparer/expédier → historique.
 const TABS = [
-  { id: 'picking', label: '🎯 Picking' },
-  { id: 'prep', label: '🧾 Préparation' },
-  { id: 'orders', label: '📦 Commandes' },
+  { id: 'orders', label: '① 📦 Commandes' },
+  { id: 'picking', label: '② 🎯 Picking' },
+  { id: 'prep', label: '③ 🧾 Préparation' },
+  { id: 'history', label: '④ 📚 Historique' },
   { id: 'locations', label: '🗄️ Emplacements' },
-  { id: 'history', label: '📚 Historique' },
   { id: 'settings', label: '⚙️ Réglages' }
 ] as const
 
@@ -21,8 +23,18 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App(): React.JSX.Element {
   const [user, setUser] = useState<User | null>(null)
-  const [tab, setTab] = useState<TabId>('picking')
+  const [tab, setTab] = useState<TabId>('orders')
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+
+  // Navigation entre pages (ex. bouton « Lancer le picking → » après un import)
+  useEffect(() => {
+    const goto = (e: Event): void => {
+      const target = (e as CustomEvent).detail as TabId
+      if (TABS.some((t) => t.id === target)) setTab(target)
+    }
+    window.addEventListener('goto-tab', goto)
+    return () => window.removeEventListener('goto-tab', goto)
+  }, [])
 
   useEffect(() => {
     window.api.onUpdaterEvent((event, payload) => {

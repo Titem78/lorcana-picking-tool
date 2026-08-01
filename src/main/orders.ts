@@ -24,6 +24,16 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         results.push({ file: path, status: 'duplicate', sale_id: parsed.sale_id })
         continue
       }
+      if (parsed.cards.length === 0) {
+        results.push({
+          file: path,
+          status: 'error',
+          sale_id: parsed.sale_id,
+          message:
+            'Aucun produit reconnu dans ce PDF — commande non importée. Envoie-moi ce PDF pour que le format soit pris en charge.'
+        })
+        continue
+      }
 
       // Enrichissement Lorcast hors transaction (réseau, tolérant au hors-ligne)
       const enriched = [] as {
@@ -35,7 +45,9 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         lorcast_name: string | null
       }[]
       for (const line of parsed.cards) {
-        const card = await getCard(line.set_code, line.number)
+        // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
+        const isCard = /cartes/i.test(line.section) && line.number
+        const card = isCard ? await getCard(line.set_code, line.number) : null
         enriched.push({
           line,
           ink: card?.ink ?? null,
@@ -73,8 +85,8 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         const ins = db.prepare(
           `INSERT INTO order_lines (order_id, quantity, name, number, language, condition,
              set_code, color_code, color_label, rarity_code, price, comment, is_foil,
-             ink, rarity, image_file, image_large_file, lorcast_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             ink, rarity, image_file, image_large_file, lorcast_name, section)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         for (const e of enriched) {
           ins.run(
@@ -95,7 +107,8 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
             e.rarity,
             e.image_file,
             e.image_large_file,
-            e.lorcast_name
+            e.lorcast_name,
+            e.line.section
           )
         }
         return orderId

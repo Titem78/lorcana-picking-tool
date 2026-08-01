@@ -112,6 +112,7 @@ export interface OrderLine {
   image_large_file: string | null
   lorcast_name: string | null
   prep_checked: number
+  section: string
   picked_by_name?: string | null
 }
 
@@ -134,6 +135,7 @@ export interface PickingSubline {
 export interface PickingItem {
   key: string
   name: string
+  section: string
   lorcast_name: string | null
   number: string | null
   set_code: string | null

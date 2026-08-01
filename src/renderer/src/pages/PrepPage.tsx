@@ -24,7 +24,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   if (orders.length === 0) {
     return (
       <div>
-        <h1>🧾 Préparation</h1>
+        <h1>③ 🧾 Préparation</h1>
         <div className="placeholder">
           Rien à préparer pour l&apos;instant. Quand toutes les cartes d&apos;une commande sont
           cochées au picking, la commande arrive ici pour être contrôlée, validée puis expédiée.
@@ -35,7 +35,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
 
   return (
     <div>
-      <h1>🧾 Préparation</h1>
+      <h1>③ 🧾 Préparation</h1>
       <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <PrepColumn
           title={`À préparer (${toPrepare.length})`}

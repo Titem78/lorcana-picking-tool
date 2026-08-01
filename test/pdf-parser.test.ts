@@ -58,6 +58,27 @@ describe.skipIf(!existsSync(SAMPLE))('parseCardmarketPdf — Vente #1285561183',
   })
 })
 
+// PDF réel d'une commande d'accessoires (section « Dés: », sans numéros de carte)
+const DICE_SAMPLE = 'D:\\telechargement\\Vente_#1290778586.pdf'
+
+describe.skipIf(!existsSync(DICE_SAMPLE))('parseCardmarketPdf — commande de dés', () => {
+  it('extrait les lignes de la section Dés', async () => {
+    const order = await parseCardmarketPdf(DICE_SAMPLE)
+    expect(order.sale_id).toBe('1290778586')
+    expect(order.cards.length).toBeGreaterThanOrEqual(6)
+    for (const line of order.cards) {
+      expect(line.section).toBe('Dés')
+      expect(line.quantity).toBeGreaterThan(0)
+      expect(line.name).toMatch(/Dés/i)
+      expect(line.set_code).toMatch(/^\d+$/)
+      expect(line.price).toMatch(/EUR$/)
+      expect(line.number).toBe('') // les dés n'ont pas de numéro de collection
+    }
+    const total = order.cards.reduce((s, c) => s + c.quantity, 0)
+    expect(total).toBe(order.article_count)
+  })
+})
+
 describe('helpers règles', () => {
   it('parseChaptersInput', () => {
     expect(parseChaptersInput('1-5, 8, 10')).toEqual([1, 2, 3, 4, 5, 8, 10])

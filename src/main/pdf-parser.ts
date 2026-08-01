@@ -15,7 +15,7 @@ import { CM_COLOR_CODE_TO_INK, CM_RARITY_CODE_TO_RARITY } from '@shared/constant
 export interface ParsedCardLine {
   quantity: number
   name: string
-  number: string // normalisé sans zéros de tête ("023" → "23")
+  number: string // normalisé sans zéros de tête ("023" → "23") ; vide pour les accessoires
   language: string
   condition: string
   set_code: string // numéro de chapitre, ex. "12"
@@ -25,6 +25,7 @@ export interface ParsedCardLine {
   price: string
   comment: string
   is_foil: boolean
+  section: string // section du PDF : "Lorcana Cartes", "Dés", "Produits Scellés"...
 }
 
 export interface ParsedOrder {
@@ -163,24 +164,31 @@ function parseHeader(rows: Tok[][], allText: string): Omit<ParsedOrder, 'cards' 
 
 function parseCards(rowsPerPage: Tok[][][]): ParsedCardLine[] {
   const cards: ParsedCardLine[] = []
-  let inLorcana = false
+  // Sections rencontrées : « Lorcana Cartes: », « Dés: », « Produits Scellés: »…
+  // On importe TOUT (cartes ET accessoires : ils doivent aussi être préparés).
+  let section = ''
 
   for (const rows of rowsPerPage) {
     for (const row of rows) {
       const joined = row.map((t) => t.str).join(' ')
 
-      // En-têtes de section : « Lorcana Cartes: », « Magic Cartes: »…
-      const section = joined.match(/^(\S[\w\s!:]*?)\s+Cartes\s*:/i)
-      if (section && row[0].x < 25) {
-        inLorcana = /lorcana/i.test(section[1])
+      // En-tête de section : court, aligné à gauche (x≈17), se termine par « : »
+      const header = joined.match(/^([^:]{2,40}):$/)
+      if (header && row[0].x < 25) {
+        section = header[1].trim()
         continue
       }
-      if (!inLorcana) continue
+      if (!section) continue
 
-      const card = parseCardRow(row) ?? parseCardText(joined)
+      const card = parseCardRow(row, section) ?? parseCardText(joined, section)
       if (card) {
         cards.push(card)
-      } else if (cards.length > 0 && row.length === 1 && row[0].x >= 28 && row[0].x < 213) {
+      } else if (
+        cards.length > 0 &&
+        row.length === 1 &&
+        row[0].x >= 28 &&
+        row[0].x < 213
+      ) {
         // Nom trop long qui déborde sur une seconde ligne dans la colonne nom.
         cards[cards.length - 1].name += ' ' + row[0].str
       }
@@ -189,8 +197,12 @@ function parseCards(rowsPerPage: Tok[][][]): ParsedCardLine[] {
   return cards
 }
 
-/** Analyse principale : classification des tokens par colonne (coordonnées x). */
-function parseCardRow(row: Tok[]): ParsedCardLine | null {
+/**
+ * Analyse principale : classification des tokens par colonne (coordonnées x).
+ * Gère les cartes (numéro + langue + état + set + rareté) ET les accessoires
+ * type dés (nom + langue + set, sans numéro ni état ni rareté).
+ */
+function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
   const qtyTok = row.find((t) => t.x < 28 && /^\d+$/.test(t.str))
   const priceTok = row.find((t) => t.x >= 500 && PRICE_RE.test(t.str))
   if (!qtyTok || !priceTok) return null
@@ -202,13 +214,14 @@ function parseCardRow(row: Tok[]): ParsedCardLine | null {
     .map((t) => t.str)
     .join(' ')
     .split(/\s+/)
+    .filter(Boolean)
   const rarity = row.filter((t) => t.x >= 310 && t.x < 333).map((t) => t.str).join('')
   const comment = row
     .filter((t) => t.x >= 333 && t.x < 500)
     .map((t) => t.str)
     .join(' ')
 
-  if (middle.length < 3) return null
+  if (!name || middle.length === 0) return null
   const setColor = middle[middle.length - 1].match(SET_COLOR_RE)
   if (!setColor) return null
 
@@ -216,13 +229,14 @@ function parseCardRow(row: Tok[]): ParsedCardLine | null {
     quantity: parseInt(qtyTok.str, 10),
     name,
     number,
-    language: middle[0],
+    language: middle[0] === middle[middle.length - 1] ? '' : middle[0],
     condition: middle.slice(1, -1).join(' '),
     set_code: setColor[1],
     color_code: setColor[2],
     rarity_code: rarity,
     comment,
-    price: priceTok.str
+    price: priceTok.str,
+    section
   })
 }
 
@@ -230,7 +244,7 @@ function parseCardRow(row: Tok[]): ParsedCardLine | null {
  * Analyse de repli sur le texte reconstitué, si la mise en page bouge :
  *   « 3 La Reine - Déguisement sournois 90 FR NM 12WIL L Booster to sleeve 1,50 EUR »
  */
-function parseCardText(joined: string): ParsedCardLine | null {
+function parseCardText(joined: string, section: string): ParsedCardLine | null {
   const m = joined.match(
     /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(\d+)([A-Z]{3})\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
   )
@@ -245,7 +259,8 @@ function parseCardText(joined: string): ParsedCardLine | null {
     color_code: m[7],
     rarity_code: m[8],
     comment: m[9],
-    price: m[10]
+    price: m[10],
+    section
   })
 }
 

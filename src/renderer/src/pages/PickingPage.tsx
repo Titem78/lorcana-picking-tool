@@ -21,7 +21,7 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
   if (list.sections.length === 0) {
     return (
       <div>
-        <h1>🎯 Picking</h1>
+        <h1>② 🎯 Picking</h1>
         <div className="placeholder">
           Rien à picker. Importe des PDF de commande dans l&apos;onglet « Commandes », la liste se
           construira ici, emplacement par emplacement. Quand tout est sorti, la suite se passe
@@ -46,7 +46,7 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
-        <h1 style={{ marginBottom: 0 }}>🎯 Picking</h1>
+        <h1 style={{ marginBottom: 0 }}>② 🎯 Picking</h1>
         <span style={{ color: 'var(--text-dim)' }}>
           {list.order_count} commande(s) mélangée(s) — {list.picked_qty}/{list.total_qty} cartes
           sorties
@@ -78,38 +78,69 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
             border: '1px solid var(--accent)',
             borderRadius: 'var(--radius)',
             padding: '10px 16px',
-            marginBottom: 18
+            marginBottom: 18,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14
           }}
         >
-          ✅ Picking terminé ! Passe à l&apos;onglet <b>🧾 Préparation</b> pour contrôler et
-          emballer chaque commande.
+          <span>✅ Picking terminé ! Prochaine étape : contrôler et emballer chaque commande.</span>
+          <button
+            className="primary"
+            onClick={() => window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'prep' }))}
+          >
+            ③ Passer à la préparation →
+          </button>
         </div>
       )}
 
       {list.sections.map((section) => {
         const remaining = section.items.reduce((s, i) => s + (i.total_qty - i.picked_qty), 0)
+        const unassigned = section.location_id === null
         return (
           <section key={section.location_id ?? 'none'} style={{ marginBottom: 26 }}>
             <h2
               style={{
                 fontSize: '1.05rem',
                 padding: '8px 12px',
-                background: 'var(--bg-panel)',
+                background: unassigned ? 'rgba(224, 93, 93, 0.12)' : 'var(--bg-panel)',
                 borderLeft: `5px solid ${section.location_color ?? 'var(--danger)'}`,
                 borderRadius: 'var(--radius)',
-                marginBottom: 10,
+                marginBottom: unassigned ? 4 : 10,
                 display: 'flex',
                 gap: 10,
                 alignItems: 'center'
               }}
             >
-              {section.location_name}
+              {unassigned ? '❓ Sans emplacement' : section.location_name}
               {section.location_label && <span className="badge">n° {section.location_label}</span>}
               <span style={{ flex: 1 }} />
               <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                {remaining === 0 ? '✅ terminé' : `${remaining} carte(s) restantes`}
+                {remaining === 0 ? '✅ terminé' : `${remaining} article(s) restants`}
               </span>
             </h2>
+            {unassigned && (
+              <p
+                style={{
+                  color: 'var(--text-dim)',
+                  fontSize: '0.88rem',
+                  margin: '0 2px 10px',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center'
+                }}
+              >
+                Ces articles ne correspondent à aucune règle de rangement — tu peux quand même les
+                picker, ou d&apos;abord leur donner un emplacement.
+                <button
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'locations' }))
+                  }
+                >
+                  🗄️ Régler les emplacements
+                </button>
+              </p>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {section.items.map((item) => (
@@ -209,6 +240,9 @@ function PickingRow({
               {item.total_qty}× {item.name}
             </b>
             {item.is_foil && <span title="Foil">✨</span>}
+            {!/cartes/i.test(item.section) && (
+              <span className="badge">🎲 {item.section}</span>
+            )}
             {done && <span style={{ color: 'var(--ok)' }}>✅</span>}
           </div>
           <div
@@ -222,11 +256,16 @@ function PickingRow({
             }}
           >
             <span>
-              Ch. {item.set_code} · n°{' '}
-              <b style={{ color: 'var(--text)', fontSize: '1.05rem' }}>{item.number}</b>
+              Ch. {item.set_code}
+              {item.number && (
+                <>
+                  {' '}
+                  · n° <b style={{ color: 'var(--text)', fontSize: '1.05rem' }}>{item.number}</b>
+                </>
+              )}
             </span>
-            <span style={{ color: hex }}>⬤ {INK_LABELS_FR[item.ink] ?? item.ink}</span>
-            <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>
+            {item.ink && <span style={{ color: hex }}>⬤ {INK_LABELS_FR[item.ink] ?? item.ink}</span>}
+            {item.rarity && <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>}
             <span>{item.language}</span>
           </div>
           {!multi && (
