@@ -1,0 +1,26 @@
+appId: fr.titem78.lorcana-picking-tool
+productName: Lorcana Picking Tool
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - '**/*.node'
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Lorcana Picking Tool
+  installerLanguages:
+    - fr_FR
+publish:
+  provider: github
+  owner: Titem78
+  repo: lorcana-picking-tool
