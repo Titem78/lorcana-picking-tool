@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Order, User } from '@shared/types'
 import { trackingInfo } from '@shared/tracking'
 import OrderSheet from '@/components/OrderSheet'
+import BatchStampPrint from '@/components/BatchStampPrint'
 
 /**
  * Onglet Préparation : la suite logique du picking.
@@ -11,6 +12,7 @@ import OrderSheet from '@/components/OrderSheet'
 export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   const [orders, setOrders] = useState<Order[]>([])
   const [detail, setDetail] = useState<Order | null>(null)
+  const [batchPrint, setBatchPrint] = useState(false)
 
   const refresh = (): void => {
     window.api.orders.list(['picked', 'prepared', 'shipped']).then(setOrders)
@@ -33,9 +35,18 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
     )
   }
 
+  const withStamp = orders.filter((o) => o.stamp_number && o.status !== 'shipped')
+
   return (
     <div>
-      <h1>③ 🧾 Préparation</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+        <h1 style={{ marginBottom: 0 }}>③ 🧾 Préparation</h1>
+        {withStamp.length > 0 && (
+          <button onClick={() => setBatchPrint(true)}>
+            🖨 Imprimer les étiquettes ({withStamp.length})
+          </button>
+        )}
+      </div>
       <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <PrepColumn
           title={`À préparer (${toPrepare.length})`}
@@ -103,6 +114,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
       {detail && (
         <OrderSheet order={detail} user={user} onClose={() => setDetail(null)} onChanged={refresh} />
       )}
+      {batchPrint && <BatchStampPrint orders={withStamp} onClose={() => setBatchPrint(false)} />}
     </div>
   )
 }

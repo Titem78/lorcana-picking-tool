@@ -319,6 +319,36 @@ table.data th {
   right: 5mm;
 }
 
+/* Feuille d'étiquettes groupées : A4, 2 × 4 cellules de 105 × 74 mm */
+.stamp-sheet {
+  display: grid;
+  grid-template-columns: 105mm 105mm;
+  grid-auto-rows: 74mm;
+  width: 210mm;
+  background: #fff;
+  color: #000;
+}
+.stamp-cell {
+  position: relative;
+  border: 1px dashed #bbb;
+  overflow: hidden;
+}
+.stamp-cell-canvas {
+  position: absolute;
+  top: 2mm;
+  right: 2mm;
+  width: 58mm;
+}
+.stamp-cell-address {
+  position: absolute;
+  left: 5mm;
+  bottom: 6mm;
+  right: 3mm;
+  font-family: Arial, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
 @media print {
   body.printing-stamp * {
     visibility: hidden !important;

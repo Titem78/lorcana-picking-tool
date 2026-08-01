@@ -29,47 +29,20 @@ export default function StampPrint({
 }): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('Préparation du timbre…')
-  const [mode, setMode] = useState<PrintMode>('envelope')
+  const [mode, setMode] = useState<PrintMode>('a4')
 
   useEffect(() => {
     let cancelled = false
     const run = async (): Promise<void> => {
       const data = (await window.api.stamps.printData(order.id)) as PrintData | null
-      if (!data || cancelled) {
-        setStatus('Timbre introuvable')
+      const canvas = canvasRef.current
+      if (!data || !canvas || cancelled) {
+        setStatus(data ? '' : 'Timbre introuvable')
         return
       }
-      const pdfBytes = (await window.api.stamps.sheetData(data.sheet_file)) as Uint8Array
-      const pdfjs = await import('pdfjs-dist')
-      const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
-      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
-
-      const task = pdfjs.getDocument({ data: new Uint8Array(pdfBytes) })
-      const doc = await task.promise
-      const page = await doc.getPage(data.page)
-      const scale = 4 // qualité d'impression
-      const viewport = page.getViewport({ scale })
-
-      const full = document.createElement('canvas')
-      full.width = viewport.width
-      full.height = viewport.height
-      await page.render({ canvasContext: full.getContext('2d')!, viewport, canvas: full }).promise
-
-      // Cellule du timbre autour du numéro SD (coordonnées PDF, origine en bas)
-      const pageH = page.view[3]
-      const x0 = data.sd_x - 176
-      const yTop = data.sd_y + 92
-      const w = 188
-      const h = 104
-      const canvas = canvasRef.current
-      if (!canvas || cancelled) return
-      canvas.width = w * scale
-      canvas.height = h * scale
-      canvas
-        .getContext('2d')!
-        .drawImage(full, x0 * scale, (pageH - yTop) * scale, w * scale, h * scale, 0, 0, w * scale, h * scale)
-      setStatus('')
-      await task.destroy()
+      const { drawStamp } = await import('@/lib/stampRender')
+      await drawStamp(data, canvas)
+      if (!cancelled) setStatus('')
     }
     run().catch((err) => setStatus(`Erreur : ${String((err as Error).message ?? err)}`))
     return () => {
@@ -119,16 +92,16 @@ export default function StampPrint({
 
         <div style={{ display: 'flex', gap: 14, marginBottom: 12, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text-dim)' }}>
+            <input type="radio" checked={mode === 'a4'} onChange={() => setMode('a4')} />
+            📄 Étiquette à coller (enveloppes à bulles)
+          </label>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text-dim)' }}>
             <input
               type="radio"
               checked={mode === 'envelope'}
               onChange={() => setMode('envelope')}
             />
-            ✉ Direct sur l&apos;enveloppe 10×15 cm (recommandé)
-          </label>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text-dim)' }}>
-            <input type="radio" checked={mode === 'a4'} onChange={() => setMode('a4')} />
-            📄 A4 à découper
+            ✉ Direct sur enveloppe fine 10×15 cm
           </label>
         </div>
 
