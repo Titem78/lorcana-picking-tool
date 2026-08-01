@@ -8,6 +8,7 @@ import * as exports from './exports'
 import * as odoo from './odoo'
 import * as backup from './backup'
 import * as stamps from './stamps'
+import * as watcherMod from './watcher'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -144,6 +145,27 @@ export function registerIpc(): void {
   )
   ipcMain.handle('odoo:listAccessoryMap', () => odoo.listAccessoryMap())
   ipcMain.handle('odoo:sync', () => odoo.syncInvoiceStatuses())
+
+  // --- Dossier surveillé ----------------------------------------------------------
+  ipcMain.handle('watcher:config', () => watcherMod.getWatcherConfig())
+  ipcMain.handle('watcher:pickFolder', (e, userId: number) =>
+    watcherMod.pickWatchFolder(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+  ipcMain.handle('watcher:setEnabled', (_e, userId: number, enabled: boolean) =>
+    watcherMod.setWatcherEnabled(userId, enabled)
+  )
+  ipcMain.handle('watcher:scanNow', (_e, userId: number) => watcherMod.scanNow(userId))
+
+  // --- Import direct d'un PDF téléchargé par le navigateur intégré -----------------
+  ipcMain.handle('orders:importPdfBase64', async (_e, userId: number, b64: string) => {
+    const { writeFileSync, mkdtempSync } = await import('fs')
+    const { tmpdir } = await import('os')
+    const { join } = await import('path')
+    const dir = mkdtempSync(join(tmpdir(), 'lorcana-cm-'))
+    const path = join(dir, 'commande-cardmarket.pdf')
+    writeFileSync(path, Buffer.from(b64, 'base64'))
+    return orders.importPdfs(userId, [path])
+  })
 
   // --- Timbres La Poste -----------------------------------------------------------
   ipcMain.handle('stamps:import', (e, userId: number) =>

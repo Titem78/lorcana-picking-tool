@@ -322,6 +322,60 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
 }
 
 /**
+ * Dossier surveillé : les PDF « Vente_#xxxx.pdf » qui y apparaissent sont
+ * importés automatiquement (télécharge depuis Cardmarket, c'est tout).
+ */
+function WatcherSection({ user }: { user: User }): React.JSX.Element {
+  const [config, setConfig] = useState<{ folder: string | null; enabled: boolean }>({
+    folder: null,
+    enabled: false
+  })
+  const [msg, setMsg] = useState('')
+
+  const refresh = (): void => {
+    window.api.watcher.config().then(setConfig)
+  }
+  useEffect(refresh, [])
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>📂 Import automatique</h2>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 720 }}>
+        Choisis le dossier où atterrissent tes téléchargements Cardmarket : chaque
+        <b> Vente_#xxxx.pdf</b> qui y apparaît est importé tout seul (les ventes déjà connues sont
+        ignorées). Télécharger le PDF devient ton seul geste.
+      </p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="primary" onClick={() => window.api.watcher.pickFolder(user.id).then(refresh)}>
+          📁 Choisir le dossier…
+        </button>
+        {config.folder && (
+          <>
+            <span className="badge" style={{ borderColor: config.enabled ? 'var(--ok)' : 'var(--border)' }}>
+              {config.folder} {config.enabled ? '— surveillance active ✔' : '— en pause'}
+            </span>
+            <button onClick={() => window.api.watcher.setEnabled(user.id, !config.enabled).then(refresh)}>
+              {config.enabled ? 'Mettre en pause' : 'Activer'}
+            </button>
+            <button
+              onClick={() => {
+                setMsg('Scan…')
+                window.api.watcher
+                  .scanNow(user.id)
+                  .then((n: number) => setMsg(`${n} fichier(s) de vente trouvés et traités ✔`))
+              }}
+            >
+              🔍 Scanner maintenant
+            </button>
+          </>
+        )}
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{msg}</span>
+      </div>
+    </section>
+  )
+}
+
+/**
  * Stock de timbres La Poste : import des planches PDF « Mon Timbre en Ligne »,
  * état du stock par type. Chaque timbre a un numéro unique, jamais réutilisé.
  */
@@ -780,6 +834,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </form>
         )}
       </section>
+
+      <WatcherSection user={user} />
 
       <StampsSection user={user} />
 

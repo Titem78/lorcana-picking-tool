@@ -9,6 +9,7 @@ import { setupAutoUpdater } from './updater'
 import { imagesDir } from './lorcast'
 import { stampsDir } from './stamps'
 import { syncInvoiceStatuses } from './odoo'
+import { startWatcher } from './watcher'
 
 // Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
 // connu, réglé en désactivant l'accélération matérielle (aucun impact pour
@@ -74,7 +75,10 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // Onglet Cardmarket : navigateur intégré (l'utilisateur s'y connecte
+      // lui-même ; l'app n'automatise aucune navigation)
+      webviewTag: true
     }
   })
 
@@ -116,6 +120,9 @@ app.whenReady().then(() => {
   }
   setTimeout(syncOdoo, 10_000)
   setInterval(syncOdoo, 30 * 60 * 1000)
+
+  // Dossier surveillé (import automatique des PDF de vente)
+  startWatcher()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -19,7 +19,12 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
       .list(['imported', 'picking', 'picked', 'prepared'])
       .then(setOrders)
   }
-  useEffect(refresh, [])
+  useEffect(() => {
+    refresh()
+    // rafraîchir quand une commande arrive par le dossier surveillé / navigateur
+    window.addEventListener('orders-updated', refresh)
+    return () => window.removeEventListener('orders-updated', refresh)
+  }, [])
 
   const doImport = (paths: string[]): void => {
     if (!paths.length) return

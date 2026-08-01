@@ -98,6 +98,21 @@ const api = {
     import: (userId: number) => ipcRenderer.invoke('backup:import', userId)
   },
 
+  watcher: {
+    config: () => ipcRenderer.invoke('watcher:config'),
+    pickFolder: (userId: number) => ipcRenderer.invoke('watcher:pickFolder', userId),
+    setEnabled: (userId: number, enabled: boolean) =>
+      ipcRenderer.invoke('watcher:setEnabled', userId, enabled),
+    scanNow: (userId: number) => ipcRenderer.invoke('watcher:scanNow', userId)
+  },
+
+  importPdfBase64: (userId: number, b64: string) =>
+    ipcRenderer.invoke('orders:importPdfBase64', userId, b64),
+
+  onAutoImported: (cb: (results: unknown[]) => void) => {
+    ipcRenderer.on('orders:auto-imported', (_e, results) => cb(results))
+  },
+
   stamps: {
     import: (userId: number) => ipcRenderer.invoke('stamps:import', userId),
     stock: () => ipcRenderer.invoke('stamps:stock'),

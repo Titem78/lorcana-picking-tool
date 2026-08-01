@@ -4,6 +4,7 @@ import UserGate from './components/UserGate'
 import PickingPage from './pages/PickingPage'
 import PrepPage from './pages/PrepPage'
 import OrdersPage from './pages/OrdersPage'
+import CardmarketPage from './pages/CardmarketPage'
 import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
@@ -11,6 +12,7 @@ import SettingsPage from './pages/SettingsPage'
 // L'ordre des onglets suit le flux de travail réel :
 // importer → picker → préparer/expédier → historique.
 const TABS = [
+  { id: 'cardmarket', label: '🌐 Cardmarket' },
   { id: 'orders', label: '① 📦 Commandes' },
   { id: 'picking', label: '② 🎯 Picking' },
   { id: 'prep', label: '③ 🧾 Préparation' },
@@ -37,6 +39,14 @@ export default function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    window.api.onAutoImported((raw: unknown[]) => {
+      const results = raw as { status: string; sale_id?: string }[]
+      const ok = results.filter((r) => r.status === 'ok')
+      if (ok.length > 0) {
+        setUpdateMsg(`📥 ${ok.length} commande(s) importée(s) automatiquement (#${ok.map((r) => r.sale_id).join(', #')})`)
+        window.dispatchEvent(new CustomEvent('orders-updated'))
+      }
+    })
     window.api.onUpdaterEvent((event, payload) => {
       if (event === 'updater:available') {
         setUpdateMsg(`⬇ Mise à jour ${payload} détectée — téléchargement en cours…`)
@@ -78,6 +88,7 @@ export default function App(): React.JSX.Element {
         </div>
       </nav>
       <main className="content">
+        {tab === 'cardmarket' && <CardmarketPage user={user} />}
         {tab === 'picking' && <PickingPage user={user} />}
         {tab === 'prep' && <PrepPage user={user} />}
         {tab === 'orders' && <OrdersPage user={user} />}

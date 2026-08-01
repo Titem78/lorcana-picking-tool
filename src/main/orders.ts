@@ -8,7 +8,7 @@ import type { ImportResult, Order, OrderLine, OrderStatus } from '@shared/types'
  * Lorcast (visuel + encre/rareté canoniques ; l'API gagne sur le PDF),
  * insère commande + lignes. Une vente déjà importée est signalée en doublon.
  */
-export async function importPdfs(userId: number, paths: string[]): Promise<ImportResult[]> {
+export async function importPdfs(userId: number | null, paths: string[]): Promise<ImportResult[]> {
   const db = getDb()
   const results: ImportResult[] = []
 
