@@ -7,6 +7,7 @@ import { registerIpc } from './ipc'
 import { closeDb } from './db'
 import { setupAutoUpdater } from './updater'
 import { imagesDir } from './lorcast'
+import { syncInvoiceStatuses } from './odoo'
 
 // Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
 // connu, réglé en désactivant l'accélération matérielle (aucun impact pour
@@ -104,6 +105,14 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   setupAutoUpdater()
+
+  // Synchronisation des statuts de factures Odoo : au lancement puis toutes
+  // les 30 minutes (silencieux, ne fait rien si le connecteur n'est pas configuré).
+  const syncOdoo = (): void => {
+    syncInvoiceStatuses().catch(() => {})
+  }
+  setTimeout(syncOdoo, 10_000)
+  setInterval(syncOdoo, 30 * 60 * 1000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

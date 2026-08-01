@@ -24,10 +24,22 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
   }
   useEffect(refresh, [])
 
-  // Pilotage Odoo : combien de commandes expédiées ont leur facture ?
-  const odooSent = orders.filter((o) => o.odoo_move_id).length
+  // Pilotage Odoo : validées (n° comptable) / brouillons à valider / manquantes
+  const odooPosted = orders.filter((o) => o.odoo_state === 'posted').length
+  const odooDraft = orders.filter((o) => o.odoo_move_id && o.odoo_state !== 'posted').length
   const odooErrors = orders.filter((o) => !o.odoo_move_id && o.odoo_error).length
   const odooMissing = orders.filter((o) => !o.odoo_move_id)
+
+  const syncOdoo = (): void => {
+    setSending('Synchronisation avec Odoo…')
+    window.api.odoo
+      .sync()
+      .then((r: { checked: number; posted: number; draft: number }) => {
+        setSending(`Sync ✔ : ${r.posted} validée(s), ${r.draft} brouillon(s) sur ${r.checked}`)
+        refresh()
+      })
+      .catch((err: Error) => setSending(`⚠ Sync impossible : ${err.message.replace(/^.*Error: /, '')}`))
+  }
 
   const sendMissing = async (): Promise<void> => {
     if (!window.confirm(`Envoyer ${odooMissing.length} commande(s) vers Odoo (facture brouillon) ?`))
@@ -137,8 +149,13 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
         >
           <b>Pilotage Odoo :</b>
           <span className="badge" style={{ borderColor: 'var(--ok)' }}>
-            ✔ {odooSent} facturée(s)
+            ✔ {odooPosted} validée(s)
           </span>
+          {odooDraft > 0 && (
+            <span className="badge" style={{ borderColor: 'var(--accent)' }}>
+              📝 {odooDraft} brouillon(s) à valider
+            </span>
+          )}
           {odooErrors > 0 && (
             <span className="badge" style={{ borderColor: 'var(--danger)' }}>
               ⚠ {odooErrors} en erreur
@@ -148,6 +165,9 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
             <span className="badge">− {odooMissing.length} non envoyée(s)</span>
           )}
           <span style={{ flex: 1 }} />
+          <button onClick={syncOdoo} title="Récupérer l'état et les numéros de factures depuis Odoo">
+            🔄 Sync
+          </button>
           {odooMissing.length > 0 && !sending?.startsWith('Envoi') && (
             <button className="primary" onClick={sendMissing}>
               📤 Envoyer les {odooMissing.length} manquante(s)
@@ -202,12 +222,18 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
                   <td
                     title={
                       o.odoo_move_id
-                        ? `Facture brouillon créée le ${o.odoo_sent_at?.slice(0, 16) ?? ''}`
+                        ? o.odoo_state === 'posted'
+                          ? `Facture validée ${o.odoo_number ?? ''}`
+                          : `Brouillon créé le ${o.odoo_sent_at?.slice(0, 16) ?? ''} — à valider dans Odoo`
                         : (o.odoo_error ?? 'Pas encore envoyée vers Odoo')
                     }
                   >
-                    {o.odoo_move_id ? (
-                      <span style={{ color: 'var(--ok)' }}>✔</span>
+                    {o.odoo_state === 'posted' ? (
+                      <span style={{ color: 'var(--ok)', fontSize: '0.85rem' }}>
+                        ✔ {o.odoo_number ?? ''}
+                      </span>
+                    ) : o.odoo_move_id ? (
+                      <span style={{ color: 'var(--accent)' }}>📝 brouillon</span>
                     ) : o.odoo_error ? (
                       <span style={{ color: 'var(--danger)' }}>⚠</span>
                     ) : (

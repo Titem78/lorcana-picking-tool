@@ -604,6 +604,46 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           L&apos;export CSV s&apos;ouvre dans Excel/LibreOffice. L&apos;export des emplacements
           permet de transférer ta configuration de boîtes sur un autre PC.
         </p>
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginTop: 14,
+            paddingTop: 14,
+            borderTop: '1px solid var(--border)'
+          }}
+        >
+          <button
+            className="primary"
+            onClick={() =>
+              window.api.backup.export(user.id).then((f: string | null) => {
+                if (f) setMsg(`Sauvegarde complète créée ✔ (${f.split(/[\\/]/).pop()})`)
+              })
+            }
+          >
+            💾 Sauvegarde complète…
+          </button>
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Restaurer une sauvegarde REMPLACE toutes les données actuelles (commandes, comptes, emplacements, réglages, visuels) puis redémarre l’application.\n\nContinuer ?'
+                )
+              ) {
+                window.api.backup
+                  .import(user.id)
+                  .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+              }
+            }}
+          >
+            📥 Restaurer une sauvegarde…
+          </button>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+            Tout dans un seul fichier .zip : base complète + visuels. Idéal pour changer de PC.
+          </span>
+        </div>
       </section>
 
       <section style={{ marginBottom: 30 }}>

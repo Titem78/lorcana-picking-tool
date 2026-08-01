@@ -82,6 +82,7 @@ const api = {
       ipcRenderer.invoke('odoo:searchProducts', cfg, query),
     searchTaxes: (cfg: unknown, query: string) => ipcRenderer.invoke('odoo:searchTaxes', cfg, query),
     listAccessoryMap: () => ipcRenderer.invoke('odoo:listAccessoryMap'),
+    sync: () => ipcRenderer.invoke('odoo:sync'),
     setProductMap: (userId: number, lineName: string, productId: number | null, productName: string | null) =>
       ipcRenderer.invoke('odoo:setProductMap', userId, lineName, productId, productName),
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
@@ -89,6 +90,11 @@ const api = {
 
   resetData: (userId: number, confirmation: string) =>
     ipcRenderer.invoke('app:resetData', userId, confirmation),
+
+  backup: {
+    export: (userId: number) => ipcRenderer.invoke('backup:export', userId),
+    import: (userId: number) => ipcRenderer.invoke('backup:import', userId)
+  },
 
   /** Chemin réel d'un fichier glissé-déposé (l'API File.path n'existe plus). */
   pathForFile: (file: File) => webUtils.getPathForFile(file),

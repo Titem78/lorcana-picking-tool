@@ -6,6 +6,7 @@ import * as orders from './orders'
 import * as picking from './picking'
 import * as exports from './exports'
 import * as odoo from './odoo'
+import * as backup from './backup'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -138,6 +139,15 @@ export function registerIpc(): void {
     odoo.searchTaxes(cfg, query)
   )
   ipcMain.handle('odoo:listAccessoryMap', () => odoo.listAccessoryMap())
+  ipcMain.handle('odoo:sync', () => odoo.syncInvoiceStatuses())
+
+  // --- Sauvegarde complète --------------------------------------------------------
+  ipcMain.handle('backup:export', (e, userId: number) =>
+    backup.exportBackup(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+  ipcMain.handle('backup:import', (e, userId: number) =>
+    backup.importBackup(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
   ipcMain.handle(
     'odoo:setProductMap',
     (_e, userId: number, lineName: string, productId: number | null, productName: string | null) =>

@@ -130,5 +130,11 @@ export const MIGRATIONS: string[] = [
     line_name TEXT PRIMARY KEY,
     image_file TEXT NOT NULL
   );
+  `,
+
+  // 007 — suivi de l'état des factures Odoo (brouillon/validée + n° comptable)
+  `
+  ALTER TABLE orders ADD COLUMN odoo_number TEXT;
+  ALTER TABLE orders ADD COLUMN odoo_state TEXT;
   `
 ]

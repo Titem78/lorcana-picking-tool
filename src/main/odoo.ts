@@ -152,6 +152,54 @@ export async function searchTaxes(
   return rows
 }
 
+// --- Synchronisation de l'état des factures ------------------------------------
+
+export interface OdooSyncResult {
+  checked: number
+  posted: number
+  draft: number
+  cancelled: number
+}
+
+/**
+ * Interroge Odoo pour toutes les factures créées par l'app et met à jour leur
+ * état (brouillon / validée / annulée) et leur numéro comptable (attribué à
+ * la validation). Lancé au démarrage, toutes les 30 min, et à la demande.
+ */
+export async function syncInvoiceStatuses(): Promise<OdooSyncResult> {
+  const cfg = getOdooConfig()
+  const db = getDb()
+  const rows = db
+    .prepare("SELECT id, odoo_move_id FROM orders WHERE odoo_move_id IS NOT NULL")
+    .all() as { id: number; odoo_move_id: number }[]
+  const result: OdooSyncResult = { checked: 0, posted: 0, draft: 0, cancelled: 0 }
+  if (!cfg || rows.length === 0) return result
+
+  const uid = await authenticate(cfg)
+  const moves = (await execute(
+    cfg,
+    uid,
+    'account.move',
+    'read',
+    [rows.map((r) => r.odoo_move_id)],
+    { fields: ['id', 'name', 'state'] }
+  )) as { id: number; name: string; state: string }[]
+
+  const upd = db.prepare('UPDATE orders SET odoo_state = ?, odoo_number = ? WHERE odoo_move_id = ?')
+  const tx = db.transaction(() => {
+    for (const m of moves) {
+      result.checked++
+      const number = m.state === 'posted' && m.name && m.name !== '/' ? m.name : null
+      upd.run(m.state, number, m.id)
+      if (m.state === 'posted') result.posted++
+      else if (m.state === 'cancel') result.cancelled++
+      else result.draft++
+    }
+  })
+  tx()
+  return result
+}
+
 // --- Association nom de produit accessoire → article Odoo (gestion de stock) ---
 
 export interface AccessoryMapEntry {

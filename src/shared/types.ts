@@ -85,6 +85,8 @@ export interface Order {
   odoo_move_id: number | null
   odoo_sent_at: string | null
   odoo_error: string | null
+  odoo_number: string | null // n° comptable (FACT/2026/0042), attribué à la validation
+  odoo_state: string | null // draft | posted | cancel
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null
