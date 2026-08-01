@@ -196,6 +196,29 @@ export function setNotes(userId: number, orderId: number, notes: string): void {
   logActivity(userId, 'order.notes', { orderId })
 }
 
+/**
+ * Bypass du picking : valide la commande complète d'un coup (tout pické,
+ * tout contrôlé, statut « préparée »). Pour les commandes déjà faites
+ * physiquement qu'on veut juste enregistrer/envoyer vers Odoo.
+ */
+export function validateComplete(userId: number, orderId: number): void {
+  const db = getDb()
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE order_lines SET picked_qty = quantity, prep_checked = 1,
+         picked_at = COALESCE(picked_at, datetime('now', 'localtime')),
+         picked_by = COALESCE(picked_by, ?)
+       WHERE order_id = ?`
+    ).run(userId, orderId)
+    db.prepare(
+      `UPDATE orders SET status = 'prepared',
+         prepared_at = datetime('now', 'localtime'), prepared_by = ? WHERE id = ?`
+    ).run(userId, orderId)
+  })
+  tx()
+  logActivity(userId, 'order.bypass_validated', { orderId })
+}
+
 /** Coche de contrôle d'une ligne pendant la préparation de la commande. */
 export function setPrepChecked(userId: number, lineId: number, checked: boolean): void {
   const db = getDb()

@@ -302,20 +302,36 @@ export default function OrderSheet({
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
           {['picked', 'picking', 'imported'].includes(order.status) && (
-            <button
-              className="primary"
-              disabled={!allPicked || !allControlled}
-              title={
-                !allPicked
-                  ? 'Toutes les cartes doivent être pickées'
-                  : !allControlled
-                    ? 'Contrôle chaque carte en l’emballant, puis coche-la'
-                    : ''
-              }
-              onClick={() => advance('prepared')}
-            >
-              ✅ Marquer préparée
-            </button>
+            <>
+              <button
+                title="Pour une commande déjà faite physiquement : tout valider d'un coup (picking + contrôle) et la passer en « préparée » — utile pour l'envoyer ensuite vers Odoo."
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Valider la commande #${order.sale_id} complète sans passer par le picking ?\n\nToutes les cartes seront marquées sorties et contrôlées, la commande passera en « préparée ».`
+                    )
+                  ) {
+                    window.api.validateComplete(user.id, order.id).then(reload)
+                  }
+                }}
+              >
+                ⚡ Valider la commande complète
+              </button>
+              <button
+                className="primary"
+                disabled={!allPicked || !allControlled}
+                title={
+                  !allPicked
+                    ? 'Toutes les cartes doivent être pickées'
+                    : !allControlled
+                      ? 'Contrôle chaque carte en l’emballant, puis coche-la'
+                      : ''
+                }
+                onClick={() => advance('prepared')}
+              >
+                ✅ Marquer préparée
+              </button>
+            </>
           )}
           {order.status === 'prepared' && (
             <button className="primary" onClick={() => advance('shipped')}>

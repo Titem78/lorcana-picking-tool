@@ -45,6 +45,8 @@ interface OdooCfg {
   db: string
   user: string
   apiKey: string
+  partnerMode: 'per_buyer' | 'single'
+  singlePartner: string
 }
 
 /**
@@ -53,7 +55,14 @@ interface OdooCfg {
  * « Cardmarket - pseudo » et une facture brouillon (détail + port).
  */
 function OdooSection({ user }: { user: User }): React.JSX.Element {
-  const [cfg, setCfg] = useState<OdooCfg>({ url: '', db: '', user: '', apiKey: '' })
+  const [cfg, setCfg] = useState<OdooCfg>({
+    url: '',
+    db: '',
+    user: '',
+    apiKey: '',
+    partnerMode: 'per_buyer',
+    singlePartner: 'Cardmarket'
+  })
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -112,6 +121,33 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
           value={cfg.apiKey}
           onChange={(e) => setCfg({ ...cfg, apiKey: e.target.value })}
         />
+      </div>
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)' }}>
+          <input
+            type="radio"
+            checked={cfg.partnerMode === 'per_buyer'}
+            onChange={() => setCfg({ ...cfg, partnerMode: 'per_buyer' })}
+          />
+          Un client Odoo <b>par acheteur</b> (« Cardmarket - pseudo »)
+        </label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)' }}>
+          <input
+            type="radio"
+            checked={cfg.partnerMode === 'single'}
+            onChange={() => setCfg({ ...cfg, partnerMode: 'single' })}
+          />
+          Un <b>client unique</b> pour toutes les ventes :
+          <input
+            value={cfg.singlePartner}
+            style={{ width: 180 }}
+            disabled={cfg.partnerMode !== 'single'}
+            onChange={(e) => setCfg({ ...cfg, singlePartner: e.target.value })}
+          />
+        </label>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.83rem' }}>
+          Dans les deux cas, la référence de la facture est « Cardmarket #commande - pseudo ».
+        </span>
       </div>
       <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button disabled={!complete || busy} onClick={test}>

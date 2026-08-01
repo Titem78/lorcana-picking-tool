@@ -33,11 +33,23 @@ function migrate(d: Database.Database): void {
   MIGRATIONS.forEach((sql, i) => {
     const version = i + 1
     if (applied.has(version)) return
-    const run = d.transaction(() => {
-      d.exec(sql)
-      d.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(version)
-    })
-    run()
+    try {
+      const run = d.transaction(() => {
+        d.exec(sql)
+        d.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(version)
+      })
+      run()
+    } catch (err) {
+      // Auto-réparation : si la migration a déjà été appliquée physiquement
+      // mais que son enregistrement a été perdu (arrêt brutal, double
+      // instance), on la considère faite au lieu de bloquer toute l'app.
+      const msg = String((err as Error).message ?? err)
+      if (/duplicate column name|already exists/i.test(msg)) {
+        d.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(version)
+      } else {
+        throw err
+      }
+    }
   })
 }
 

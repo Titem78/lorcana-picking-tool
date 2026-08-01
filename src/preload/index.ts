@@ -59,6 +59,9 @@ const api = {
   prepCheck: (userId: number, lineId: number, checked: boolean) =>
     ipcRenderer.invoke('orders:prepCheck', userId, lineId, checked),
 
+  validateComplete: (userId: number, orderId: number) =>
+    ipcRenderer.invoke('orders:validateComplete', userId, orderId),
+
   exports: {
     historyCsv: (userId: number) => ipcRenderer.invoke('exports:historyCsv', userId),
     locationsJson: (userId: number) => ipcRenderer.invoke('exports:locationsJson', userId),

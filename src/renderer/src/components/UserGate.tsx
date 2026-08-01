@@ -25,6 +25,21 @@ export default function UserGate({ onLogin }: Props): React.JSX.Element {
   }
   useEffect(refresh, [])
 
+  useEffect(() => {
+    if (!selected || pin.length < 4) return
+    window.api.users.auth(selected.id, pin).then((u: User | null) => {
+      if (u) {
+        onLogin(u)
+      } else {
+        setError('PIN incorrect')
+        setPin('')
+      }
+    })
+  }, [pin, selected])
+
+  // IMPORTANT : aucun retour anticipé au-dessus de cette ligne — tous les
+  // hooks doivent s'exécuter à chaque rendu (sinon erreur React #300 et
+  // écran noir, vécu en v2.2.1→2.3.1).
   if (loadError) {
     return (
       <div className="gate">
@@ -38,18 +53,6 @@ export default function UserGate({ onLogin }: Props): React.JSX.Element {
       </div>
     )
   }
-
-  useEffect(() => {
-    if (!selected || pin.length < 4) return
-    window.api.users.auth(selected.id, pin).then((u: User | null) => {
-      if (u) {
-        onLogin(u)
-      } else {
-        setError('PIN incorrect')
-        setPin('')
-      }
-    })
-  }, [pin, selected])
 
   if (users === null) {
     return (

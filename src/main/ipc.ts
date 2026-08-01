@@ -95,6 +95,9 @@ export function registerIpc(): void {
   ipcMain.handle('orders:prepCheck', (_e, userId: number, lineId: number, checked: boolean) =>
     orders.setPrepChecked(userId, lineId, checked)
   )
+  ipcMain.handle('orders:validateComplete', (_e, userId: number, orderId: number) =>
+    orders.validateComplete(userId, orderId)
+  )
 
   // --- Picking -----------------------------------------------------------------
   ipcMain.handle('picking:list', () => picking.buildPickingList())

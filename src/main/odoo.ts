@@ -20,6 +20,10 @@ export interface OdooConfig {
   db: string
   user: string
   apiKey: string
+  /** 'per_buyer' = un client Odoo par pseudo ; 'single' = un client unique */
+  partnerMode: 'per_buyer' | 'single'
+  /** nom du client unique quand partnerMode = 'single' (ex. « Cardmarket ») */
+  singlePartner: string
 }
 
 export function getOdooConfig(): OdooConfig | null {
@@ -28,7 +32,14 @@ export function getOdooConfig(): OdooConfig | null {
     .all() as { key: string; value: string }[]
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]))
   if (!map.odoo_url || !map.odoo_db || !map.odoo_user || !map.odoo_api_key) return null
-  return { url: map.odoo_url, db: map.odoo_db, user: map.odoo_user, apiKey: map.odoo_api_key }
+  return {
+    url: map.odoo_url,
+    db: map.odoo_db,
+    user: map.odoo_user,
+    apiKey: map.odoo_api_key,
+    partnerMode: map.odoo_partner_mode === 'single' ? 'single' : 'per_buyer',
+    singlePartner: map.odoo_single_partner || 'Cardmarket'
+  }
 }
 
 export function saveOdooConfig(userId: number, cfg: OdooConfig): void {
@@ -39,9 +50,11 @@ export function saveOdooConfig(userId: number, cfg: OdooConfig): void {
     up.run('odoo_db', cfg.db.trim())
     up.run('odoo_user', cfg.user.trim())
     up.run('odoo_api_key', cfg.apiKey.trim())
+    up.run('odoo_partner_mode', cfg.partnerMode === 'single' ? 'single' : 'per_buyer')
+    up.run('odoo_single_partner', (cfg.singlePartner || 'Cardmarket').trim())
   })
   tx()
-  logActivity(userId, 'odoo.config_saved', { url: cfg.url })
+  logActivity(userId, 'odoo.config_saved', { url: cfg.url, mode: cfg.partnerMode })
 }
 
 // --- JSON-RPC -------------------------------------------------------------------
@@ -126,8 +139,10 @@ export async function sendOrderToOdoo(
   try {
     const uid = await authenticate(cfg)
 
-    // 1. Client « Cardmarket - pseudo »
-    const partnerName = `Cardmarket - ${order.buyer_username}`
+    // 1. Client : soit un client unique pour toutes les ventes Cardmarket,
+    //    soit un client par pseudo — selon la configuration.
+    const partnerName =
+      cfg.partnerMode === 'single' ? cfg.singlePartner : `Cardmarket - ${order.buyer_username}`
     const found = (await execute(cfg, uid, 'res.partner', 'search', [
       [['name', '=', partnerName]]
     ])) as number[]
@@ -136,7 +151,10 @@ export async function sendOrderToOdoo(
       partnerId = (await execute(cfg, uid, 'res.partner', 'create', [
         {
           name: partnerName,
-          comment: `Client Cardmarket (pseudo : ${order.buyer_username})\n${order.buyer_name ?? ''}\n${order.buyer_address ?? ''}`,
+          comment:
+            cfg.partnerMode === 'single'
+              ? 'Client global des ventes Cardmarket (créé par Lorcana Picking Tool)'
+              : `Client Cardmarket (pseudo : ${order.buyer_username})\n${order.buyer_name ?? ''}\n${order.buyer_address ?? ''}`,
           customer_rank: 1
         }
       ])) as number
@@ -175,8 +193,14 @@ export async function sendOrderToOdoo(
           move_type: 'out_invoice',
           partner_id: partnerId,
           invoice_date: sentDate,
-          ref: `Cardmarket #${order.sale_id}`,
-          narration: order.tracking_number ? `Suivi : ${order.tracking_number}` : false,
+          // Référence client : n° de commande Cardmarket + pseudo de l'acheteur
+          ref: `Cardmarket #${order.sale_id} - ${order.buyer_username}`,
+          narration: [
+            order.buyer_name && `Acheteur : ${order.buyer_name} (${order.buyer_username})`,
+            order.tracking_number && `Suivi : ${order.tracking_number}`
+          ]
+            .filter(Boolean)
+            .join('\n') || false,
           invoice_line_ids: invoiceLines
         }
       ]

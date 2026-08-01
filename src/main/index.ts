@@ -13,6 +13,20 @@ import { imagesDir } from './lorcast'
 // cette app, qui n'a ni vidéo ni animation lourde).
 app.disableHardwareAcceleration()
 
+// Une seule instance à la fois : les doubles lancements bloquaient les mises
+// à jour (fichiers verrouillés) et ont corrompu l'enregistrement des
+// migrations. Un second lancement ramène la fenêtre existante au premier plan.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+})
+
 // Journal des pépins du processus principal et du renderer :
 // %APPDATA%/lorcana-picking-tool/main.log
 function logMain(msg: string): void {
@@ -49,6 +63,7 @@ function createWindow(): void {
     minWidth: 980,
     minHeight: 640,
     show: false,
+    backgroundColor: '#14161c',
     autoHideMenuBar: true,
     title: 'Lorcana Picking Tool',
     webPreferences: {
