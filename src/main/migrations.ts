@@ -99,5 +99,11 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE order_lines ADD COLUMN rarity TEXT;
   ALTER TABLE order_lines ADD COLUMN image_file TEXT;
   ALTER TABLE order_lines ADD COLUMN lorcast_name TEXT;
+  `,
+
+  // 003 — contrôle en préparation + visuels haute définition
+  `
+  ALTER TABLE order_lines ADD COLUMN prep_checked INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE order_lines ADD COLUMN image_large_file TEXT;
   `
 ]

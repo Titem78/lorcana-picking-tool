@@ -49,8 +49,21 @@ const api = {
   picking: {
     list: () => ipcRenderer.invoke('picking:list'),
     pick: (userId: number, lineId: number, picked: boolean) =>
-      ipcRenderer.invoke('picking:pick', userId, lineId, picked)
+      ipcRenderer.invoke('picking:pick', userId, lineId, picked),
+    setQty: (userId: number, lineId: number, qty: number) =>
+      ipcRenderer.invoke('picking:setQty', userId, lineId, qty)
   },
+
+  prepCheck: (userId: number, lineId: number, checked: boolean) =>
+    ipcRenderer.invoke('orders:prepCheck', userId, lineId, checked),
+
+  exports: {
+    historyCsv: (userId: number) => ipcRenderer.invoke('exports:historyCsv', userId),
+    locationsJson: (userId: number) => ipcRenderer.invoke('exports:locationsJson', userId),
+    importLocations: (userId: number) => ipcRenderer.invoke('exports:importLocations', userId)
+  },
+
+  checkUpdates: () => ipcRenderer.invoke('updater:check'),
 
   /** Chemin réel d'un fichier glissé-déposé (l'API File.path n'existe plus). */
   pathForFile: (file: File) => webUtils.getPathForFile(file),

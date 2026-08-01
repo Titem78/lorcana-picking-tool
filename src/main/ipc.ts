@@ -4,6 +4,8 @@ import * as users from './users'
 import * as locations from './locations'
 import * as orders from './orders'
 import * as picking from './picking'
+import * as exports from './exports'
+import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
 // Toutes les routes IPC de l'application. Le renderer les appelle via window.api.
@@ -81,11 +83,32 @@ export function registerIpc(): void {
 
   ipcMain.handle('orders:stats', () => orders.getStats())
 
+  ipcMain.handle('orders:prepCheck', (_e, userId: number, lineId: number, checked: boolean) =>
+    orders.setPrepChecked(userId, lineId, checked)
+  )
+
   // --- Picking -----------------------------------------------------------------
   ipcMain.handle('picking:list', () => picking.buildPickingList())
   ipcMain.handle('picking:pick', (_e, userId: number, lineId: number, picked: boolean) =>
     picking.pickLine(userId, lineId, picked)
   )
+  ipcMain.handle('picking:setQty', (_e, userId: number, lineId: number, qty: number) =>
+    picking.setPickedQty(userId, lineId, qty)
+  )
+
+  // --- Exports / imports --------------------------------------------------------
+  ipcMain.handle('exports:historyCsv', (e, userId: number) =>
+    exports.exportHistoryCsv(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+  ipcMain.handle('exports:locationsJson', (e, userId: number) =>
+    exports.exportLocationsJson(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+  ipcMain.handle('exports:importLocations', (e, userId: number) =>
+    exports.importLocationsJson(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+
+  // --- Mises à jour -------------------------------------------------------------
+  ipcMain.handle('updater:check', () => checkForUpdatesNow())
 
   // --- Journal d'activité -----------------------------------------------------
   ipcMain.handle('activity:list', (_e, limit: number = 200): ActivityEntry[] => {

@@ -31,6 +31,7 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         ink: string | null
         rarity: string | null
         image_file: string | null
+        image_large_file: string | null
         lorcast_name: string | null
       }[]
       for (const line of parsed.cards) {
@@ -40,6 +41,7 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
           ink: card?.ink ?? null,
           rarity: card?.rarity ?? null,
           image_file: card?.image_file ?? null,
+          image_large_file: card?.image_large_file ?? null,
           lorcast_name: card ? [card.name, card.version].filter(Boolean).join(' - ') : null
         })
       }
@@ -71,8 +73,8 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
         const ins = db.prepare(
           `INSERT INTO order_lines (order_id, quantity, name, number, language, condition,
              set_code, color_code, color_label, rarity_code, price, comment, is_foil,
-             ink, rarity, image_file, lorcast_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             ink, rarity, image_file, image_large_file, lorcast_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         for (const e of enriched) {
           ins.run(
@@ -92,6 +94,7 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
             e.ink,
             e.rarity,
             e.image_file,
+            e.image_large_file,
             e.lorcast_name
           )
         }
@@ -178,6 +181,20 @@ export function setTracking(userId: number, orderId: number, tracking: string): 
 export function setNotes(userId: number, orderId: number, notes: string): void {
   getDb().prepare('UPDATE orders SET notes = ? WHERE id = ?').run(notes || null, orderId)
   logActivity(userId, 'order.notes', { orderId })
+}
+
+/** Coche de contrôle d'une ligne pendant la préparation de la commande. */
+export function setPrepChecked(userId: number, lineId: number, checked: boolean): void {
+  const db = getDb()
+  db.prepare('UPDATE order_lines SET prep_checked = ? WHERE id = ?').run(checked ? 1 : 0, lineId)
+  const line = db.prepare('SELECT order_id, name FROM order_lines WHERE id = ?').get(lineId) as
+    | { order_id: number; name: string }
+    | undefined
+  logActivity(userId, checked ? 'prep.checked' : 'prep.unchecked', {
+    lineId,
+    orderId: line?.order_id,
+    card: line?.name
+  })
 }
 
 // --- Statistiques (historique) -------------------------------------------------

@@ -3,6 +3,7 @@ import { INK_HEX } from '@shared/constants'
 
 interface ThumbLine {
   image_file: string | null
+  image_large_file?: string | null
   ink?: string | null
   color_label?: string | null
   name: string
@@ -10,7 +11,8 @@ interface ThumbLine {
 
 /**
  * Vignette de carte : visuel Lorcast en cache si disponible, sinon un
- * placeholder à la couleur de l'encre. Clic → zoom.
+ * placeholder à la couleur de l'encre. Clic → zoom plein écran en haute
+ * définition (image_large_file, avec repli sur la vignette).
  */
 export default function CardThumb({
   line,
@@ -39,6 +41,8 @@ export default function CardThumb({
     )
   }
 
+  const zoomFile = line.image_large_file ?? line.image_file
+
   return (
     <>
       <img
@@ -58,7 +62,7 @@ export default function CardThumb({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'rgba(0,0,0,0.82)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -67,9 +71,16 @@ export default function CardThumb({
           }}
         >
           <img
-            src={`appcache://images/${line.image_file}`}
+            src={`appcache://images/${zoomFile}`}
             alt={line.name}
-            style={{ maxHeight: '80vh', borderRadius: 12 }}
+            style={{
+              maxHeight: '92vh',
+              maxWidth: '92vw',
+              minHeight: '75vh',
+              objectFit: 'contain',
+              borderRadius: 16,
+              boxShadow: '0 8px 60px rgba(0,0,0,0.8)'
+            }}
           />
         </div>
       )}

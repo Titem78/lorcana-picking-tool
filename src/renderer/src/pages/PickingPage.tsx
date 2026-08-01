@@ -4,10 +4,9 @@ import { INK_HEX, INK_LABELS_FR, RARITY_LABELS_FR } from '@shared/constants'
 import CardThumb from '@/components/CardThumb'
 
 /**
- * Page Picking : liste globale groupée par emplacement physique.
- * Une carte demandée par plusieurs clients apparaît une seule fois avec la
- * répartition ; chaque coche est tracée (qui / quand) et fait avancer le
- * statut des commandes concernées.
+ * Page Picking : liste globale, toutes commandes mélangées, groupée par
+ * emplacement physique. Les quantités se valident exemplaire par exemplaire
+ * avec un compteur − / + pour ne pas se tromper ; chaque clic est tracé.
  */
 export default function PickingPage({ user }: { user: User }): React.JSX.Element {
   const [list, setList] = useState<PickingList | null>(null)
@@ -25,7 +24,8 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
         <h1>🎯 Picking</h1>
         <div className="placeholder">
           Rien à picker. Importe des PDF de commande dans l&apos;onglet « Commandes », la liste se
-          construira ici, emplacement par emplacement.
+          construira ici, emplacement par emplacement. Quand tout est sorti, la suite se passe
+          dans l&apos;onglet « Préparation ».
         </div>
       </div>
     )
@@ -33,14 +33,14 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
 
   const pct = list.total_qty ? Math.round((100 * list.picked_qty) / list.total_qty) : 0
 
-  const pickItem = (item: PickingItem, picked: boolean): void => {
+  const setQty = (s: PickingSubline, qty: number): void => {
+    window.api.picking.setQty(user.id, s.line_id, qty).then(refresh)
+  }
+
+  const pickAll = (item: PickingItem, picked: boolean): void => {
     Promise.all(
       item.sublines.map((s) => window.api.picking.pick(user.id, s.line_id, picked))
     ).then(refresh)
-  }
-
-  const pickSub = (s: PickingSubline, picked: boolean): void => {
-    window.api.picking.pick(user.id, s.line_id, picked).then(refresh)
   }
 
   return (
@@ -48,7 +48,8 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 6 }}>
         <h1 style={{ marginBottom: 0 }}>🎯 Picking</h1>
         <span style={{ color: 'var(--text-dim)' }}>
-          {list.order_count} commande(s) — {list.picked_qty}/{list.total_qty} cartes sorties
+          {list.order_count} commande(s) mélangée(s) — {list.picked_qty}/{list.total_qty} cartes
+          sorties
         </span>
       </div>
       <div
@@ -70,11 +71,23 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
         />
       </div>
 
+      {pct === 100 && (
+        <div
+          style={{
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--accent)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 16px',
+            marginBottom: 18
+          }}
+        >
+          ✅ Picking terminé ! Passe à l&apos;onglet <b>🧾 Préparation</b> pour contrôler et
+          emballer chaque commande.
+        </div>
+      )}
+
       {list.sections.map((section) => {
-        const remaining = section.items.reduce(
-          (s, i) => s + (i.total_qty - i.picked_qty),
-          0
-        )
+        const remaining = section.items.reduce((s, i) => s + (i.total_qty - i.picked_qty), 0)
         return (
           <section key={section.location_id ?? 'none'} style={{ marginBottom: 26 }}>
             <h2
@@ -100,12 +113,7 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {section.items.map((item) => (
-                <PickingRow
-                  key={item.key}
-                  item={item}
-                  onPickItem={pickItem}
-                  onPickSub={pickSub}
-                />
+                <PickingRow key={item.key} item={item} onSetQty={setQty} onPickAll={pickAll} />
               ))}
             </div>
           </section>
@@ -115,94 +123,180 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
   )
 }
 
+/** Compteur d'exemplaires : − 2/3 + (ou simple case si un seul exemplaire). */
+function QtyControl({
+  subline,
+  onSetQty
+}: {
+  subline: PickingSubline
+  onSetQty: (s: PickingSubline, qty: number) => void
+}): React.JSX.Element {
+  const done = subline.picked_qty >= subline.quantity
+
+  if (subline.quantity === 1) {
+    return (
+      <input
+        type="checkbox"
+        checked={done}
+        onChange={(e) => onSetQty(subline, e.target.checked ? 1 : 0)}
+        style={{ width: 22, height: 22, accentColor: 'var(--accent)' }}
+      />
+    )
+  }
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <button
+        onClick={() => onSetQty(subline, subline.picked_qty - 1)}
+        disabled={subline.picked_qty === 0}
+        style={{ width: 34, height: 34, padding: 0, fontSize: '1.1rem' }}
+        title="Retirer un exemplaire"
+      >
+        −
+      </button>
+      <b
+        style={{
+          minWidth: 44,
+          textAlign: 'center',
+          fontSize: '1.05rem',
+          color: done ? 'var(--ok)' : 'var(--text)'
+        }}
+      >
+        {subline.picked_qty}/{subline.quantity}
+      </b>
+      <button
+        onClick={() => onSetQty(subline, subline.picked_qty + 1)}
+        disabled={done}
+        className={done ? '' : 'primary'}
+        style={{ width: 34, height: 34, padding: 0, fontSize: '1.1rem' }}
+        title="Sortir un exemplaire"
+      >
+        +
+      </button>
+    </span>
+  )
+}
+
 function PickingRow({
   item,
-  onPickItem,
-  onPickSub
+  onSetQty,
+  onPickAll
 }: {
   item: PickingItem
-  onPickItem: (item: PickingItem, picked: boolean) => void
-  onPickSub: (s: PickingSubline, picked: boolean) => void
+  onSetQty: (s: PickingSubline, qty: number) => void
+  onPickAll: (item: PickingItem, picked: boolean) => void
 }): React.JSX.Element {
+  const multi = item.sublines.length > 1
   const [open, setOpen] = useState(false)
   const done = item.picked_qty >= item.total_qty
-  const multi = item.sublines.length > 1
   const hex = INK_HEX[item.ink] ?? '#555'
 
   return (
     <div
       style={{
         background: 'var(--bg-panel)',
-        border: '1px solid var(--border)',
+        border: `1px solid ${done ? 'var(--ok)' : 'var(--border)'}`,
         borderRadius: 'var(--radius)',
-        padding: '8px 12px',
-        opacity: done ? 0.55 : 1
+        padding: '10px 14px',
+        opacity: done ? 0.6 : 1
       }}
     >
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <input
-          type="checkbox"
-          checked={done}
-          onChange={(e) => onPickItem(item, e.target.checked)}
-          style={{ width: 20, height: 20, accentColor: 'var(--accent)' }}
-        />
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
         <CardThumb line={item} size={96} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <b style={{ fontSize: '1.02rem' }}>
+            <b style={{ fontSize: '1.08rem' }}>
               {item.total_qty}× {item.name}
             </b>
             {item.is_foil && <span title="Foil">✨</span>}
+            {done && <span style={{ color: 'var(--ok)' }}>✅</span>}
           </div>
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.87rem', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              color: 'var(--text-dim)',
+              fontSize: '0.9rem',
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              marginTop: 4
+            }}
+          >
             <span>
-              Ch. {item.set_code} · n° <b style={{ color: 'var(--text)' }}>{item.number}</b>
+              Ch. {item.set_code} · n°{' '}
+              <b style={{ color: 'var(--text)', fontSize: '1.05rem' }}>{item.number}</b>
             </span>
             <span style={{ color: hex }}>⬤ {INK_LABELS_FR[item.ink] ?? item.ink}</span>
             <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>
             <span>{item.language}</span>
           </div>
+          {!multi && (
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 4 }}>
+              pour {item.sublines[0].buyer_username} (#{item.sublines[0].sale_id}) ·{' '}
+              {item.sublines[0].condition}
+              {item.sublines[0].comment && ` · ${item.sublines[0].comment}`}
+              {item.sublines[0].picked_qty >= item.sublines[0].quantity &&
+                item.sublines[0].picked_by_name && (
+                  <>
+                    {' '}
+                    · ✅ {item.sublines[0].picked_by_name} à{' '}
+                    {item.sublines[0].picked_at?.slice(11, 16)}
+                  </>
+                )}
+            </div>
+          )}
         </div>
+
         {multi ? (
-          <button onClick={() => setOpen(!open)}>
-            {open ? 'Replier' : `${item.sublines.length} clients`}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+            <b style={{ color: done ? 'var(--ok)' : 'var(--text)', fontSize: '1.05rem' }}>
+              {item.picked_qty}/{item.total_qty}
+            </b>
+            <button onClick={() => setOpen(!open)}>
+              {open ? 'Replier' : `${item.sublines.length} clients ▾`}
+            </button>
+          </div>
         ) : (
-          <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-            {item.sublines[0].buyer_username}
-          </span>
+          <QtyControl subline={item.sublines[0]} onSetQty={onSetQty} />
         )}
       </div>
 
-      {open && (
-        <div style={{ marginTop: 8, marginLeft: 44, display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {multi && open && (
+        <div
+          style={{
+            marginTop: 10,
+            marginLeft: 110,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}
+        >
           {item.sublines.map((s) => (
-            <label
+            <div
               key={s.line_id}
               style={{
                 display: 'flex',
-                gap: 10,
+                gap: 12,
                 alignItems: 'center',
-                fontSize: '0.9rem',
+                fontSize: '0.92rem',
                 color: 'var(--text-dim)'
               }}
             >
-              <input
-                type="checkbox"
-                checked={s.picked_qty >= s.quantity}
-                onChange={(e) => onPickSub(s, e.target.checked)}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              <b style={{ color: 'var(--text)' }}>{s.quantity}×</b> pour {s.buyer_username} (#
-              {s.sale_id}) · {s.condition}
-              {s.comment && ` · ${s.comment}`}
+              <QtyControl subline={s} onSetQty={onSetQty} />
+              <span>
+                <b style={{ color: 'var(--text)' }}>{s.quantity}×</b> pour {s.buyer_username} (#
+                {s.sale_id}) · {s.condition}
+                {s.comment && ` · ${s.comment}`}
+              </span>
               {s.picked_qty >= s.quantity && s.picked_by_name && (
                 <span style={{ marginLeft: 'auto' }}>
                   ✅ {s.picked_by_name} à {s.picked_at?.slice(11, 16)}
                 </span>
               )}
-            </label>
+            </div>
           ))}
+          <button style={{ alignSelf: 'flex-start' }} onClick={() => onPickAll(item, !done)}>
+            {done ? 'Tout décocher' : 'Tout sortir ✓'}
+          </button>
         </div>
       )}
     </div>

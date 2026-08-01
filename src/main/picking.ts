@@ -79,6 +79,7 @@ export function buildPickingList(): PickingList {
         is_foil: line.is_foil === 1,
         language: line.language ?? '',
         image_file: line.image_file,
+        image_large_file: line.image_large_file,
         total_qty: 0,
         picked_qty: 0,
         sublines: []
@@ -86,6 +87,7 @@ export function buildPickingList(): PickingList {
       section.items.push(item)
     }
     if (!item.image_file && line.image_file) item.image_file = line.image_file
+    if (!item.image_large_file && line.image_large_file) item.image_large_file = line.image_large_file
     item.total_qty += line.quantity
     item.picked_qty += Math.min(line.picked_qty, line.quantity)
     item.sublines.push({
@@ -127,44 +129,52 @@ export function buildPickingList(): PickingList {
 }
 
 /**
- * Coche/décoche une ligne (traçabilité : qui, quand). Met à jour le statut de
- * la commande : picking en cours, picked quand tout est sorti.
+ * Fixe la quantité sortie d'une ligne, exemplaire par exemplaire (compteur).
+ * Traçabilité : qui, quand. Met à jour le statut de la commande :
+ * picking en cours, picked quand tout est sorti.
  */
-export function pickLine(userId: number, lineId: number, picked: boolean): void {
+export function setPickedQty(userId: number, lineId: number, qty: number): void {
   const db = getDb()
   const line = db.prepare('SELECT * FROM order_lines WHERE id = ?').get(lineId) as
     | OrderLine
     | undefined
   if (!line) return
+  const clamped = Math.max(0, Math.min(line.quantity, Math.round(qty)))
 
-  if (picked) {
+  if (clamped > 0) {
     db.prepare(
-      `UPDATE order_lines SET picked_qty = quantity,
+      `UPDATE order_lines SET picked_qty = ?,
          picked_at = datetime('now', 'localtime'), picked_by = ? WHERE id = ?`
-    ).run(userId, lineId)
+    ).run(clamped, userId, lineId)
   } else {
     db.prepare(
       'UPDATE order_lines SET picked_qty = 0, picked_at = NULL, picked_by = NULL WHERE id = ?'
     ).run(lineId)
   }
-  logActivity(userId, picked ? 'pick.checked' : 'pick.unchecked', {
+  logActivity(userId, 'pick.qty', {
     lineId,
     orderId: line.order_id,
     card: `${line.set_code}/${line.number} ${line.name}`,
-    qty: line.quantity
+    qty: clamped,
+    of: line.quantity
   })
 
-  const remaining = db
+  const remaining = getDb()
     .prepare('SELECT COUNT(*) AS n FROM order_lines WHERE order_id = ? AND picked_qty < quantity')
     .get(line.order_id) as { n: number }
   const newStatus = remaining.n === 0 ? 'picked' : 'picking'
-  const current = db.prepare('SELECT status FROM orders WHERE id = ?').get(line.order_id) as {
+  const current = getDb().prepare('SELECT status FROM orders WHERE id = ?').get(line.order_id) as {
     status: string
   }
   if (current.status !== newStatus && ['imported', 'picking', 'picked'].includes(current.status)) {
-    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(newStatus, line.order_id)
+    getDb().prepare('UPDATE orders SET status = ? WHERE id = ?').run(newStatus, line.order_id)
     if (newStatus === 'picked') {
       logActivity(userId, 'order.picked_complete', { orderId: line.order_id })
     }
   }
+}
+
+/** Coche/décoche une ligne entière (compat : équivaut au compteur à fond ou à zéro). */
+export function pickLine(userId: number, lineId: number, picked: boolean): void {
+  setPickedQty(userId, lineId, picked ? Number.MAX_SAFE_INTEGER : 0)
 }

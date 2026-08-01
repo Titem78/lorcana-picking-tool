@@ -1,6 +1,45 @@
 import { useEffect, useState } from 'react'
 import type { ActivityEntry, AppInfo, User } from '@shared/types'
 
+function UpdateChecker(): React.JSX.Element {
+  const [state, setState] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+
+  const check = (): void => {
+    setBusy(true)
+    setState('Vérification…')
+    window.api
+      .checkUpdates()
+      .then((r: { status: string; current: string; latest?: string; message?: string }) => {
+        setBusy(false)
+        switch (r.status) {
+          case 'dev':
+            setState('Mode développement : pas de mise à jour.')
+            break
+          case 'uptodate':
+            setState(`✅ Tu as la dernière version (${r.current}).`)
+            break
+          case 'available':
+            setState(
+              `⬇ Version ${r.latest} disponible (tu as la ${r.current}) — téléchargement en cours, elle s'installera à la fermeture de l'app.`
+            )
+            break
+          default:
+            setState(`⚠ Vérification impossible : ${r.message}`)
+        }
+      })
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <button onClick={check} disabled={busy}>
+        🔄 Vérifier les mises à jour maintenant
+      </button>
+      <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{state}</span>
+    </div>
+  )
+}
+
 export default function SettingsPage({ user }: { user: User }): React.JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -40,11 +79,53 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
 
       <section style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Application</h2>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
           Version {info?.version ?? '…'} — les mises à jour s&apos;installent automatiquement
           depuis GitHub.
           <br />
           Base de données : {info?.dbPath ?? '…'}
+        </p>
+        <UpdateChecker />
+      </section>
+
+      <section style={{ marginBottom: 30 }}>
+        <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Exports &amp; sauvegardes</h2>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={() =>
+              window.api.exports.historyCsv(user.id).then((f: string | null) => {
+                if (f) setMsg(`Historique exporté ✔ (${f.split(/[\\/]/).pop()})`)
+              })
+            }
+          >
+            📤 Exporter l&apos;historique (CSV)
+          </button>
+          <button
+            onClick={() =>
+              window.api.exports.locationsJson(user.id).then((f: string | null) => {
+                if (f) setMsg(`Emplacements exportés ✔ (${f.split(/[\\/]/).pop()})`)
+              })
+            }
+          >
+            📤 Exporter les emplacements
+          </button>
+          <button
+            onClick={() =>
+              window.api.exports
+                .importLocations(user.id)
+                .then((r: { imported?: number; error?: string } | null) => {
+                  if (!r) return
+                  setMsg(r.error ?? `${r.imported} emplacement(s) importé(s) ✔`)
+                })
+            }
+          >
+            📥 Importer des emplacements
+          </button>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{msg}</span>
+        </div>
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 8 }}>
+          L&apos;export CSV s&apos;ouvre dans Excel/LibreOffice. L&apos;export des emplacements
+          permet de transférer ta configuration de boîtes sur un autre PC.
         </p>
       </section>
 

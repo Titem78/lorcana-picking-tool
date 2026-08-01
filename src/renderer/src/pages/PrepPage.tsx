@@ -13,12 +13,13 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   const [detail, setDetail] = useState<Order | null>(null)
 
   const refresh = (): void => {
-    window.api.orders.list(['picked', 'prepared']).then(setOrders)
+    window.api.orders.list(['picked', 'prepared', 'shipped']).then(setOrders)
   }
   useEffect(refresh, [])
 
   const toPrepare = orders.filter((o) => o.status === 'picked')
   const toShip = orders.filter((o) => o.status === 'prepared')
+  const shipped = orders.filter((o) => o.status === 'shipped').slice(0, 8)
 
   if (orders.length === 0) {
     return (
@@ -54,6 +55,49 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
           onOpen={setDetail}
           onChanged={refresh}
         />
+        {shipped.length > 0 && (
+          <div style={{ flex: 1, minWidth: 300 }}>
+            <h2
+              style={{
+                fontSize: '1.02rem',
+                padding: '8px 12px',
+                background: 'var(--bg-panel)',
+                borderLeft: '5px solid var(--text-dim)',
+                borderRadius: 'var(--radius)',
+                marginBottom: 4
+              }}
+            >
+              Expédiées récemment
+            </h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', margin: '6px 2px 12px' }}>
+              L&apos;historique complet est dans l&apos;onglet 📚
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {shipped.map((o) => (
+                <div
+                  key={o.id}
+                  onClick={() => setDetail(o)}
+                  style={{
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    padding: '9px 14px',
+                    cursor: 'pointer',
+                    opacity: 0.85
+                  }}
+                >
+                  📮 <b>{o.buyer_username}</b>
+                  <span style={{ color: 'var(--text-dim)' }}> — #{o.sale_id}</span>
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 2 }}>
+                    expédiée le {o.shipped_at?.slice(0, 10)} à {o.shipped_at?.slice(11, 16)}
+                    {o.shipped_by_name && <> par {o.shipped_by_name}</>}
+                    {o.tracking_number && <> · suivi {o.tracking_number}</>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {detail && (

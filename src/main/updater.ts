@@ -1,6 +1,31 @@
 import { app, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
+export interface UpdateCheckResult {
+  status: 'dev' | 'uptodate' | 'available' | 'error'
+  current: string
+  latest?: string
+  message?: string
+}
+
+/** Vérification manuelle (bouton dans les Réglages). */
+export async function checkForUpdatesNow(): Promise<UpdateCheckResult> {
+  const current = app.getVersion()
+  if (!app.isPackaged) {
+    return { status: 'dev', current, message: 'Pas de mise à jour en mode développement' }
+  }
+  try {
+    const res = await autoUpdater.checkForUpdates()
+    const latest = res?.updateInfo?.version
+    if (latest && latest !== current) {
+      return { status: 'available', current, latest }
+    }
+    return { status: 'uptodate', current, latest: latest ?? current }
+  } catch (err) {
+    return { status: 'error', current, message: String((err as Error).message ?? err) }
+  }
+}
+
 // Mise à jour automatique via les GitHub Releases du dépôt (electron-builder.yml).
 // Cycle : vérification au lancement → téléchargement silencieux → installation
 // proposée au redémarrage. Les événements sont relayés au renderer pour affichage.

@@ -21,8 +21,10 @@ export interface LorcastCard {
   collector_number: string
   image_small: string | null
   image_normal: string | null
-  /** nom de fichier dans le cache images, si téléchargée */
+  /** vignette dans le cache images, si téléchargée */
   image_file: string | null
+  /** version haute définition (zoom), si téléchargée */
+  image_large_file: string | null
 }
 
 let cardCache: Record<string, unknown> | null = null
@@ -54,7 +56,7 @@ function saveCache(): void {
   renameSync(tmp, cacheFile())
 }
 
-function fromApi(d: Record<string, unknown>): Omit<LorcastCard, 'image_file'> {
+function fromApi(d: Record<string, unknown>): Omit<LorcastCard, 'image_file' | 'image_large_file'> {
   const img = ((d.image_uris as Record<string, unknown>)?.digital ?? {}) as Record<string, string>
   const set = (d.set ?? {}) as Record<string, unknown>
   return {
@@ -95,17 +97,24 @@ export async function getCard(setCode: string, number: string): Promise<LorcastC
   }
 
   const card = fromApi(raw)
-  const image_file = await ensureImage(card)
-  return { ...card, image_file }
+  const image_file = await ensureImage(card, 'small')
+  const image_large_file = await ensureImage(card, 'large')
+  return { ...card, image_file, image_large_file }
 }
 
-/** Télécharge (une fois) l'image de la carte, renvoie le nom de fichier local. */
-async function ensureImage(card: Omit<LorcastCard, 'image_file'>): Promise<string | null> {
-  const url = card.image_small ?? card.image_normal
+/**
+ * Télécharge (une fois) l'image de la carte, renvoie le nom de fichier local.
+ * 'small' = vignette (listes), 'large' = haute définition (zoom plein écran).
+ */
+async function ensureImage(
+  card: Omit<LorcastCard, 'image_file' | 'image_large_file'>,
+  size: 'small' | 'large'
+): Promise<string | null> {
+  const url = size === 'small' ? (card.image_small ?? card.image_normal) : (card.image_normal ?? card.image_small)
   if (!url) return null
   let ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? 'avif'
   if (!['avif', 'png', 'jpg', 'jpeg', 'webp'].includes(ext)) ext = 'avif'
-  const fname = `${card.set_code}_${card.collector_number}_small.${ext}`.replace(/[^\w.-]/g, '_')
+  const fname = `${card.set_code}_${card.collector_number}_${size}.${ext}`.replace(/[^\w.-]/g, '_')
   const local = join(cacheDir(), 'images', fname)
   if (existsSync(local) && statSync(local).size > 0) return fname
 

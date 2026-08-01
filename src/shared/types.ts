@@ -109,7 +109,9 @@ export interface OrderLine {
   ink: string | null
   rarity: string | null
   image_file: string | null
+  image_large_file: string | null
   lorcast_name: string | null
+  prep_checked: number
   picked_by_name?: string | null
 }
 
@@ -140,6 +142,7 @@ export interface PickingItem {
   is_foil: boolean
   language: string
   image_file: string | null
+  image_large_file: string | null
   total_qty: number
   picked_qty: number
   sublines: PickingSubline[]

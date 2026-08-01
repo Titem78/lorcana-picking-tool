@@ -47,6 +47,15 @@ export default function OrderSheet({
 
   const track = trackingInfo(order.shipping_method, order.tracking_number)
   const allPicked = lines.length > 0 && lines.every((l) => l.picked_qty >= l.quantity)
+  const inControl = order.status === 'picked'
+  const controlled = lines.filter((l) => l.prep_checked === 1).length
+  const allControlled = lines.length > 0 && controlled === lines.length
+
+  const toggleControl = (l: OrderLine, checked: boolean): void => {
+    window.api.prepCheck(user.id, l.id, checked).then(() => {
+      window.api.orders.lines(order.id).then(setLines)
+    })
+  }
 
   return (
     <div
@@ -138,6 +147,15 @@ export default function OrderSheet({
 
         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 6 }}>
           Cartes ({lines.length} ligne(s))
+          {inControl && (
+            <>
+              {' '}
+              — <b style={{ color: allControlled ? 'var(--ok)' : 'var(--accent)' }}>
+                contrôle {controlled}/{lines.length}
+              </b>{' '}
+              : vérifie chaque carte en l&apos;emballant, puis coche-la
+            </>
+          )}
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
           {lines.map((l) => (
@@ -166,8 +184,28 @@ export default function OrderSheet({
               <span style={{ fontSize: '0.83rem', color: 'var(--text-dim)' }}>
                 {l.picked_qty >= l.quantity
                   ? `✅ ${l.picked_by_name ?? ''} ${l.picked_at ? 'le ' + l.picked_at.slice(0, 16) : ''}`
-                  : 'à picker'}
+                  : `à picker (${l.picked_qty}/${l.quantity})`}
               </span>
+              {inControl && (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: '0.85rem',
+                    color: l.prep_checked ? 'var(--ok)' : 'var(--text-dim)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={l.prep_checked === 1}
+                    onChange={(e) => toggleControl(l, e.target.checked)}
+                    style={{ width: 20, height: 20, accentColor: 'var(--ok)' }}
+                  />
+                  Contrôlée
+                </label>
+              )}
             </div>
           ))}
         </div>
@@ -218,8 +256,14 @@ export default function OrderSheet({
           {['picked', 'picking', 'imported'].includes(order.status) && (
             <button
               className="primary"
-              disabled={!allPicked}
-              title={allPicked ? '' : 'Toutes les cartes doivent être pickées'}
+              disabled={!allPicked || !allControlled}
+              title={
+                !allPicked
+                  ? 'Toutes les cartes doivent être pickées'
+                  : !allControlled
+                    ? 'Contrôle chaque carte en l’emballant, puis coche-la'
+                    : ''
+              }
               onClick={() => advance('prepared')}
             >
               ✅ Marquer préparée
