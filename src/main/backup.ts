@@ -11,6 +11,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { closeDb, getDb, getDbPath, logActivity } from './db'
 import { imagesDir } from './lorcast'
+import { stampsDir } from './stamps'
 
 // Outils système Windows (chemins absolus : indépendants du PATH de l'app)
 const TAR = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
@@ -29,12 +30,17 @@ export async function exportBackup(userId: number, win: BrowserWindow): Promise<
     // Copie cohérente de la base même app ouverte (API backup de SQLite)
     await getDb().backup(join(staging, 'lorcana-picking.db'))
     // Visuels (cartes en cache + images personnalisées des accessoires)
-    const imgSrc = imagesDir()
-    if (existsSync(imgSrc)) {
-      mkdirSync(join(staging, 'images'), { recursive: true })
-      execFileSync(ROBOCOPY, [imgSrc, join(staging, 'images'), '/E', '/NFL', '/NDL', '/NJH', '/NJS'], {
-        windowsHide: true
-      })
+    // + planches de timbres PDF (indispensables pour imprimer les timbres)
+    for (const [name, src] of [
+      ['images', imagesDir()],
+      ['stamps', stampsDir()]
+    ] as const) {
+      if (existsSync(src)) {
+        mkdirSync(join(staging, name), { recursive: true })
+        execFileSync(ROBOCOPY, [src, join(staging, name), '/E', '/NFL', '/NDL', '/NJH', '/NJS'], {
+          windowsHide: true
+        })
+      }
     }
   } catch (err) {
     // robocopy renvoie des codes de sortie non nuls même en cas de succès (1 = fichiers copiés)
@@ -78,16 +84,20 @@ export async function importBackup(userId: number, win: BrowserWindow): Promise<
   logActivity(userId, 'backup.import_started', { file: res.filePaths[0] })
   closeDb()
   copyFileSync(dbFile, getDbPath())
-  const imgDst = imagesDir()
-  const imgSrc = join(staging, 'images')
-  if (existsSync(imgSrc)) {
-    try {
-      execFileSync(ROBOCOPY, [imgSrc, imgDst, '/E', '/NFL', '/NDL', '/NJH', '/NJS'], {
-        windowsHide: true
-      })
-    } catch (err) {
-      const code = (err as { status?: number }).status
-      if (code === undefined || code > 7) throw err
+  for (const [name, dst] of [
+    ['images', imagesDir()],
+    ['stamps', stampsDir()]
+  ] as const) {
+    const src = join(staging, name)
+    if (existsSync(src)) {
+      try {
+        execFileSync(ROBOCOPY, [src, dst, '/E', '/NFL', '/NDL', '/NJH', '/NJS'], {
+          windowsHide: true
+        })
+      } catch (err) {
+        const code = (err as { status?: number }).status
+        if (code === undefined || code > 7) throw err
+      }
     }
   }
   rmSync(staging, { recursive: true, force: true })
