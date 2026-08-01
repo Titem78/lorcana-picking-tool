@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Order, OrderLine, User } from '@shared/types'
 import { trackingInfo } from '@shared/tracking'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
+import { confirmDialog } from '@/lib/dialogs'
 import CardThumb from '@/components/CardThumb'
 import StampPrint from '@/components/StampPrint'
 
@@ -54,13 +55,16 @@ export default function OrderSheet({
 
   const releaseStamp = (): void => {
     if (
-      !window.confirm(
+      !confirmDialog(
         'Libérer ce timbre ?\n\n⚠ UNIQUEMENT si tu ne l’as PAS imprimé/collé — un timbre physiquement utilisé ne doit jamais être réaffecté.'
       )
     )
       return
     window.api.stamps.release(user.id, order.id).then(() => {
       setStampMsg('Timbre libéré')
+      window.api.stamps.stock().then((s: { stamp_type: string; free: number; used: number }[]) => {
+        setStampStock(s.filter((x) => x.free > 0))
+      })
       reload()
     })
   }
@@ -481,7 +485,7 @@ export default function OrderSheet({
                 title="Pour une commande déjà faite physiquement : tout valider d'un coup (picking + contrôle) et la passer en « préparée » — utile pour l'envoyer ensuite vers Odoo."
                 onClick={() => {
                   if (
-                    window.confirm(
+                    confirmDialog(
                       `Valider la commande #${order.sale_id} complète sans passer par le picking ?\n\nToutes les cartes seront marquées sorties et contrôlées, la commande passera en « préparée ».`
                     )
                   ) {

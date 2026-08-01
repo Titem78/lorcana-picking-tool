@@ -90,6 +90,8 @@ const api = {
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
   },
 
+  refocus: () => ipcRenderer.invoke('app:refocus'),
+
   resetData: (userId: number, confirmation: string) =>
     ipcRenderer.invoke('app:resetData', userId, confirmation),
 

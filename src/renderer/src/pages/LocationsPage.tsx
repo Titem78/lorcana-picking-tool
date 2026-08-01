@@ -10,6 +10,7 @@ import {
   RARITY_LABELS_FR
 } from '@shared/constants'
 import { compactIntRanges, describeCriteria, parseChaptersInput } from '@shared/rules'
+import { confirmDialog } from '@/lib/dialogs'
 
 interface LocationDraft {
   name: string
@@ -51,7 +52,7 @@ export default function LocationsPage({ user }: { user: User }): React.JSX.Eleme
   }
 
   const remove = (loc: StorageLocation): void => {
-    if (!window.confirm(`Supprimer « ${loc.name} » ? Les commandes passées le garderont en mémoire.`))
+    if (!confirmDialog(`Supprimer « ${loc.name} » ? Les commandes passées le garderont en mémoire.`))
       return
     window.api.locations.remove(user.id, loc.id).then(refresh)
   }

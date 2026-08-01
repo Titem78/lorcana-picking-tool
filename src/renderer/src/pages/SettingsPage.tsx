@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ActivityEntry, AppInfo, User } from '@shared/types'
+import { alertDialog, confirmDialog } from '@/lib/dialogs'
 
 function UpdateChecker(): React.JSX.Element {
   const [state, setState] = useState<string>('')
@@ -561,7 +562,7 @@ function DangerZone({ user }: { user: User }): React.JSX.Element {
     window.api
       .resetData(user.id, text)
       .then(() => {
-        window.alert(
+        alertDialog(
           'Toutes les données ont été effacées. L’application repart de zéro : crée le premier compte préparateur.'
         )
         window.location.reload()
@@ -672,7 +673,7 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
   }
 
   const removeUser = (target: User): void => {
-    if (!window.confirm(`Désactiver le compte de ${target.name} ?`)) return
+    if (!confirmDialog(`Désactiver le compte de ${target.name} ?`)) return
     window.api.users.deactivate(target.id, user.id).then(refresh)
   }
 
@@ -754,7 +755,7 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           <button
             onClick={() => {
               if (
-                window.confirm(
+                confirmDialog(
                   'Restaurer une sauvegarde REMPLACE toutes les données actuelles (commandes, comptes, emplacements, réglages, visuels) puis redémarre l’application.\n\nContinuer ?'
                 )
               ) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Order, User } from '@shared/types'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
 import OrderSheet from '@/components/OrderSheet'
+import { confirmDialog } from '@/lib/dialogs'
 
 interface HistoryStats {
   months: { month: string; orders: number; revenue_cents: number }[]
@@ -42,7 +43,7 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
   }
 
   const sendMissing = async (): Promise<void> => {
-    if (!window.confirm(`Envoyer ${odooMissing.length} commande(s) vers Odoo (facture brouillon) ?`))
+    if (!confirmDialog(`Envoyer ${odooMissing.length} commande(s) vers Odoo (facture brouillon) ?`))
       return
     let ok = 0
     let ko = 0

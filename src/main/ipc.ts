@@ -18,6 +18,15 @@ export function registerIpc(): void {
     return { version: app.getVersion(), dbPath: getDbPath() }
   })
 
+  // Contournement du bug de focus d'Electron après confirm()/alert()
+  ipcMain.handle('app:refocus', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win) {
+      win.blur()
+      win.focus()
+    }
+  })
+
   ipcMain.handle('app:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url)
   })

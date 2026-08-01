@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ImportResult, Order, User } from '@shared/types'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
 import OrderSheet from '@/components/OrderSheet'
+import { confirmDialog } from '@/lib/dialogs'
 
 /**
  * Page Commandes : import des PDF de vente Cardmarket (bouton ou
@@ -167,7 +168,7 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
                     <button
                       title="Supprimer cette commande"
                       onClick={() => {
-                        if (window.confirm(`Supprimer la vente #${o.sale_id} ?`))
+                        if (confirmDialog(`Supprimer la vente #${o.sale_id} ?`))
                           window.api.orders.remove(user.id, o.id).then(refresh)
                       }}
                     >
