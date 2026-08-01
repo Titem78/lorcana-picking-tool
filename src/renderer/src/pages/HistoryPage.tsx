@@ -14,12 +14,38 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
   const [stats, setStats] = useState<HistoryStats | null>(null)
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<Order | null>(null)
+  const [odooConfigured, setOdooConfigured] = useState(false)
+  const [sending, setSending] = useState<string | null>(null)
 
   const refresh = (): void => {
     window.api.orders.list(['shipped', 'archived']).then(setOrders)
     window.api.orders.stats().then(setStats)
+    window.api.odoo.getConfig().then((c: unknown) => setOdooConfigured(c !== null))
   }
   useEffect(refresh, [])
+
+  // Pilotage Odoo : combien de commandes expédiées ont leur facture ?
+  const odooSent = orders.filter((o) => o.odoo_move_id).length
+  const odooErrors = orders.filter((o) => !o.odoo_move_id && o.odoo_error).length
+  const odooMissing = orders.filter((o) => !o.odoo_move_id)
+
+  const sendMissing = async (): Promise<void> => {
+    if (!window.confirm(`Envoyer ${odooMissing.length} commande(s) vers Odoo (facture brouillon) ?`))
+      return
+    let ok = 0
+    let ko = 0
+    for (const o of odooMissing) {
+      setSending(`Envoi ${ok + ko + 1}/${odooMissing.length} — #${o.sale_id}…`)
+      try {
+        await window.api.odoo.send(user.id, o.id)
+        ok++
+      } catch {
+        ko++
+      }
+    }
+    setSending(`Terminé : ${ok} envoyée(s)${ko ? `, ${ko} en erreur (voir les fiches)` : ''}`)
+    refresh()
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -95,6 +121,42 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
         </div>
       )}
 
+      {odooConfigured && orders.length > 0 && (
+        <div
+          style={{
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <b>Pilotage Odoo :</b>
+          <span className="badge" style={{ borderColor: 'var(--ok)' }}>
+            ✔ {odooSent} facturée(s)
+          </span>
+          {odooErrors > 0 && (
+            <span className="badge" style={{ borderColor: 'var(--danger)' }}>
+              ⚠ {odooErrors} en erreur
+            </span>
+          )}
+          {odooMissing.length > 0 && (
+            <span className="badge">− {odooMissing.length} non envoyée(s)</span>
+          )}
+          <span style={{ flex: 1 }} />
+          {odooMissing.length > 0 && !sending?.startsWith('Envoi') && (
+            <button className="primary" onClick={sendMissing}>
+              📤 Envoyer les {odooMissing.length} manquante(s)
+            </button>
+          )}
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>{sending}</span>
+        </div>
+      )}
+
       <input
         placeholder="Rechercher : n° de vente, client, n° de suivi…"
         value={search}
@@ -115,6 +177,7 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
               <th>Par</th>
               <th>Suivi</th>
               <th>Statut</th>
+              {odooConfigured && <th>Odoo</th>}
               <th></th>
             </tr>
           </thead>
@@ -135,6 +198,23 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
                     {STATUS_LABELS[o.status]}
                   </span>
                 </td>
+                {odooConfigured && (
+                  <td
+                    title={
+                      o.odoo_move_id
+                        ? `Facture brouillon créée le ${o.odoo_sent_at?.slice(0, 16) ?? ''}`
+                        : (o.odoo_error ?? 'Pas encore envoyée vers Odoo')
+                    }
+                  >
+                    {o.odoo_move_id ? (
+                      <span style={{ color: 'var(--ok)' }}>✔</span>
+                    ) : o.odoo_error ? (
+                      <span style={{ color: 'var(--danger)' }}>⚠</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-dim)' }}>—</span>
+                    )}
+                  </td>
+                )}
                 <td>
                   <button onClick={() => setDetail(o)}>Fiche</button>
                 </td>
