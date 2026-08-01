@@ -32,13 +32,22 @@ export interface StorageLocation {
   rules: LocationRule[]
 }
 
-/** Critères d'une règle de rangement. Un champ absent/vide = « tous ». */
+/** Critères d'une règle de rangement. Un champ absent/vide = « tous ». Logique ET. */
 export interface RuleCriteria {
-  sets?: string[] // chapitres, ex. ["10", "12"]
-  colors?: string[] // codes couleur Cardmarket, ex. ["RUB", "SAP"]
-  rarities?: string[] // ex. ["C", "U", "R", "SR", "L", "E"]
+  chapters?: number[] // ex. [1, 2, 3, 10]
+  colors?: string[] // encres canoniques, ex. ["Ruby", "Sapphire"]
+  rarities?: string[] // canoniques, ex. ["Common", "Legendary"]
   foil?: boolean | null // true = uniquement foil, false = uniquement non-foil, null = peu importe
   languages?: string[] // ex. ["FR", "EN"]
+}
+
+/** Faits d'une carte évalués par le moteur de règles. */
+export interface CardFacts {
+  color: string // encre canonique, ex. "Amber"
+  rarity: string // rareté canonique, ex. "Legendary"
+  chapter: number
+  is_foil: boolean
+  language: string
 }
 
 export interface LocationRule {

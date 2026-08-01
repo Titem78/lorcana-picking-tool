@@ -1,7 +1,8 @@
 import { ipcMain, app, shell } from 'electron'
 import { getDb, getDbPath, logActivity } from './db'
 import * as users from './users'
-import type { ActivityEntry, AppInfo } from '@shared/types'
+import * as locations from './locations'
+import type { ActivityEntry, AppInfo, RuleCriteria, StorageLocation } from '@shared/types'
 
 // Toutes les routes IPC de l'application. Le renderer les appelle via window.api.
 export function registerIpc(): void {
@@ -27,6 +28,25 @@ export function registerIpc(): void {
   )
   ipcMain.handle('users:deactivate', (_e, userId: number, byUserId: number) =>
     users.deactivateUser(userId, byUserId)
+  )
+
+  // --- Emplacements -----------------------------------------------------------
+  type LocationData = Pick<StorageLocation, 'name' | 'kind' | 'color' | 'label' | 'notes'>
+  ipcMain.handle('locations:list', () => locations.listLocations())
+  ipcMain.handle('locations:create', (_e, userId: number, data: LocationData) =>
+    locations.createLocation(userId, data)
+  )
+  ipcMain.handle('locations:update', (_e, userId: number, id: number, data: LocationData) =>
+    locations.updateLocation(userId, id, data)
+  )
+  ipcMain.handle('locations:delete', (_e, userId: number, id: number) =>
+    locations.deleteLocation(userId, id)
+  )
+  ipcMain.handle('locations:reorder', (_e, userId: number, orderedIds: number[]) =>
+    locations.reorderLocations(userId, orderedIds)
+  )
+  ipcMain.handle('locations:setRules', (_e, userId: number, locationId: number, rules: RuleCriteria[]) =>
+    locations.setRules(userId, locationId, rules)
   )
 
   // --- Journal d'activité -----------------------------------------------------

@@ -18,6 +18,18 @@ const api = {
       ipcRenderer.invoke('users:deactivate', userId, byUserId)
   },
 
+  locations: {
+    list: () => ipcRenderer.invoke('locations:list'),
+    create: (userId: number, data: unknown) => ipcRenderer.invoke('locations:create', userId, data),
+    update: (userId: number, id: number, data: unknown) =>
+      ipcRenderer.invoke('locations:update', userId, id, data),
+    remove: (userId: number, id: number) => ipcRenderer.invoke('locations:delete', userId, id),
+    reorder: (userId: number, orderedIds: number[]) =>
+      ipcRenderer.invoke('locations:reorder', userId, orderedIds),
+    setRules: (userId: number, locationId: number, rules: unknown[]) =>
+      ipcRenderer.invoke('locations:setRules', userId, locationId, rules)
+  },
+
   activity: {
     list: (limit?: number) => ipcRenderer.invoke('activity:list', limit),
     log: (userId: number | null, action: string, details?: unknown) =>
