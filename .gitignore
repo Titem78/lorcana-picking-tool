@@ -6,6 +6,3 @@ release/
 .DS_Store
 .env
 
-# Workflow GitHub Actions : poussable seulement avec un token ayant le scope « workflow »
-# (copie de référence dans docs/release.workflow.yml)
-.github/workflows/
