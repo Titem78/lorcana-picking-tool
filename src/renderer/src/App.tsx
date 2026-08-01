@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { User } from '@shared/types'
 import UserGate from './components/UserGate'
 import PickingPage from './pages/PickingPage'
+import PrepPage from './pages/PrepPage'
 import OrdersPage from './pages/OrdersPage'
 import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
@@ -9,6 +10,7 @@ import SettingsPage from './pages/SettingsPage'
 
 const TABS = [
   { id: 'picking', label: '🎯 Picking' },
+  { id: 'prep', label: '🧾 Préparation' },
   { id: 'orders', label: '📦 Commandes' },
   { id: 'locations', label: '🗄️ Emplacements' },
   { id: 'history', label: '📚 Historique' },
@@ -61,6 +63,7 @@ export default function App(): React.JSX.Element {
       </nav>
       <main className="content">
         {tab === 'picking' && <PickingPage user={user} />}
+        {tab === 'prep' && <PrepPage user={user} />}
         {tab === 'orders' && <OrdersPage user={user} />}
         {tab === 'locations' && <LocationsPage user={user} />}
         {tab === 'history' && <HistoryPage user={user} />}

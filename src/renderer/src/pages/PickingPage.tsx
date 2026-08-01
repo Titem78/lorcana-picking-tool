@@ -146,7 +146,7 @@ function PickingRow({
           onChange={(e) => onPickItem(item, e.target.checked)}
           style={{ width: 20, height: 20, accentColor: 'var(--accent)' }}
         />
-        <CardThumb line={item} size={52} />
+        <CardThumb line={item} size={96} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <b style={{ fontSize: '1.02rem' }}>

@@ -152,7 +152,7 @@ export default function OrderSheet({
                 padding: '5px 10px'
               }}
             >
-              <CardThumb line={l} size={40} />
+              <CardThumb line={l} size={64} />
               <div style={{ flex: 1 }}>
                 <b>
                   {l.quantity}× {l.name}
