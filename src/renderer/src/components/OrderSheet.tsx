@@ -24,19 +24,32 @@ export default function OrderSheet({
   const [lines, setLines] = useState<OrderLine[]>([])
   const [tracking, setTrackingNum] = useState(initial.tracking_number ?? '')
   const [notes, setNotes] = useState(initial.notes ?? '')
-  const [odooConfigured, setOdooConfigured] = useState(false)
+  const [odooUrl, setOdooUrl] = useState<string | null>(null)
   const [odooMsg, setOdooMsg] = useState('')
+  const odooConfigured = odooUrl !== null
 
   useEffect(() => {
-    window.api.odoo.getConfig().then((c: unknown) => setOdooConfigured(c !== null))
+    window.api.odoo.getConfig().then((c: { url: string } | null) => setOdooUrl(c?.url ?? null))
   }, [])
+
+  const openInOdoo = (): void => {
+    if (odooUrl && order.odoo_move_id) {
+      window.api.openExternal(
+        `${odooUrl}/web#id=${order.odoo_move_id}&model=account.move&view_type=form`
+      )
+    }
+  }
 
   const sendOdoo = (): void => {
     setOdooMsg('Envoi vers Odoo…')
     window.api.odoo
       .send(user.id, order.id)
-      .then((r: { move_id: number; already: boolean }) => {
-        setOdooMsg(r.already ? `Déjà dans Odoo (facture n°${r.move_id})` : `✅ Facture brouillon n°${r.move_id} créée dans Odoo`)
+      .then((r: { already: boolean }) => {
+        setOdooMsg(
+          r.already
+            ? 'Cette commande est déjà dans Odoo'
+            : '✅ Facture brouillon créée dans Odoo — clique « Ouvrir dans Odoo » pour la voir'
+        )
         reload()
       })
       .catch((err: Error) => setOdooMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
@@ -285,7 +298,10 @@ export default function OrderSheet({
             <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
               Odoo :{' '}
               {order.odoo_move_id ? (
-                <b style={{ color: 'var(--ok)' }}>facture brouillon n°{order.odoo_move_id} ✔</b>
+                <b style={{ color: 'var(--ok)' }}>
+                  facture brouillon créée ✔ (réf. Cardmarket #{order.sale_id} — le n° comptable
+                  sera attribué à la validation)
+                </b>
               ) : order.odoo_error ? (
                 <b style={{ color: 'var(--danger)' }}>erreur — {order.odoo_error}</b>
               ) : (
@@ -293,7 +309,9 @@ export default function OrderSheet({
               )}
             </span>
             <span style={{ flex: 1 }} />
-            {!order.odoo_move_id && (
+            {order.odoo_move_id ? (
+              <button onClick={openInOdoo}>↗ Ouvrir dans Odoo</button>
+            ) : (
               <button onClick={sendOdoo}>📤 Envoyer vers Odoo</button>
             )}
             <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{odooMsg}</span>
