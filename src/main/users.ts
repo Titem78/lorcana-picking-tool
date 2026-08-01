@@ -63,6 +63,23 @@ export function changePin(userId: number, oldPin: string, newPin: string): void 
   logActivity(userId, 'user.pin_changed')
 }
 
+/** Promotion/rétrogradation admin — réservé aux admins, et on garde toujours au moins un admin. */
+export function setAdmin(byUserId: number, targetId: number, isAdmin: boolean): void {
+  const db = getDb()
+  const by = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(byUserId) as
+    | { is_admin: number }
+    | undefined
+  if (!by?.is_admin) throw new Error('Réservé aux administrateurs')
+  if (!isAdmin) {
+    const admins = db
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1 AND active = 1 AND id != ?')
+      .get(targetId) as { n: number }
+    if (admins.n === 0) throw new Error('Impossible : il faut au moins un administrateur')
+  }
+  db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, targetId)
+  logActivity(byUserId, isAdmin ? 'user.promoted' : 'user.demoted', { target: targetId })
+}
+
 export function deactivateUser(userId: number, byUserId: number): void {
   getDb().prepare('UPDATE users SET active = 0 WHERE id = ?').run(userId)
   logActivity(byUserId, 'user.deactivated', { target: userId })

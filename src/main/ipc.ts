@@ -34,6 +34,9 @@ export function registerIpc(): void {
   ipcMain.handle('users:deactivate', (_e, userId: number, byUserId: number) =>
     users.deactivateUser(userId, byUserId)
   )
+  ipcMain.handle('users:setAdmin', (_e, byUserId: number, targetId: number, isAdmin: boolean) =>
+    users.setAdmin(byUserId, targetId, isAdmin)
+  )
 
   // --- Emplacements -----------------------------------------------------------
   type LocationData = Pick<StorageLocation, 'name' | 'kind' | 'color' | 'label' | 'notes'>

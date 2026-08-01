@@ -220,6 +220,7 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
   const [log, setLog] = useState<ActivityEntry[]>([])
   const [newName, setNewName] = useState('')
   const [newPin, setNewPin] = useState('')
+  const [newAdmin, setNewAdmin] = useState(false)
   const [msg, setMsg] = useState('')
 
   const refresh = (): void => {
@@ -232,13 +233,21 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
   const addUser = (e: React.FormEvent): void => {
     e.preventDefault()
     window.api.users
-      .create(newName, newPin, false)
+      .create(newName, newPin, newAdmin)
       .then(() => {
         setNewName('')
         setNewPin('')
+        setNewAdmin(false)
         setMsg('Préparateur ajouté ✔')
         refresh()
       })
+      .catch((err: Error) => setMsg(err.message.replace(/^.*Error: /, '')))
+  }
+
+  const toggleAdmin = (target: User): void => {
+    window.api.users
+      .setAdmin(user.id, target.id, target.is_admin !== 1)
+      .then(refresh)
       .catch((err: Error) => setMsg(err.message.replace(/^.*Error: /, '')))
   }
 
@@ -320,7 +329,12 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
                 <td>{u.name}</td>
                 <td>{u.is_admin ? <span className="badge">admin</span> : ''}</td>
                 <td>{u.created_at.slice(0, 10)}</td>
-                <td>
+                <td style={{ display: 'flex', gap: 6 }}>
+                  {user.is_admin === 1 && (
+                    <button onClick={() => toggleAdmin(u)}>
+                      {u.is_admin === 1 ? 'Retirer admin' : 'Promouvoir admin'}
+                    </button>
+                  )}
                   {u.id !== user.id && user.is_admin === 1 && (
                     <button onClick={() => removeUser(u)}>Désactiver</button>
                   )}
@@ -343,6 +357,16 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
               style={{ width: 130 }}
               onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
             />
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-dim)' }}
+            >
+              <input
+                type="checkbox"
+                checked={newAdmin}
+                onChange={(e) => setNewAdmin(e.target.checked)}
+              />
+              admin
+            </label>
             <button className="primary" disabled={!newName.trim() || newPin.length !== 4}>
               Ajouter
             </button>

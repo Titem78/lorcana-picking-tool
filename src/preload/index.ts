@@ -15,7 +15,9 @@ const api = {
     changePin: (userId: number, oldPin: string, newPin: string) =>
       ipcRenderer.invoke('users:changePin', userId, oldPin, newPin),
     deactivate: (userId: number, byUserId: number) =>
-      ipcRenderer.invoke('users:deactivate', userId, byUserId)
+      ipcRenderer.invoke('users:deactivate', userId, byUserId),
+    setAdmin: (byUserId: number, targetId: number, isAdmin: boolean) =>
+      ipcRenderer.invoke('users:setAdmin', byUserId, targetId, isAdmin)
   },
 
   locations: {
