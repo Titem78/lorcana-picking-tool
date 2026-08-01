@@ -1,9 +1,28 @@
-import { app, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, net, protocol } from 'electron'
+import { join, normalize } from 'path'
+import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpc } from './ipc'
 import { closeDb } from './db'
 import { setupAutoUpdater } from './updater'
+import { imagesDir } from './lorcast'
+
+// Schéma local « appcache:// » : sert les visuels de cartes mis en cache
+// (ex. <img src="appcache://images/12_86_small.avif">).
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'appcache', privileges: { standard: true, stream: true } }
+])
+
+function registerAppcacheProtocol(): void {
+  protocol.handle('appcache', (request) => {
+    const url = new URL(request.url)
+    const file = normalize(decodeURIComponent(url.pathname)).replace(/^[\\/]+/, '')
+    if (url.hostname !== 'images' || file.includes('..')) {
+      return new Response('Not found', { status: 404 })
+    }
+    return net.fetch(pathToFileURL(join(imagesDir(), file)).toString())
+  })
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -35,6 +54,7 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('fr.titem78.lorcana-picking-tool')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
+  registerAppcacheProtocol()
   registerIpc()
   createWindow()
   setupAutoUpdater()

@@ -91,5 +91,13 @@ export const MIGRATIONS: string[] = [
 
   CREATE INDEX idx_order_lines_order ON order_lines(order_id);
   CREATE INDEX idx_activity_log_created ON activity_log(created_at);
+  `,
+
+  // 002 — enrichissement Lorcast des lignes de commande
+  `
+  ALTER TABLE order_lines ADD COLUMN ink TEXT;
+  ALTER TABLE order_lines ADD COLUMN rarity TEXT;
+  ALTER TABLE order_lines ADD COLUMN image_file TEXT;
+  ALTER TABLE order_lines ADD COLUMN lorcast_name TEXT;
   `
 ]

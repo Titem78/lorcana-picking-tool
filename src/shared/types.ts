@@ -101,6 +101,68 @@ export interface OrderLine {
   picked_qty: number
   picked_at: string | null
   picked_by: number | null
+  // Enrichissement Lorcast (null si hors-ligne à l'import)
+  ink: string | null
+  rarity: string | null
+  image_file: string | null
+  lorcast_name: string | null
+}
+
+// --- Liste de picking ----------------------------------------------------------
+
+export interface PickingSubline {
+  line_id: number
+  order_id: number
+  sale_id: string
+  buyer_username: string
+  quantity: number
+  condition: string | null
+  comment: string | null
+  price: string | null
+  picked_qty: number
+  picked_by_name: string | null
+  picked_at: string | null
+}
+
+export interface PickingItem {
+  key: string
+  name: string
+  lorcast_name: string | null
+  number: string | null
+  set_code: string | null
+  ink: string
+  rarity: string
+  is_foil: boolean
+  language: string
+  image_file: string | null
+  total_qty: number
+  picked_qty: number
+  sublines: PickingSubline[]
+}
+
+export interface PickingSection {
+  location_id: number | null // null = « Non assigné »
+  location_name: string
+  location_color: string | null
+  location_label: string | null
+  items: PickingItem[]
+}
+
+export interface PickingList {
+  sections: PickingSection[]
+  total_qty: number
+  picked_qty: number
+  order_count: number
+}
+
+/** Résultat de l'import d'un PDF. */
+export interface ImportResult {
+  file: string
+  status: 'ok' | 'duplicate' | 'error'
+  sale_id?: string
+  buyer_username?: string
+  cards?: number
+  message?: string
 }
 
 export interface AppInfo {

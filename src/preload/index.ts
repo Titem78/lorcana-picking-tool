@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 // Pont sécurisé entre l'interface et le processus principal.
 // Chaque méthode correspond à une route déclarée dans src/main/ipc.ts.
@@ -29,6 +29,30 @@ const api = {
     setRules: (userId: number, locationId: number, rules: unknown[]) =>
       ipcRenderer.invoke('locations:setRules', userId, locationId, rules)
   },
+
+  orders: {
+    pickPdfFiles: () => ipcRenderer.invoke('orders:pickPdfFiles'),
+    importPdfs: (userId: number, paths: string[]) =>
+      ipcRenderer.invoke('orders:importPdfs', userId, paths),
+    list: (statuses?: string[]) => ipcRenderer.invoke('orders:list', statuses),
+    lines: (orderId: number) => ipcRenderer.invoke('orders:lines', orderId),
+    setStatus: (userId: number, orderId: number, status: string) =>
+      ipcRenderer.invoke('orders:setStatus', userId, orderId, status),
+    setTracking: (userId: number, orderId: number, tracking: string) =>
+      ipcRenderer.invoke('orders:setTracking', userId, orderId, tracking),
+    setNotes: (userId: number, orderId: number, notes: string) =>
+      ipcRenderer.invoke('orders:setNotes', userId, orderId, notes),
+    remove: (userId: number, orderId: number) => ipcRenderer.invoke('orders:delete', userId, orderId)
+  },
+
+  picking: {
+    list: () => ipcRenderer.invoke('picking:list'),
+    pick: (userId: number, lineId: number, picked: boolean) =>
+      ipcRenderer.invoke('picking:pick', userId, lineId, picked)
+  },
+
+  /** Chemin réel d'un fichier glissé-déposé (l'API File.path n'existe plus). */
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
 
   activity: {
     list: (limit?: number) => ipcRenderer.invoke('activity:list', limit),
