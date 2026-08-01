@@ -26,6 +26,8 @@ export default function OrderSheet({
   const [tracking, setTrackingNum] = useState(initial.tracking_number ?? '')
   const [notes, setNotes] = useState(initial.notes ?? '')
   const [odooUrl, setOdooUrl] = useState<string | null>(null)
+  const [deleteArm, setDeleteArm] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
   const [stampStock, setStampStock] = useState<{ stamp_type: string; free: number }[]>([])
   const [stampType, setStampType] = useState('')
   const [stampMsg, setStampMsg] = useState('')
@@ -400,28 +402,60 @@ export default function OrderSheet({
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
-          {user.is_admin === 1 && (
-            <button
-              style={{ borderColor: 'var(--danger)', marginRight: 'auto' }}
-              title="Supprimer définitivement cette commande (admin). Un timbre affecté reste consommé."
-              onClick={() => {
-                const typed = window.prompt(
-                  `Suppression DÉFINITIVE de la vente #${order.sale_id} (commande, lignes, traçabilité).\n\nPour confirmer, tape son numéro : ${order.sale_id}`
-                )
-                if (typed === null) return
-                if (typed.trim() !== order.sale_id) {
-                  window.alert('Numéro incorrect — suppression annulée.')
-                  return
-                }
-                window.api.orders.remove(user.id, order.id).then(() => {
-                  onChanged()
-                  onClose()
-                })
-              }}
-            >
-              🗑 Supprimer
-            </button>
-          )}
+          {user.is_admin === 1 &&
+            (deleteArm ? (
+              <span
+                style={{
+                  marginRight: 'auto',
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <span style={{ color: 'var(--danger)', fontSize: '0.88rem' }}>
+                  Suppression définitive — tape <b>{order.sale_id}</b> :
+                </span>
+                <input
+                  autoFocus
+                  value={deleteText}
+                  style={{ width: 130, borderColor: 'var(--danger)' }}
+                  onChange={(e) => setDeleteText(e.target.value)}
+                />
+                <button
+                  disabled={deleteText.trim() !== order.sale_id}
+                  style={{
+                    background: deleteText.trim() === order.sale_id ? 'var(--danger)' : undefined,
+                    borderColor: 'var(--danger)',
+                    color: deleteText.trim() === order.sale_id ? '#fff' : undefined
+                  }}
+                  onClick={() =>
+                    window.api.orders.remove(user.id, order.id).then(() => {
+                      onChanged()
+                      onClose()
+                    })
+                  }
+                >
+                  Supprimer définitivement
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteArm(false)
+                    setDeleteText('')
+                  }}
+                >
+                  Annuler
+                </button>
+              </span>
+            ) : (
+              <button
+                style={{ borderColor: 'var(--danger)', marginRight: 'auto' }}
+                title="Supprimer définitivement cette commande (admin). Un timbre affecté reste consommé."
+                onClick={() => setDeleteArm(true)}
+              >
+                🗑 Supprimer
+              </button>
+            ))}
           {['picked', 'picking', 'imported'].includes(order.status) && (
             <>
               <button
