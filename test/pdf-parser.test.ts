@@ -79,6 +79,29 @@ describe.skipIf(!existsSync(DICE_SAMPLE))('parseCardmarketPdf — commande de d�
   })
 })
 
+// Planche de timbres La Poste réelle (numéros non versionnés : dépôt public)
+const STAMP_SHEET = 'D:\\telechargement\\Z0134948232-mtel.pdf'
+
+describe.skipIf(!existsSync(STAMP_SHEET))('parseSheet — planche de timbres', () => {
+  it('extrait les 15 timbres avec type, numéro unique et position', async () => {
+    const { parseSheet } = await import('../src/main/stamps')
+    const stamps = await parseSheet(STAMP_SHEET)
+    expect(stamps).toHaveLength(15)
+    const numbers = new Set(stamps.map((s) => s.number))
+    expect(numbers.size).toBe(15)
+    for (const s of stamps) {
+      expect(s.number).toMatch(/^[0-9A-Z]{10,}$/)
+      expect(s.stamp_type).toMatch(/Lettre verte/i)
+      expect(s.page).toBe(1)
+      expect(s.sd_x).toBeGreaterThan(100)
+      expect(s.sd_y).toBeGreaterThan(100)
+    }
+    // 3 colonnes distinctes
+    const cols = new Set(stamps.map((s) => Math.round(s.sd_x / 10)))
+    expect(cols.size).toBe(3)
+  })
+})
+
 describe('helpers règles', () => {
   it('parseChaptersInput', () => {
     expect(parseChaptersInput('1-5, 8, 10')).toEqual([1, 2, 3, 4, 5, 8, 10])

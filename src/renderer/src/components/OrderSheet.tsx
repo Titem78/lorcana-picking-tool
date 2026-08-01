@@ -3,6 +3,7 @@ import type { Order, OrderLine, User } from '@shared/types'
 import { trackingInfo } from '@shared/tracking'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
 import CardThumb from '@/components/CardThumb'
+import StampPrint from '@/components/StampPrint'
 
 /**
  * Fiche de commande : toutes les infos Cardmarket reprises, la traçabilité
@@ -25,12 +26,42 @@ export default function OrderSheet({
   const [tracking, setTrackingNum] = useState(initial.tracking_number ?? '')
   const [notes, setNotes] = useState(initial.notes ?? '')
   const [odooUrl, setOdooUrl] = useState<string | null>(null)
+  const [stampStock, setStampStock] = useState<{ stamp_type: string; free: number }[]>([])
+  const [stampType, setStampType] = useState('')
+  const [stampMsg, setStampMsg] = useState('')
+  const [showStampPrint, setShowStampPrint] = useState(false)
   const [odooMsg, setOdooMsg] = useState('')
   const odooConfigured = odooUrl !== null
 
   useEffect(() => {
     window.api.odoo.getConfig().then((c: { url: string } | null) => setOdooUrl(c?.url ?? null))
+    window.api.stamps.stock().then((s: { stamp_type: string; free: number; used: number }[]) => {
+      setStampStock(s.filter((x) => x.free > 0))
+    })
   }, [])
+
+  const assignStamp = (): void => {
+    window.api.stamps
+      .assign(user.id, order.id, stampType)
+      .then((r: { number: string }) => {
+        setStampMsg(`Timbre ${r.number} affecté ✔`)
+        reload()
+      })
+      .catch((err: Error) => setStampMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
+
+  const releaseStamp = (): void => {
+    if (
+      !window.confirm(
+        'Libérer ce timbre ?\n\n⚠ UNIQUEMENT si tu ne l’as PAS imprimé/collé — un timbre physiquement utilisé ne doit jamais être réaffecté.'
+      )
+    )
+      return
+    window.api.stamps.release(user.id, order.id).then(() => {
+      setStampMsg('Timbre libéré')
+      reload()
+    })
+  }
 
   const openInOdoo = (): void => {
     if (odooUrl && order.odoo_move_id) {
@@ -282,6 +313,56 @@ export default function OrderSheet({
           </div>
         </div>
 
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            marginTop: 14,
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            flexWrap: 'wrap'
+          }}
+        >
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+            🎟 Timbre :{' '}
+            {order.stamp_number ? (
+              <b style={{ color: 'var(--ok)' }}>n° {order.stamp_number} ✔</b>
+            ) : (
+              'aucun'
+            )}
+          </span>
+          <span style={{ flex: 1 }} />
+          {order.stamp_number ? (
+            <>
+              <button className="primary" onClick={() => setShowStampPrint(true)}>
+                🖨 Imprimer timbre + adresse
+              </button>
+              <button onClick={releaseStamp}>Libérer</button>
+            </>
+          ) : stampStock.length > 0 ? (
+            <>
+              <select value={stampType} onChange={(e) => setStampType(e.target.value)}>
+                <option value="">— type de timbre —</option>
+                {stampStock.map((s) => (
+                  <option key={s.stamp_type} value={s.stamp_type}>
+                    {s.stamp_type} ({s.free} dispo)
+                  </option>
+                ))}
+              </select>
+              <button className="primary" disabled={!stampType} onClick={assignStamp}>
+                Affecter le prochain libre
+              </button>
+            </>
+          ) : (
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+              Aucun timbre en stock — importe une planche dans les Réglages
+            </span>
+          )}
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{stampMsg}</span>
+        </div>
+
         {odooConfigured && (
           <div
             style={{
@@ -361,6 +442,7 @@ export default function OrderSheet({
           )}
         </div>
       </div>
+      {showStampPrint && <StampPrint order={order} onClose={() => setShowStampPrint(false)} />}
     </div>
   )
 }

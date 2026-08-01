@@ -87,6 +87,7 @@ export interface Order {
   odoo_error: string | null
   odoo_number: string | null // n° comptable (FACT/2026/0042), attribué à la validation
   odoo_state: string | null // draft | posted | cancel
+  stamp_number: string | null // n° du timbre La Poste affecté (SD)
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null

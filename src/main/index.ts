@@ -7,6 +7,7 @@ import { registerIpc } from './ipc'
 import { closeDb } from './db'
 import { setupAutoUpdater } from './updater'
 import { imagesDir } from './lorcast'
+import { stampsDir } from './stamps'
 import { syncInvoiceStatuses } from './odoo'
 
 // Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
@@ -50,10 +51,12 @@ function registerAppcacheProtocol(): void {
   protocol.handle('appcache', (request) => {
     const url = new URL(request.url)
     const file = normalize(decodeURIComponent(url.pathname)).replace(/^[\\/]+/, '')
-    if (url.hostname !== 'images' || file.includes('..')) {
+    const roots: Record<string, string> = { images: imagesDir(), stamps: stampsDir() }
+    const root = roots[url.hostname]
+    if (!root || file.includes('..')) {
       return new Response('Not found', { status: 404 })
     }
-    return net.fetch(pathToFileURL(join(imagesDir(), file)).toString())
+    return net.fetch(pathToFileURL(join(root, file)).toString())
   })
 }
 

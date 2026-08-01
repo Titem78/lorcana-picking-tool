@@ -136,5 +136,30 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE orders ADD COLUMN odoo_number TEXT;
   ALTER TABLE orders ADD COLUMN odoo_state TEXT;
+  `,
+
+  // 008 — timbres La Poste imprimés (planches Mon Timbre en Ligne)
+  `
+  CREATE TABLE stamp_sheets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file TEXT NOT NULL,
+    stamp_type TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    imported_by INTEGER REFERENCES users(id)
+  );
+  CREATE TABLE stamps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sheet_id INTEGER NOT NULL REFERENCES stamp_sheets(id),
+    number TEXT NOT NULL UNIQUE,
+    stamp_type TEXT NOT NULL,
+    page INTEGER NOT NULL,
+    sd_x REAL NOT NULL,
+    sd_y REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'free',
+    used_order_id INTEGER REFERENCES orders(id),
+    used_at TEXT,
+    used_by INTEGER REFERENCES users(id)
+  );
+  ALTER TABLE orders ADD COLUMN stamp_number TEXT;
   `
 ]

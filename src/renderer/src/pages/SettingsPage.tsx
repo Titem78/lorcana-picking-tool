@@ -321,6 +321,78 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/**
+ * Stock de timbres La Poste : import des planches PDF « Mon Timbre en Ligne »,
+ * état du stock par type. Chaque timbre a un numéro unique, jamais réutilisé.
+ */
+function StampsSection({ user }: { user: User }): React.JSX.Element {
+  const [stock, setStock] = useState<{ stamp_type: string; free: number; used: number }[]>([])
+  const [msg, setMsg] = useState('')
+
+  const refresh = (): void => {
+    window.api.stamps.stock().then(setStock)
+  }
+  useEffect(refresh, [])
+
+  const doImport = (): void => {
+    setMsg('Analyse des planches…')
+    window.api.stamps
+      .import(user.id)
+      .then((r: { imported: number; duplicates: number; types: string[] } | null) => {
+        if (!r) {
+          setMsg('')
+          return
+        }
+        setMsg(
+          `${r.imported} timbre(s) importé(s)${r.duplicates ? `, ${r.duplicates} déjà connus ignorés` : ''} ✔`
+        )
+        refresh()
+      })
+      .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>🎟 Timbres La Poste</h2>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 720 }}>
+        Importe tes planches PDF « Mon Timbre en Ligne » (Lettre verte 20g, suivie, 100g...) :
+        chaque timbre est enregistré avec son numéro unique. À l&apos;expédition, tu affectes le
+        prochain timbre libre du bon type — il est noté sur la commande, sert de n° de suivi, et
+        ne pourra <b>jamais</b> être réutilisé.
+      </p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="primary" onClick={doImport}>
+          📥 Importer des planches PDF…
+        </button>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{msg}</span>
+      </div>
+      {stock.length > 0 && (
+        <table className="data" style={{ maxWidth: 480, marginTop: 12 }}>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Libres</th>
+              <th>Utilisés</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stock.map((s) => (
+              <tr key={s.stamp_type}>
+                <td>{s.stamp_type}</td>
+                <td style={{ color: s.free === 0 ? 'var(--danger)' : 'var(--ok)' }}>
+                  <b>{s.free}</b>
+                  {s.free === 0 && ' — stock épuisé !'}
+                </td>
+                <td style={{ color: 'var(--text-dim)' }}>{s.used}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
 /** Sélecteur de la taxe de vente (affiche aussi le taux, ex. 20 %). */
 function TaxPicker({
   cfg,
@@ -708,6 +780,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </form>
         )}
       </section>
+
+      <StampsSection user={user} />
 
       {user.is_admin === 1 && <OdooSection user={user} />}
 

@@ -96,6 +96,16 @@ const api = {
     import: (userId: number) => ipcRenderer.invoke('backup:import', userId)
   },
 
+  stamps: {
+    import: (userId: number) => ipcRenderer.invoke('stamps:import', userId),
+    stock: () => ipcRenderer.invoke('stamps:stock'),
+    assign: (userId: number, orderId: number, stampType: string) =>
+      ipcRenderer.invoke('stamps:assign', userId, orderId, stampType),
+    release: (userId: number, orderId: number) => ipcRenderer.invoke('stamps:release', userId, orderId),
+    printData: (orderId: number) => ipcRenderer.invoke('stamps:printData', orderId),
+    print: () => ipcRenderer.invoke('stamps:print')
+  },
+
   /** Chemin réel d'un fichier glissé-déposé (l'API File.path n'existe plus). */
   pathForFile: (file: File) => webUtils.getPathForFile(file),
 

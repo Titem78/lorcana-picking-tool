@@ -7,6 +7,7 @@ import * as picking from './picking'
 import * as exports from './exports'
 import * as odoo from './odoo'
 import * as backup from './backup'
+import * as stamps from './stamps'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -140,6 +141,23 @@ export function registerIpc(): void {
   )
   ipcMain.handle('odoo:listAccessoryMap', () => odoo.listAccessoryMap())
   ipcMain.handle('odoo:sync', () => odoo.syncInvoiceStatuses())
+
+  // --- Timbres La Poste -----------------------------------------------------------
+  ipcMain.handle('stamps:import', (e, userId: number) =>
+    stamps.importSheets(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+  ipcMain.handle('stamps:stock', () => stamps.getStock())
+  ipcMain.handle('stamps:assign', (_e, userId: number, orderId: number, stampType: string) =>
+    stamps.assignStamp(userId, orderId, stampType)
+  )
+  ipcMain.handle('stamps:release', (_e, userId: number, orderId: number) =>
+    stamps.releaseStamp(userId, orderId)
+  )
+  ipcMain.handle('stamps:printData', (_e, orderId: number) => stamps.getStampPrint(orderId))
+  ipcMain.handle('stamps:print', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win?.webContents.print({ silent: false, printBackground: true })
+  })
 
   // --- Sauvegarde complète --------------------------------------------------------
   ipcMain.handle('backup:export', (e, userId: number) =>
