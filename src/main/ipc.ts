@@ -125,6 +125,12 @@ export function registerIpc(): void {
     odoo.saveOdooConfig(userId, cfg)
   )
   ipcMain.handle('odoo:test', (_e, cfg: odoo.OdooConfig) => odoo.testConnection(cfg))
+  ipcMain.handle('odoo:searchPartners', (_e, cfg: odoo.OdooConfig, query: string) =>
+    odoo.searchPartners(cfg, query)
+  )
+  ipcMain.handle('odoo:searchProducts', (_e, cfg: odoo.OdooConfig, query: string) =>
+    odoo.searchProducts(cfg, query)
+  )
   ipcMain.handle('odoo:send', (_e, userId: number, orderId: number) =>
     odoo.sendOrderToOdoo(userId, orderId)
   )

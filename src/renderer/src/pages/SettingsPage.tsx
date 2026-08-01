@@ -47,6 +47,92 @@ interface OdooCfg {
   apiKey: string
   partnerMode: 'per_buyer' | 'single'
   singlePartner: string
+  singlePartnerId: number | null
+  productCardsId: number | null
+  productCardsName: string
+  productDiceId: number | null
+  productDiceName: string
+  productOtherId: number | null
+  productOtherName: string
+}
+
+/**
+ * Sélecteur d'un enregistrement Odoo existant (client ou article) :
+ * on tape quelques lettres, on cherche dans Odoo, on clique sur le bon.
+ * Aucune saisie d'ID à la main, aucun doublon possible.
+ */
+function OdooPicker({
+  label,
+  selectedId,
+  selectedName,
+  search,
+  onSelect
+}: {
+  label: string
+  selectedId: number | null
+  selectedName: string
+  search: (query: string) => Promise<{ id: number; name: string }[]>
+  onSelect: (id: number | null, name: string) => void
+}): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<{ id: number; name: string }[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const doSearch = (): void => {
+    if (!query.trim()) return
+    setBusy(true)
+    search(query.trim())
+      .then(setResults)
+      .catch(() => setResults([]))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem', width: 130 }}>{label}</span>
+      {selectedId ? (
+        <>
+          <span className="badge" style={{ borderColor: 'var(--ok)', color: 'var(--text)' }}>
+            {selectedName} (n°{selectedId})
+          </span>
+          <button onClick={() => onSelect(null, '')}>Changer</button>
+        </>
+      ) : (
+        <>
+          <input
+            placeholder="Rechercher dans Odoo…"
+            value={query}
+            style={{ width: 190 }}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') doSearch()
+            }}
+          />
+          <button onClick={doSearch} disabled={busy || !query.trim()}>
+            🔎
+          </button>
+          {results !== null &&
+            (results.length === 0 ? (
+              <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>aucun résultat</span>
+            ) : (
+              results.map((r) => (
+                <button
+                  key={r.id}
+                  style={{ fontSize: '0.85rem' }}
+                  onClick={() => {
+                    onSelect(r.id, r.name)
+                    setResults(null)
+                    setQuery('')
+                  }}
+                >
+                  {r.name}
+                </button>
+              ))
+            ))}
+        </>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -61,7 +147,14 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
     user: '',
     apiKey: '',
     partnerMode: 'per_buyer',
-    singlePartner: 'Cardmarket'
+    singlePartner: 'Cardmarket',
+    singlePartnerId: null,
+    productCardsId: null,
+    productCardsName: '',
+    productDiceId: null,
+    productDiceName: '',
+    productOtherId: null,
+    productOtherName: ''
   })
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
@@ -137,17 +230,53 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
             checked={cfg.partnerMode === 'single'}
             onChange={() => setCfg({ ...cfg, partnerMode: 'single' })}
           />
-          Un <b>client unique</b> pour toutes les ventes :
-          <input
-            value={cfg.singlePartner}
-            style={{ width: 180 }}
-            disabled={cfg.partnerMode !== 'single'}
-            onChange={(e) => setCfg({ ...cfg, singlePartner: e.target.value })}
-          />
+          Un <b>client unique existant</b> pour toutes les ventes :
         </label>
+        {cfg.partnerMode === 'single' && (
+          <div style={{ marginLeft: 26 }}>
+            <OdooPicker
+              label="Client Odoo"
+              selectedId={cfg.singlePartnerId}
+              selectedName={cfg.singlePartner}
+              search={(q) => window.api.odoo.searchPartners(cfg, q)}
+              onSelect={(id, name) =>
+                setCfg({ ...cfg, singlePartnerId: id, singlePartner: name || 'Cardmarket' })
+              }
+            />
+          </div>
+        )}
         <span style={{ color: 'var(--text-dim)', fontSize: '0.83rem' }}>
           Dans les deux cas, la référence de la facture est « Cardmarket #commande - pseudo ».
         </span>
+      </div>
+
+      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+          <b>Articles Odoo</b> par type de produit (l&apos;app n&apos;en crée jamais — associe tes
+          articles existants, ex. « Carte à l&apos;unité » ; son champ Coût dans Odoo sert de prix
+          d&apos;achat pour tes marges). Sans association, la ligne reste en texte libre.
+        </span>
+        <OdooPicker
+          label="🃏 Cartes"
+          selectedId={cfg.productCardsId}
+          selectedName={cfg.productCardsName}
+          search={(q) => window.api.odoo.searchProducts(cfg, q)}
+          onSelect={(id, name) => setCfg({ ...cfg, productCardsId: id, productCardsName: name })}
+        />
+        <OdooPicker
+          label="🎲 Dés"
+          selectedId={cfg.productDiceId}
+          selectedName={cfg.productDiceName}
+          search={(q) => window.api.odoo.searchProducts(cfg, q)}
+          onSelect={(id, name) => setCfg({ ...cfg, productDiceId: id, productDiceName: name })}
+        />
+        <OdooPicker
+          label="📦 Autres (scellé…)"
+          selectedId={cfg.productOtherId}
+          selectedName={cfg.productOtherName}
+          search={(q) => window.api.odoo.searchProducts(cfg, q)}
+          onSelect={(id, name) => setCfg({ ...cfg, productOtherId: id, productOtherName: name })}
+        />
       </div>
       <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button disabled={!complete || busy} onClick={test}>

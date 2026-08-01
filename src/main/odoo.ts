@@ -24,6 +24,15 @@ export interface OdooConfig {
   partnerMode: 'per_buyer' | 'single'
   /** nom du client unique quand partnerMode = 'single' (ex. « Cardmarket ») */
   singlePartner: string
+  /** id res.partner du client unique EXISTANT choisi dans Odoo (prioritaire sur le nom) */
+  singlePartnerId: number | null
+  /** associations articles Odoo par type de produit (null = ligne en texte libre) */
+  productCardsId: number | null
+  productCardsName: string
+  productDiceId: number | null
+  productDiceName: string
+  productOtherId: number | null
+  productOtherName: string
 }
 
 export function getOdooConfig(): OdooConfig | null {
@@ -32,13 +41,24 @@ export function getOdooConfig(): OdooConfig | null {
     .all() as { key: string; value: string }[]
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]))
   if (!map.odoo_url || !map.odoo_db || !map.odoo_user || !map.odoo_api_key) return null
+  const num = (v: string | undefined): number | null => {
+    const n = parseInt(v ?? '', 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
   return {
     url: map.odoo_url,
     db: map.odoo_db,
     user: map.odoo_user,
     apiKey: map.odoo_api_key,
     partnerMode: map.odoo_partner_mode === 'single' ? 'single' : 'per_buyer',
-    singlePartner: map.odoo_single_partner || 'Cardmarket'
+    singlePartner: map.odoo_single_partner || 'Cardmarket',
+    singlePartnerId: num(map.odoo_single_partner_id),
+    productCardsId: num(map.odoo_product_cards_id),
+    productCardsName: map.odoo_product_cards_name || '',
+    productDiceId: num(map.odoo_product_dice_id),
+    productDiceName: map.odoo_product_dice_name || '',
+    productOtherId: num(map.odoo_product_other_id),
+    productOtherName: map.odoo_product_other_name || ''
   }
 }
 
@@ -52,9 +72,50 @@ export function saveOdooConfig(userId: number, cfg: OdooConfig): void {
     up.run('odoo_api_key', cfg.apiKey.trim())
     up.run('odoo_partner_mode', cfg.partnerMode === 'single' ? 'single' : 'per_buyer')
     up.run('odoo_single_partner', (cfg.singlePartner || 'Cardmarket').trim())
+    up.run('odoo_single_partner_id', String(cfg.singlePartnerId ?? ''))
+    up.run('odoo_product_cards_id', String(cfg.productCardsId ?? ''))
+    up.run('odoo_product_cards_name', cfg.productCardsName ?? '')
+    up.run('odoo_product_dice_id', String(cfg.productDiceId ?? ''))
+    up.run('odoo_product_dice_name', cfg.productDiceName ?? '')
+    up.run('odoo_product_other_id', String(cfg.productOtherId ?? ''))
+    up.run('odoo_product_other_name', cfg.productOtherName ?? '')
   })
   tx()
   logActivity(userId, 'odoo.config_saved', { url: cfg.url, mode: cfg.partnerMode })
+}
+
+// --- Recherche dans Odoo (pour les sélecteurs des Réglages) --------------------
+
+export async function searchPartners(
+  cfg: OdooConfig,
+  query: string
+): Promise<{ id: number; name: string }[]> {
+  const uid = await authenticate(cfg)
+  const rows = (await execute(
+    cfg,
+    uid,
+    'res.partner',
+    'search_read',
+    [[['name', 'ilike', query]]],
+    { fields: ['id', 'name'], limit: 12 }
+  )) as { id: number; name: string }[]
+  return rows
+}
+
+export async function searchProducts(
+  cfg: OdooConfig,
+  query: string
+): Promise<{ id: number; name: string }[]> {
+  const uid = await authenticate(cfg)
+  const rows = (await execute(
+    cfg,
+    uid,
+    'product.product',
+    'search_read',
+    [[['name', 'ilike', query]]],
+    { fields: ['id', 'name'], limit: 12 }
+  )) as { id: number; name: string }[]
+  return rows
 }
 
 // --- JSON-RPC -------------------------------------------------------------------
@@ -139,43 +200,61 @@ export async function sendOrderToOdoo(
   try {
     const uid = await authenticate(cfg)
 
-    // 1. Client : soit un client unique pour toutes les ventes Cardmarket,
-    //    soit un client par pseudo — selon la configuration.
-    const partnerName =
-      cfg.partnerMode === 'single' ? cfg.singlePartner : `Cardmarket - ${order.buyer_username}`
-    const found = (await execute(cfg, uid, 'res.partner', 'search', [
-      [['name', '=', partnerName]]
-    ])) as number[]
-    let partnerId = found[0]
-    if (!partnerId) {
-      partnerId = (await execute(cfg, uid, 'res.partner', 'create', [
-        {
-          name: partnerName,
-          comment:
-            cfg.partnerMode === 'single'
-              ? 'Client global des ventes Cardmarket (créé par Lorcana Picking Tool)'
-              : `Client Cardmarket (pseudo : ${order.buyer_username})\n${order.buyer_name ?? ''}\n${order.buyer_address ?? ''}`,
-          customer_rank: 1
-        }
-      ])) as number
+    // 1. Client : en mode « client unique », on utilise l'ID du client EXISTANT
+    //    choisi dans les Réglages (aucune création, aucun doublon possible).
+    //    En mode « par acheteur », on retrouve/crée « Cardmarket - pseudo ».
+    let partnerId: number
+    if (cfg.partnerMode === 'single') {
+      if (!cfg.singlePartnerId) {
+        throw new Error(
+          'Choisis le client Odoo dans les Réglages (recherche puis sélection) avant d’envoyer'
+        )
+      }
+      partnerId = cfg.singlePartnerId
+    } else {
+      const partnerName = `Cardmarket - ${order.buyer_username}`
+      const found = (await execute(cfg, uid, 'res.partner', 'search', [
+        [['name', '=', partnerName]]
+      ])) as number[]
+      partnerId = found[0]
+      if (!partnerId) {
+        partnerId = (await execute(cfg, uid, 'res.partner', 'create', [
+          {
+            name: partnerName,
+            comment: `Client Cardmarket (pseudo : ${order.buyer_username})\n${order.buyer_name ?? ''}\n${order.buyer_address ?? ''}`,
+            customer_rank: 1
+          }
+        ])) as number
+      }
     }
 
-    // 2. Lignes de facture : une par carte + frais de port
+    // 2. Lignes de facture : une par article + frais de port.
+    //    Chaque ligne est rattachée à l'article Odoo EXISTANT configuré selon le
+    //    type de produit (cartes / dés / autres) — jamais de création d'article.
+    const productFor = (section: string): number | null => {
+      if (/cartes/i.test(section)) return cfg.productCardsId
+      if (/dés|des|dice/i.test(section)) return cfg.productDiceId
+      return cfg.productOtherId
+    }
     const lines = getOrderLines(orderId)
-    const invoiceLines: unknown[] = lines.map((l) => [
-      0,
-      0,
-      {
-        name:
-          `${l.name}` +
-          (l.number ? ` — ch.${l.set_code} n°${l.number}` : '') +
-          (l.language ? ` ${l.language}` : '') +
-          (l.condition ? ` ${l.condition}` : '') +
-          (l.is_foil === 1 ? ' FOIL' : ''),
-        quantity: l.quantity,
-        price_unit: eurToFloat(l.price)
-      }
-    ])
+    const invoiceLines: unknown[] = lines.map((l) => {
+      const productId = productFor(l.section)
+      return [
+        0,
+        0,
+        {
+          ...(productId ? { product_id: productId } : {}),
+          name:
+            `${l.name}` +
+            (l.number ? ` — ch.${l.set_code} n°${l.number}` : '') +
+            (l.language ? ` ${l.language}` : '') +
+            (l.condition ? ` ${l.condition}` : '') +
+            (l.is_foil === 1 ? ' FOIL' : ''),
+          quantity: l.quantity,
+          price_unit: eurToFloat(l.price)
+        }
+      ]
+    })
     const shipping = eurToFloat(order.shipping_cost)
     if (shipping > 0) {
       invoiceLines.push([0, 0, { name: 'Frais de port', quantity: 1, price_unit: shipping }])

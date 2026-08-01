@@ -74,6 +74,10 @@ const api = {
     getConfig: () => ipcRenderer.invoke('odoo:getConfig'),
     saveConfig: (userId: number, cfg: unknown) => ipcRenderer.invoke('odoo:saveConfig', userId, cfg),
     test: (cfg: unknown) => ipcRenderer.invoke('odoo:test', cfg),
+    searchPartners: (cfg: unknown, query: string) =>
+      ipcRenderer.invoke('odoo:searchPartners', cfg, query),
+    searchProducts: (cfg: unknown, query: string) =>
+      ipcRenderer.invoke('odoo:searchProducts', cfg, query),
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
   },
 
