@@ -24,6 +24,23 @@ export default function OrderSheet({
   const [lines, setLines] = useState<OrderLine[]>([])
   const [tracking, setTrackingNum] = useState(initial.tracking_number ?? '')
   const [notes, setNotes] = useState(initial.notes ?? '')
+  const [odooConfigured, setOdooConfigured] = useState(false)
+  const [odooMsg, setOdooMsg] = useState('')
+
+  useEffect(() => {
+    window.api.odoo.getConfig().then((c: unknown) => setOdooConfigured(c !== null))
+  }, [])
+
+  const sendOdoo = (): void => {
+    setOdooMsg('Envoi vers Odoo…')
+    window.api.odoo
+      .send(user.id, order.id)
+      .then((r: { move_id: number; already: boolean }) => {
+        setOdooMsg(r.already ? `Déjà dans Odoo (facture n°${r.move_id})` : `✅ Facture brouillon n°${r.move_id} créée dans Odoo`)
+        reload()
+      })
+      .catch((err: Error) => setOdooMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
 
   const reload = (): void => {
     window.api.orders.list().then((all: Order[]) => {
@@ -251,6 +268,37 @@ export default function OrderSheet({
             />
           </div>
         </div>
+
+        {odooConfigured && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              marginTop: 14,
+              padding: '8px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              flexWrap: 'wrap'
+            }}
+          >
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+              Odoo :{' '}
+              {order.odoo_move_id ? (
+                <b style={{ color: 'var(--ok)' }}>facture brouillon n°{order.odoo_move_id} ✔</b>
+              ) : order.odoo_error ? (
+                <b style={{ color: 'var(--danger)' }}>erreur — {order.odoo_error}</b>
+              ) : (
+                'pas encore envoyée'
+              )}
+            </span>
+            <span style={{ flex: 1 }} />
+            {!order.odoo_move_id && (
+              <button onClick={sendOdoo}>📤 Envoyer vers Odoo</button>
+            )}
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{odooMsg}</span>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
           {['picked', 'picking', 'imported'].includes(order.status) && (

@@ -87,6 +87,14 @@ describe.skipIf(!existsSync(SAMPLE))('import PDF → picking → coche (intégra
     expect(line.picked_at).toBeTruthy()
   })
 
+  it('convertit les montants Cardmarket pour Odoo', async () => {
+    const { eurToFloat } = await import('../src/main/odoo')
+    expect(eurToFloat('0,70 EUR')).toBe(0.7)
+    expect(eurToFloat('1.234,56 EUR')).toBe(1234.56)
+    expect(eurToFloat('12 EUR')).toBe(12)
+    expect(eurToFloat(null)).toBe(0)
+  })
+
   it('réinitialise toutes les données (reset)', () => {
     resetDatabase()
     const counts = getDb()

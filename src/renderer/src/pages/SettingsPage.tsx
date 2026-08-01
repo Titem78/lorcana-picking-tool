@@ -40,6 +40,92 @@ function UpdateChecker(): React.JSX.Element {
   )
 }
 
+interface OdooCfg {
+  url: string
+  db: string
+  user: string
+  apiKey: string
+}
+
+/**
+ * Connecteur Odoo (admins) : configuration + test de connexion.
+ * À l'expédition d'une commande, l'app crée dans Odoo le client
+ * « Cardmarket - pseudo » et une facture brouillon (détail + port).
+ */
+function OdooSection({ user }: { user: User }): React.JSX.Element {
+  const [cfg, setCfg] = useState<OdooCfg>({ url: '', db: '', user: '', apiKey: '' })
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    window.api.odoo.getConfig().then((c: OdooCfg | null) => {
+      if (c) setCfg(c)
+    })
+  }, [])
+
+  const complete = cfg.url.trim() && cfg.db.trim() && cfg.user.trim() && cfg.apiKey.trim()
+
+  const test = (): void => {
+    setBusy(true)
+    setStatus('Connexion à Odoo…')
+    window.api.odoo
+      .test(cfg)
+      .then((r: { version: string; company: string }) => {
+        setStatus(`✅ Connecté — Odoo ${r.version}, société « ${r.company} »`)
+      })
+      .catch((err: Error) => setStatus(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+      .finally(() => setBusy(false))
+  }
+
+  const save = (): void => {
+    window.api.odoo.saveConfig(user.id, cfg).then(() => setStatus('Configuration enregistrée ✔'))
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>Connecteur Odoo</h2>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 12, maxWidth: 720 }}>
+        À chaque commande marquée <b>expédiée</b>, l&apos;app crée dans Odoo le client
+        « Cardmarket - pseudo » et une <b>facture brouillon</b> (une ligne par carte + frais de
+        port) — plus rien à ressaisir. La clé API se crée dans Odoo : avatar en haut à droite →
+        Mon profil → Sécurité du compte → Clés API → Nouvelle clé.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: 640 }}>
+        <input
+          placeholder="Adresse (ex. https://masociete.odoo.com)"
+          value={cfg.url}
+          onChange={(e) => setCfg({ ...cfg, url: e.target.value })}
+        />
+        <input
+          placeholder="Base de données (souvent = masociete)"
+          value={cfg.db}
+          onChange={(e) => setCfg({ ...cfg, db: e.target.value })}
+        />
+        <input
+          placeholder="Utilisateur (email de connexion Odoo)"
+          value={cfg.user}
+          onChange={(e) => setCfg({ ...cfg, user: e.target.value })}
+        />
+        <input
+          placeholder="Clé API"
+          type="password"
+          value={cfg.apiKey}
+          onChange={(e) => setCfg({ ...cfg, apiKey: e.target.value })}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button disabled={!complete || busy} onClick={test}>
+          🔌 Tester la connexion
+        </button>
+        <button className="primary" disabled={!complete} onClick={save}>
+          Enregistrer
+        </button>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{status}</span>
+      </div>
+    </section>
+  )
+}
+
 /**
  * Zone dangereuse (admins) : réinitialisation TOTALE des données.
  * Garde-fou : il faut taper RESET pour déverrouiller le bouton, et le
@@ -264,6 +350,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </form>
         )}
       </section>
+
+      {user.is_admin === 1 && <OdooSection user={user} />}
 
       {user.is_admin === 1 && <DangerZone user={user} />}
 

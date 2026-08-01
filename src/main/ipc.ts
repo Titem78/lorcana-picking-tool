@@ -5,6 +5,7 @@ import * as locations from './locations'
 import * as orders from './orders'
 import * as picking from './picking'
 import * as exports from './exports'
+import * as odoo from './odoo'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -68,9 +69,14 @@ export function registerIpc(): void {
   )
   ipcMain.handle('orders:list', (_e, statuses?: OrderStatus[]) => orders.listOrders(statuses))
   ipcMain.handle('orders:lines', (_e, orderId: number) => orders.getOrderLines(orderId))
-  ipcMain.handle('orders:setStatus', (_e, userId: number, orderId: number, status: OrderStatus) =>
+  ipcMain.handle('orders:setStatus', (_e, userId: number, orderId: number, status: OrderStatus) => {
     orders.setOrderStatus(userId, orderId, status)
-  )
+    // Envoi automatique vers Odoo à l'expédition (si le connecteur est configuré).
+    // Asynchrone et non bloquant : une erreur est enregistrée sur la commande.
+    if (status === 'shipped' && odoo.getOdooConfig()) {
+      odoo.sendOrderToOdoo(userId, orderId).catch(() => {})
+    }
+  })
   ipcMain.handle('orders:setTracking', (_e, userId: number, orderId: number, tracking: string) =>
     orders.setTracking(userId, orderId, tracking)
   )
@@ -105,6 +111,16 @@ export function registerIpc(): void {
   )
   ipcMain.handle('exports:importLocations', (e, userId: number) =>
     exports.importLocationsJson(userId, BrowserWindow.fromWebContents(e.sender)!)
+  )
+
+  // --- Connecteur Odoo ----------------------------------------------------------
+  ipcMain.handle('odoo:getConfig', () => odoo.getOdooConfig())
+  ipcMain.handle('odoo:saveConfig', (_e, userId: number, cfg: odoo.OdooConfig) =>
+    odoo.saveOdooConfig(userId, cfg)
+  )
+  ipcMain.handle('odoo:test', (_e, cfg: odoo.OdooConfig) => odoo.testConnection(cfg))
+  ipcMain.handle('odoo:send', (_e, userId: number, orderId: number) =>
+    odoo.sendOrderToOdoo(userId, orderId)
   )
 
   // --- Mises à jour -------------------------------------------------------------

@@ -65,6 +65,13 @@ const api = {
 
   checkUpdates: () => ipcRenderer.invoke('updater:check'),
 
+  odoo: {
+    getConfig: () => ipcRenderer.invoke('odoo:getConfig'),
+    saveConfig: (userId: number, cfg: unknown) => ipcRenderer.invoke('odoo:saveConfig', userId, cfg),
+    test: (cfg: unknown) => ipcRenderer.invoke('odoo:test', cfg),
+    send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
+  },
+
   resetData: (userId: number, confirmation: string) =>
     ipcRenderer.invoke('app:resetData', userId, confirmation),
 

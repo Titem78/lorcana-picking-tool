@@ -81,6 +81,10 @@ export interface Order {
   shipped_at: string | null
   shipped_by: number | null
   notes: string | null
+  // connecteur Odoo
+  odoo_move_id: number | null
+  odoo_sent_at: string | null
+  odoo_error: string | null
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null

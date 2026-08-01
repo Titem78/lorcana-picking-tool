@@ -110,5 +110,12 @@ export const MIGRATIONS: string[] = [
   // 004 — sections de produits Cardmarket (cartes, dés, scellé...)
   `
   ALTER TABLE order_lines ADD COLUMN section TEXT NOT NULL DEFAULT 'Lorcana Cartes';
+  `,
+
+  // 005 — connecteur Odoo (facture liée à la commande)
+  `
+  ALTER TABLE orders ADD COLUMN odoo_move_id INTEGER;
+  ALTER TABLE orders ADD COLUMN odoo_sent_at TEXT;
+  ALTER TABLE orders ADD COLUMN odoo_error TEXT;
   `
 ]
