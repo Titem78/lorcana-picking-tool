@@ -176,16 +176,24 @@ export async function syncInvoiceStatuses(): Promise<OdooSyncResult> {
   if (!cfg || rows.length === 0) return result
 
   const uid = await authenticate(cfg)
+  // search_read (et non read) : les factures SUPPRIMÉES dans Odoo ne reviennent
+  // simplement pas, au lieu de faire échouer tout l'appel.
   const moves = (await execute(
     cfg,
     uid,
     'account.move',
-    'read',
-    [rows.map((r) => r.odoo_move_id)],
+    'search_read',
+    [[['id', 'in', rows.map((r) => r.odoo_move_id)]]],
     { fields: ['id', 'name', 'state'] }
   )) as { id: number; name: string; state: string }[]
 
+  const found = new Set(moves.map((m) => m.id))
   const upd = db.prepare('UPDATE orders SET odoo_state = ?, odoo_number = ? WHERE odoo_move_id = ?')
+  const clear = db.prepare(
+    `UPDATE orders SET odoo_move_id = NULL, odoo_state = NULL, odoo_number = NULL,
+       odoo_sent_at = NULL, odoo_error = 'Facture supprimée dans Odoo — à renvoyer si besoin'
+     WHERE id = ?`
+  )
   const tx = db.transaction(() => {
     for (const m of moves) {
       result.checked++
@@ -194,6 +202,13 @@ export async function syncInvoiceStatuses(): Promise<OdooSyncResult> {
       if (m.state === 'posted') result.posted++
       else if (m.state === 'cancel') result.cancelled++
       else result.draft++
+    }
+    // Factures disparues côté Odoo : on libère le lien pour pouvoir renvoyer.
+    for (const r of rows) {
+      if (!found.has(r.odoo_move_id)) {
+        result.checked++
+        clear.run(r.id)
+      }
     }
   })
   tx()

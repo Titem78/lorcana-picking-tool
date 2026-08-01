@@ -284,6 +284,12 @@ export function deleteOrder(userId: number, orderId: number): void {
   const order = db.prepare('SELECT sale_id FROM orders WHERE id = ?').get(orderId) as
     | { sale_id: string }
     | undefined
-  db.prepare('DELETE FROM orders WHERE id = ?').run(orderId)
+  const tx = db.transaction(() => {
+    // Un timbre affecté RESTE consommé (il a été imprimé/collé) : on détache
+    // juste la référence à la commande pour permettre la suppression.
+    db.prepare('UPDATE stamps SET used_order_id = NULL WHERE used_order_id = ?').run(orderId)
+    db.prepare('DELETE FROM orders WHERE id = ?').run(orderId)
+  })
+  tx()
   logActivity(userId, 'order.deleted', { orderId, sale_id: order?.sale_id })
 }

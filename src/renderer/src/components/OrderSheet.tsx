@@ -400,6 +400,28 @@ export default function OrderSheet({
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
+          {user.is_admin === 1 && (
+            <button
+              style={{ borderColor: 'var(--danger)', marginRight: 'auto' }}
+              title="Supprimer définitivement cette commande (admin). Un timbre affecté reste consommé."
+              onClick={() => {
+                const typed = window.prompt(
+                  `Suppression DÉFINITIVE de la vente #${order.sale_id} (commande, lignes, traçabilité).\n\nPour confirmer, tape son numéro : ${order.sale_id}`
+                )
+                if (typed === null) return
+                if (typed.trim() !== order.sale_id) {
+                  window.alert('Numéro incorrect — suppression annulée.')
+                  return
+                }
+                window.api.orders.remove(user.id, order.id).then(() => {
+                  onChanged()
+                  onClose()
+                })
+              }}
+            >
+              🗑 Supprimer
+            </button>
+          )}
           {['picked', 'picking', 'imported'].includes(order.status) && (
             <>
               <button
