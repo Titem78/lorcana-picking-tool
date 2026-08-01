@@ -154,6 +154,7 @@ export function registerIpc(): void {
     stamps.releaseStamp(userId, orderId)
   )
   ipcMain.handle('stamps:printData', (_e, orderId: number) => stamps.getStampPrint(orderId))
+  ipcMain.handle('stamps:sheetData', (_e, file: string) => stamps.getSheetData(file))
   ipcMain.handle('stamps:print', (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win?.webContents.print({ silent: false, printBackground: true })

@@ -9,7 +9,7 @@
 // noté sur la commande et sert de numéro de suivi si elle n'en a pas.
 
 import { BrowserWindow, app, dialog } from 'electron'
-import { copyFileSync, mkdirSync } from 'fs'
+import { copyFileSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { getDb, logActivity } from './db'
 
@@ -211,6 +211,12 @@ export function releaseStamp(userId: number, orderId: number): void {
   })
   tx()
   logActivity(userId, 'stamp.released', { orderId, number: order.stamp_number })
+}
+
+/** Contenu binaire d'une planche (pour le rendu pdfjs côté interface). */
+export function getSheetData(file: string): Buffer {
+  const safe = file.replace(/[^\w.-]/g, '')
+  return readFileSync(join(stampsDir(), safe))
 }
 
 /** Données nécessaires à l'impression du timbre d'une commande. */

@@ -268,8 +268,10 @@ table.data th {
 }
 
 /* ---- Impression timbre + adresse ---- */
+/* Mode A4 : étiquette à découper */
 .stamp-label {
   display: flex;
+  flex-direction: row-reverse;
   gap: 18px;
   align-items: flex-start;
   border: 2px dashed #999;
@@ -279,16 +281,42 @@ table.data th {
   width: 640px;
   max-width: 100%;
 }
-.stamp-address {
+.stamp-label .stamp-address {
   flex: 1;
+  align-self: center;
+}
+.stamp-address {
   font-family: Arial, sans-serif;
   font-size: 15px;
   line-height: 1.5;
-  align-self: center;
 }
 .stamp-canvas {
   width: 190px;
   height: auto;
+}
+
+/* Mode enveloppe 10×15 : mise en page réelle de l'enveloppe (150 × 100 mm).
+   À l'écran : aperçu à l'échelle ; à l'impression : plein format. */
+.stamp-envelope {
+  position: relative;
+  width: 150mm;
+  height: 100mm;
+  background: #fff;
+  color: #000;
+  border: 1px dashed #999;
+  max-width: 100%;
+}
+.stamp-envelope .stamp-canvas {
+  position: absolute;
+  top: 4mm;
+  right: 4mm;
+  width: 62mm;
+}
+.stamp-envelope .stamp-address {
+  position: absolute;
+  left: 45mm;
+  top: 55mm;
+  right: 5mm;
 }
 
 @media print {
@@ -303,6 +331,10 @@ table.data th {
     position: fixed;
     top: 0;
     left: 0;
+    margin: 0;
+  }
+  body.printing-stamp .stamp-envelope {
+    border: none; /* pas de cadre quand on imprime directement l'enveloppe */
   }
 }
 

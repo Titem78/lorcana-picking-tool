@@ -103,6 +103,7 @@ const api = {
       ipcRenderer.invoke('stamps:assign', userId, orderId, stampType),
     release: (userId: number, orderId: number) => ipcRenderer.invoke('stamps:release', userId, orderId),
     printData: (orderId: number) => ipcRenderer.invoke('stamps:printData', orderId),
+    sheetData: (file: string) => ipcRenderer.invoke('stamps:sheetData', file),
     print: () => ipcRenderer.invoke('stamps:print')
   },
 
