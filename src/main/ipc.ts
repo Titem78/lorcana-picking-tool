@@ -1,5 +1,5 @@
 import { ipcMain, app, dialog, shell, BrowserWindow } from 'electron'
-import { getDb, getDbPath, logActivity } from './db'
+import { getDb, getDbPath, logActivity, resetDatabase } from './db'
 import * as users from './users'
 import * as locations from './locations'
 import * as orders from './orders'
@@ -109,6 +109,18 @@ export function registerIpc(): void {
 
   // --- Mises à jour -------------------------------------------------------------
   ipcMain.handle('updater:check', () => checkForUpdatesNow())
+
+  // --- Réinitialisation ----------------------------------------------------------
+  ipcMain.handle('app:resetData', (_e, userId: number, confirmation: string) => {
+    // Double garde côté main : admin + confirmation exacte, même si l'UI triche.
+    const user = getDb().prepare('SELECT is_admin FROM users WHERE id = ?').get(userId) as
+      | { is_admin: number }
+      | undefined
+    if (!user?.is_admin) throw new Error('Réservé aux administrateurs')
+    if (confirmation.trim().toUpperCase() !== 'RESET') throw new Error('Confirmation invalide')
+    resetDatabase()
+    return true
+  })
 
   // --- Journal d'activité -----------------------------------------------------
   ipcMain.handle('activity:list', (_e, limit: number = 200): ActivityEntry[] => {

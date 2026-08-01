@@ -40,6 +40,94 @@ function UpdateChecker(): React.JSX.Element {
   )
 }
 
+/**
+ * Zone dangereuse (admins) : réinitialisation TOTALE des données.
+ * Garde-fou : il faut taper RESET pour déverrouiller le bouton, et le
+ * processus principal revérifie (admin + confirmation) de son côté.
+ */
+function DangerZone({ user }: { user: User }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const armed = text.trim().toUpperCase() === 'RESET'
+
+  const doReset = (): void => {
+    window.api
+      .resetData(user.id, text)
+      .then(() => {
+        window.alert(
+          'Toutes les données ont été effacées. L’application repart de zéro : crée le premier compte préparateur.'
+        )
+        window.location.reload()
+      })
+      .catch((err: Error) => setError(err.message.replace(/^.*Error: /, '')))
+  }
+
+  return (
+    <section
+      style={{
+        marginBottom: 30,
+        border: '1px solid var(--danger)',
+        borderRadius: 'var(--radius)',
+        padding: 16
+      }}
+    >
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 8, color: 'var(--danger)' }}>
+        ⚠ Zone dangereuse
+      </h2>
+      {!open ? (
+        <>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
+            Réinitialiser efface <b>tout</b> : préparateurs, emplacements et règles, commandes en
+            cours, historique, journal d&apos;activité. Irréversible. (Le cache des visuels de
+            cartes est conservé.) Pense à exporter l&apos;historique et les emplacements avant.
+          </p>
+          <button style={{ borderColor: 'var(--danger)' }} onClick={() => setOpen(true)}>
+            🗑 Réinitialiser toutes les données…
+          </button>
+        </>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+            Pour confirmer, tape <b style={{ color: 'var(--danger)' }}>RESET</b> :
+          </span>
+          <input
+            value={text}
+            autoFocus
+            onChange={(e) => {
+              setText(e.target.value)
+              setError('')
+            }}
+            style={{ width: 120, borderColor: armed ? 'var(--danger)' : 'var(--border)' }}
+          />
+          <button
+            disabled={!armed}
+            onClick={doReset}
+            style={{
+              background: armed ? 'var(--danger)' : 'var(--bg-raised)',
+              borderColor: 'var(--danger)',
+              color: armed ? '#fff' : 'var(--text-dim)',
+              fontWeight: 600
+            }}
+          >
+            Tout effacer définitivement
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false)
+              setText('')
+              setError('')
+            }}
+          >
+            Annuler
+          </button>
+          <span style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{error}</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function SettingsPage({ user }: { user: User }): React.JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -176,6 +264,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </form>
         )}
       </section>
+
+      {user.is_admin === 1 && <DangerZone user={user} />}
 
       <section>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Journal d&apos;activité</h2>

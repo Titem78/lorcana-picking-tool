@@ -9,7 +9,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => userData }
 }))
 
-import { closeDb, getDb } from '../src/main/db'
+import { closeDb, getDb, resetDatabase } from '../src/main/db'
 import { createUser } from '../src/main/users'
 import { createLocation, setRules } from '../src/main/locations'
 import { importPdfs } from '../src/main/orders'
@@ -85,5 +85,18 @@ describe.skipIf(!existsSync(SAMPLE))('import PDF → picking → coche (intégra
       .get(allSublines[0].line_id) as { picked_by: number; picked_at: string }
     expect(line.picked_by).toBe(userId)
     expect(line.picked_at).toBeTruthy()
+  })
+
+  it('réinitialise toutes les données (reset)', () => {
+    resetDatabase()
+    const counts = getDb()
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM users) AS u,
+                (SELECT COUNT(*) FROM orders) AS o,
+                (SELECT COUNT(*) FROM locations) AS l,
+                (SELECT COUNT(*) FROM activity_log) AS a`
+      )
+      .get() as { u: number; o: number; l: number; a: number }
+    expect(counts).toEqual({ u: 0, o: 0, l: 0, a: 0 })
   })
 })

@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
+import { unlinkSync } from 'fs'
 import { join } from 'path'
 import { MIGRATIONS } from './migrations'
 
@@ -50,4 +51,21 @@ export function logActivity(userId: number | null, action: string, details?: unk
 export function closeDb(): void {
   db?.close()
   db = null
+}
+
+/**
+ * Réinitialisation totale : supprime la base (données + comptes + journal)
+ * et la recrée vide. Le cache des visuels est volontairement conservé.
+ */
+export function resetDatabase(): void {
+  closeDb()
+  const base = getDbPath()
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      unlinkSync(base + suffix)
+    } catch {
+      /* fichier absent : ok */
+    }
+  }
+  getDb() // recrée une base vierge avec les migrations
 }

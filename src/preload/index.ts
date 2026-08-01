@@ -65,6 +65,9 @@ const api = {
 
   checkUpdates: () => ipcRenderer.invoke('updater:check'),
 
+  resetData: (userId: number, confirmation: string) =>
+    ipcRenderer.invoke('app:resetData', userId, confirmation),
+
   /** Chemin réel d'un fichier glissé-déposé (l'API File.path n'existe plus). */
   pathForFile: (file: File) => webUtils.getPathForFile(file),
 
