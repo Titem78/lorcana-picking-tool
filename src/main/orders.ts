@@ -63,8 +63,8 @@ export async function importPdfs(userId: number | null, paths: string[]): Promis
           .prepare(
             `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, seller,
                article_count, item_value, shipping_cost, total, shipping_method, tracking_number,
-               status, source_pdf, imported_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?)`
+               refund_amount, status, source_pdf, imported_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?)`
           )
           .run(
             parsed.sale_id,
@@ -78,6 +78,7 @@ export async function importPdfs(userId: number | null, paths: string[]): Promis
             parsed.total,
             parsed.shipping_method,
             parsed.tracking_number || null,
+            parsed.refund_amount || null,
             parsed.source_pdf,
             userId
           )
@@ -204,6 +205,20 @@ export function setOrderStatus(userId: number, orderId: number, status: OrderSta
 export function setTracking(userId: number, orderId: number, tracking: string): void {
   getDb().prepare('UPDATE orders SET tracking_number = ? WHERE id = ?').run(tracking || null, orderId)
   logActivity(userId, 'order.tracking', { orderId, tracking })
+}
+
+/** Remboursement (montant « 3,44 » + motif) — répercuté en ligne négative dans Odoo. */
+export function setRefund(
+  userId: number,
+  orderId: number,
+  amount: string,
+  reason: string
+): void {
+  const clean = amount.trim().replace(/[€\s]/g, '').replace('.', ',')
+  getDb()
+    .prepare('UPDATE orders SET refund_amount = ?, refund_reason = ? WHERE id = ?')
+    .run(clean ? `${clean} EUR` : null, reason.trim() || null, orderId)
+  logActivity(userId, 'order.refund_set', { orderId, amount: clean, reason })
 }
 
 export function setNotes(userId: number, orderId: number, notes: string): void {

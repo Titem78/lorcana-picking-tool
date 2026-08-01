@@ -98,6 +98,11 @@ export function registerIpc(): void {
   ipcMain.handle('orders:setNotes', (_e, userId: number, orderId: number, notes: string) =>
     orders.setNotes(userId, orderId, notes)
   )
+  ipcMain.handle(
+    'orders:setRefund',
+    (_e, userId: number, orderId: number, amount: string, reason: string) =>
+      orders.setRefund(userId, orderId, amount, reason)
+  )
   ipcMain.handle('orders:delete', (_e, userId: number, orderId: number) =>
     orders.deleteOrder(userId, orderId)
   )

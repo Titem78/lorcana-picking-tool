@@ -41,6 +41,7 @@ export interface ParsedOrder {
   total: string
   shipping_method: string
   tracking_number: string
+  refund_amount: string // « 3,44 EUR » si un remboursement figure dans le PDF, sinon vide
   cards: ParsedCardLine[]
   source_pdf: string
 }
@@ -144,6 +145,14 @@ function parseHeader(rows: Tok[][], allText: string): Omit<ParsedOrder, 'cards' 
 
   const contenu = recapGet('contenu').match(/(\d+)/)
 
+  // Remboursement (ex. frais de port rendus pour une remise en main propre) :
+  // paire du récap si présente, sinon mention libre « Remboursement 3,44 € »
+  let refund = recapGet('remboursement')
+  if (!refund) {
+    const m = allText.match(/Remboursement[^\d]{0,20}([\d.,]+)\s*(?:€|EUR)/i)
+    if (m) refund = `${m[1]} EUR`
+  }
+
   return {
     sale_id: sale?.[1] ?? '',
     buyer_username: buyer?.[1] ?? '',
@@ -156,7 +165,8 @@ function parseHeader(rows: Tok[][], allText: string): Omit<ParsedOrder, 'cards' 
     shipping_cost: recapGet('frais de port'),
     total: recapGet('total'),
     shipping_method: recapGet("mode d'envoi"),
-    tracking_number: recapGet('suivi')
+    tracking_number: recapGet('suivi'),
+    refund_amount: refund
   }
 }
 

@@ -161,5 +161,11 @@ export const MIGRATIONS: string[] = [
     used_by INTEGER REFERENCES users(id)
   );
   ALTER TABLE orders ADD COLUMN stamp_number TEXT;
+  `,
+
+  // 009 — remboursements (souvent frais de port, ex. remise en main propre)
+  `
+  ALTER TABLE orders ADD COLUMN refund_amount TEXT;
+  ALTER TABLE orders ADD COLUMN refund_reason TEXT;
   `
 ]

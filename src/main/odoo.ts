@@ -426,6 +426,22 @@ export async function sendOrderToOdoo(
         }
       ])
     }
+    // Remboursement (ex. frais de port rendus pour une remise en main propre) :
+    // ligne négative, même article et même TVA — le total facturé = net payé.
+    const refund = eurToFloat(order.refund_amount)
+    if (refund > 0) {
+      invoiceLines.push([
+        0,
+        0,
+        {
+          ...(cfg.productShippingId ? { product_id: cfg.productShippingId } : {}),
+          name: `Remboursement${order.refund_reason ? ` — ${order.refund_reason}` : ' frais de port'}`,
+          quantity: 1,
+          price_unit: -toHT(refund),
+          ...taxSpec
+        }
+      ])
+    }
 
     // 3. Facture brouillon
     const sentDate = (order.shipped_at ?? order.imported_at ?? '').slice(0, 10) || undefined

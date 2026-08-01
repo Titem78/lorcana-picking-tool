@@ -29,6 +29,14 @@ export default function OrderSheet({
   const [odooUrl, setOdooUrl] = useState<string | null>(null)
   const [deleteArm, setDeleteArm] = useState(false)
   const [deleteText, setDeleteText] = useState('')
+  const [refundAmount, setRefundAmount] = useState(
+    (initial.refund_amount ?? '').replace(/\s*EUR$/, '')
+  )
+  const [refundReason, setRefundReason] = useState(initial.refund_reason ?? '')
+
+  const saveRefund = (): void => {
+    window.api.orders.setRefund(user.id, order.id, refundAmount, refundReason).then(reload)
+  }
   const [stampStock, setStampStock] = useState<{ stamp_type: string; free: number }[]>([])
   const [stampType, setStampType] = useState('')
   const [stampMsg, setStampMsg] = useState('')
@@ -319,6 +327,41 @@ export default function OrderSheet({
               >
                 🔎 Vérifier le suivi sur {track.label}
               </button>
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 6 }}>
+              Remboursement (ex. port rendu en main propre)
+            </h3>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                placeholder="Montant €"
+                value={refundAmount}
+                style={{ width: 100 }}
+                onChange={(e) => setRefundAmount(e.target.value)}
+              />
+              <input
+                placeholder="Motif (ex. remise en main propre)"
+                value={refundReason}
+                style={{ flex: 1, minWidth: 150 }}
+                onChange={(e) => setRefundReason(e.target.value)}
+              />
+              <button
+                onClick={saveRefund}
+                disabled={
+                  refundAmount === (order.refund_amount ?? '').replace(/\s*EUR$/, '') &&
+                  refundReason === (order.refund_reason ?? '')
+                }
+              >
+                Enregistrer
+              </button>
+            </div>
+            {order.refund_amount && order.odoo_move_id && (
+              <p style={{ color: 'var(--accent)', fontSize: '0.82rem', marginTop: 4 }}>
+                ⚠ La facture Odoo existe déjà : le remboursement n&apos;y figure pas — ajuste-la
+                dans Odoo, ou supprime-la là-bas puis Sync et renvoie.
+              </p>
             )}
           </div>
 
