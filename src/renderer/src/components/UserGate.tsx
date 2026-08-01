@@ -15,11 +15,29 @@ export default function UserGate({ onLogin }: Props): React.JSX.Element {
   const [selected, setSelected] = useState<User | null>(null)
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   const refresh = (): void => {
-    window.api.users.list().then(setUsers)
+    window.api.users
+      .list()
+      .then(setUsers)
+      .catch((err: Error) => setLoadError(err.message))
   }
   useEffect(refresh, [])
+
+  if (loadError) {
+    return (
+      <div className="gate">
+        <h1>Lorcana Picking Tool</h1>
+        <p className="sub" style={{ color: 'var(--danger)' }}>
+          Impossible de charger les données : {loadError}
+        </p>
+        <button className="primary" onClick={() => window.location.reload()}>
+          Réessayer
+        </button>
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (!selected || pin.length < 4) return
@@ -33,7 +51,13 @@ export default function UserGate({ onLogin }: Props): React.JSX.Element {
     })
   }, [pin, selected])
 
-  if (users === null) return <div className="gate" />
+  if (users === null) {
+    return (
+      <div className="gate">
+        <p className="sub">Chargement…</p>
+      </div>
+    )
+  }
 
   if (users.length === 0) {
     return <FirstUserForm onCreated={refresh} />

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, net, protocol } from 'electron'
+import { appendFileSync } from 'fs'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -6,6 +7,23 @@ import { registerIpc } from './ipc'
 import { closeDb } from './db'
 import { setupAutoUpdater } from './updater'
 import { imagesDir } from './lorcast'
+
+// Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
+// connu, réglé en désactivant l'accélération matérielle (aucun impact pour
+// cette app, qui n'a ni vidéo ni animation lourde).
+app.disableHardwareAcceleration()
+
+// Journal des pépins du processus principal et du renderer :
+// %APPDATA%/lorcana-picking-tool/main.log
+function logMain(msg: string): void {
+  try {
+    appendFileSync(join(app.getPath('userData'), 'main.log'), `${new Date().toISOString()} ${msg}\n`)
+  } catch {
+    /* jamais bloquant */
+  }
+}
+process.on('uncaughtException', (err) => logMain(`uncaughtException: ${err.stack ?? err}`))
+process.on('unhandledRejection', (reason) => logMain(`unhandledRejection: ${String(reason)}`))
 
 // Schéma local « appcache:// » : sert les visuels de cartes mis en cache
 // (ex. <img src="appcache://images/12_86_small.avif">).
@@ -42,6 +60,19 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // Si le renderer meurt ou ne charge pas, on le note et on recharge une fois :
+  // mieux qu'une fenêtre noire silencieuse.
+  win.webContents.on('render-process-gone', (_e, details) => {
+    logMain(`renderer parti: ${details.reason} (code ${details.exitCode})`)
+    if (details.reason !== 'clean-exit') win.webContents.reload()
+  })
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    logMain(`did-fail-load: ${code} ${desc} ${url}`)
+  })
+  win.webContents.on('preload-error', (_e, path, error) => {
+    logMain(`preload-error: ${path} ${error.message}`)
+  })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
