@@ -42,7 +42,8 @@ const api = {
       ipcRenderer.invoke('orders:setTracking', userId, orderId, tracking),
     setNotes: (userId: number, orderId: number, notes: string) =>
       ipcRenderer.invoke('orders:setNotes', userId, orderId, notes),
-    remove: (userId: number, orderId: number) => ipcRenderer.invoke('orders:delete', userId, orderId)
+    remove: (userId: number, orderId: number) => ipcRenderer.invoke('orders:delete', userId, orderId),
+    stats: () => ipcRenderer.invoke('orders:stats')
   },
 
   picking: {

@@ -118,20 +118,34 @@ export async function importPdfs(userId: number, paths: string[]): Promise<Impor
   return results
 }
 
+const ORDER_SELECT = `
+  SELECT o.*,
+         ui.name AS imported_by_name,
+         up.name AS prepared_by_name,
+         us.name AS shipped_by_name
+  FROM orders o
+  LEFT JOIN users ui ON ui.id = o.imported_by
+  LEFT JOIN users up ON up.id = o.prepared_by
+  LEFT JOIN users us ON us.id = o.shipped_by`
+
 export function listOrders(statuses?: OrderStatus[]): Order[] {
   const db = getDb()
   if (statuses?.length) {
     const marks = statuses.map(() => '?').join(',')
     return db
-      .prepare(`SELECT * FROM orders WHERE status IN (${marks}) ORDER BY imported_at DESC, id DESC`)
+      .prepare(`${ORDER_SELECT} WHERE o.status IN (${marks}) ORDER BY o.imported_at DESC, o.id DESC`)
       .all(...statuses) as Order[]
   }
-  return db.prepare('SELECT * FROM orders ORDER BY imported_at DESC, id DESC').all() as Order[]
+  return db.prepare(`${ORDER_SELECT} ORDER BY o.imported_at DESC, o.id DESC`).all() as Order[]
 }
 
 export function getOrderLines(orderId: number): OrderLine[] {
   return getDb()
-    .prepare('SELECT * FROM order_lines WHERE order_id = ? ORDER BY id')
+    .prepare(
+      `SELECT l.*, u.name AS picked_by_name
+       FROM order_lines l LEFT JOIN users u ON u.id = l.picked_by
+       WHERE l.order_id = ? ORDER BY l.id`
+    )
     .all(orderId) as OrderLine[]
 }
 
@@ -164,6 +178,52 @@ export function setTracking(userId: number, orderId: number, tracking: string): 
 export function setNotes(userId: number, orderId: number, notes: string): void {
   getDb().prepare('UPDATE orders SET notes = ? WHERE id = ?').run(notes || null, orderId)
   logActivity(userId, 'order.notes', { orderId })
+}
+
+// --- Statistiques (historique) -------------------------------------------------
+
+export interface HistoryStats {
+  months: { month: string; orders: number; revenue_cents: number }[]
+  top_cards: { name: string; set_code: string | null; number: string | null; qty: number }[]
+}
+
+function eurToCents(v: string | null): number {
+  if (!v) return 0
+  const m = v.replace(/\s/g, '').match(/^([\d.]+),?(\d{0,2})/)
+  if (!m) return 0
+  return parseInt(m[1].replace(/\./g, ''), 10) * 100 + (m[2] ? parseInt(m[2].padEnd(2, '0'), 10) : 0)
+}
+
+export function getStats(): HistoryStats {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `SELECT substr(COALESCE(shipped_at, imported_at), 1, 7) AS month, total
+       FROM orders WHERE status IN ('shipped', 'archived')`
+    )
+    .all() as { month: string; total: string | null }[]
+  const byMonth = new Map<string, { orders: number; revenue_cents: number }>()
+  for (const r of rows) {
+    const m = byMonth.get(r.month) ?? { orders: 0, revenue_cents: 0 }
+    m.orders += 1
+    m.revenue_cents += eurToCents(r.total)
+    byMonth.set(r.month, m)
+  }
+  const months = [...byMonth.entries()]
+    .map(([month, v]) => ({ month, ...v }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+
+  const top_cards = db
+    .prepare(
+      `SELECT l.name, l.set_code, l.number, SUM(l.quantity) AS qty
+       FROM order_lines l JOIN orders o ON o.id = l.order_id
+       WHERE o.status IN ('shipped', 'archived')
+       GROUP BY l.set_code, l.number, l.name
+       ORDER BY qty DESC LIMIT 15`
+    )
+    .all() as HistoryStats['top_cards']
+
+  return { months, top_cards }
 }
 
 export function deleteOrder(userId: number, orderId: number): void {

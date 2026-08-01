@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { ImportResult, Order, OrderLine, User } from '@shared/types'
+import type { ImportResult, Order, User } from '@shared/types'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
-import CardThumb from '@/components/CardThumb'
+import OrderSheet from '@/components/OrderSheet'
 
 /**
  * Page Commandes : import des PDF de vente Cardmarket (bouton ou
@@ -160,97 +160,14 @@ export default function OrdersPage({ user }: { user: User }): React.JSX.Element 
         </table>
       )}
 
-      {detail && <OrderDetail order={detail} onClose={() => setDetail(null)} />}
-    </div>
-  )
-}
-
-function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }): React.JSX.Element {
-  const [lines, setLines] = useState<OrderLine[]>([])
-  useEffect(() => {
-    window.api.orders.lines(order.id).then(setLines)
-  }, [order.id])
-
-  return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.55)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 40
-      }}
-    >
-      <div
-        style={{
-          background: 'var(--bg-panel)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: 22,
-          width: 720,
-          maxWidth: '92vw',
-          maxHeight: '85vh',
-          overflow: 'auto'
-        }}
-      >
-        <h2 style={{ marginBottom: 6 }}>
-          Vente #{order.sale_id} — {order.buyer_username}
-        </h2>
-        <p style={{ color: 'var(--text-dim)', whiteSpace: 'pre-line', marginBottom: 12 }}>
-          {order.buyer_name}
-          {'\n'}
-          {order.buyer_address}
-        </p>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 14 }}>
-          {order.article_count} article(s) — valeur {order.item_value} + port {order.shipping_cost} ={' '}
-          <b>{order.total}</b>
-          <br />
-          Mode d&apos;envoi : {order.shipping_method ?? '—'}
-          {order.tracking_number && (
-            <>
-              {' '}
-              — suivi <b>{order.tracking_number}</b>
-            </>
-          )}
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {lines.map((l) => (
-            <div
-              key={l.id}
-              style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'center',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '6px 10px',
-                opacity: l.picked_qty >= l.quantity ? 0.65 : 1
-              }}
-            >
-              <CardThumb line={l} size={46} />
-              <div style={{ flex: 1 }}>
-                <b>
-                  {l.quantity}× {l.name}
-                </b>{' '}
-                {l.is_foil === 1 && '✨'}
-                <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                  Ch. {l.set_code} · n° {l.number} · {l.language} · {l.condition}
-                  {l.comment && ` · ${l.comment}`} · {l.price}
-                </div>
-              </div>
-              {l.picked_qty >= l.quantity ? '✅' : ''}
-            </div>
-          ))}
-        </div>
-        <div style={{ textAlign: 'right', marginTop: 14 }}>
-          <button onClick={onClose}>Fermer</button>
-        </div>
-      </div>
+      {detail && (
+        <OrderSheet
+          order={detail}
+          user={user}
+          onClose={() => setDetail(null)}
+          onChanged={refresh}
+        />
+      )}
     </div>
   )
 }

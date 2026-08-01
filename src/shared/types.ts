@@ -81,6 +81,10 @@ export interface Order {
   shipped_at: string | null
   shipped_by: number | null
   notes: string | null
+  // noms joints pour l'affichage (traçabilité)
+  imported_by_name?: string | null
+  prepared_by_name?: string | null
+  shipped_by_name?: string | null
 }
 
 export interface OrderLine {
@@ -106,6 +110,7 @@ export interface OrderLine {
   rarity: string | null
   image_file: string | null
   lorcast_name: string | null
+  picked_by_name?: string | null
 }
 
 // --- Liste de picking ----------------------------------------------------------

@@ -79,6 +79,8 @@ export function registerIpc(): void {
     orders.deleteOrder(userId, orderId)
   )
 
+  ipcMain.handle('orders:stats', () => orders.getStats())
+
   // --- Picking -----------------------------------------------------------------
   ipcMain.handle('picking:list', () => picking.buildPickingList())
   ipcMain.handle('picking:pick', (_e, userId: number, lineId: number, picked: boolean) =>
