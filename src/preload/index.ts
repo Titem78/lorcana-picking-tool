@@ -102,6 +102,14 @@ const api = {
     import: (userId: number) => ipcRenderer.invoke('backup:import', userId)
   },
 
+  cm: {
+    saveCreds: (userId: number, username: string, password: string) =>
+      ipcRenderer.invoke('cm:saveCreds', userId, username, password),
+    clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),
+    hasCreds: () => ipcRenderer.invoke('cm:hasCreds'),
+    fillLogin: (webContentsId: number) => ipcRenderer.invoke('cm:fillLogin', webContentsId)
+  },
+
   watcher: {
     config: () => ipcRenderer.invoke('watcher:config'),
     pickFolder: (userId: number) => ipcRenderer.invoke('watcher:pickFolder', userId),

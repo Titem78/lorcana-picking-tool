@@ -355,15 +355,6 @@ function PickingRow({
             {!/cartes/i.test(item.section) && (
               <span className="badge">🎲 {item.section}</span>
             )}
-            {/\(V\.[2-9]\d*\)/i.test(item.name) && (
-              <span
-                className="badge"
-                style={{ borderColor: 'var(--danger)', color: 'var(--danger)', fontWeight: 700 }}
-                title="Version alternative (V.2+) : le visuel obtenu par numéro peut être celui d'une autre version — vérifie, et corrige-le par clic droit sur l'image."
-              >
-                ⚠ V. alternative
-              </span>
-            )}
             {done && <span style={{ color: 'var(--ok)' }}>✅</span>}
           </div>
           <div

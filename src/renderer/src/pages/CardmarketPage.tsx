@@ -15,6 +15,7 @@ interface WebviewEl extends HTMLElement {
   goForward: () => void
   reload: () => void
   executeJavaScript: (code: string) => Promise<unknown>
+  getWebContentsId: () => number
 }
 
 /**
@@ -208,6 +209,16 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <button onClick={() => webviewRef.current?.goBack()}>←</button>
         <button onClick={() => webviewRef.current?.goForward()}>→</button>
         <button onClick={() => webviewRef.current?.reload()}>⟳</button>
+        <button
+          title="Remplit le formulaire de connexion avec tes identifiants enregistrés (Réglages → Import)"
+          onClick={() => {
+            const wv = webviewRef.current
+            if (!wv) return
+            window.api.cm.fillLogin(wv.getWebContentsId()).then((r: string) => setMsg(r))
+          }}
+        >
+          🔑 Connexion
+        </button>
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>

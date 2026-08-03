@@ -9,6 +9,7 @@ import * as odoo from './odoo'
 import * as backup from './backup'
 import * as stamps from './stamps'
 import * as watcherMod from './watcher'
+import * as cmauth from './cmauth'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -159,6 +160,14 @@ export function registerIpc(): void {
   )
   ipcMain.handle('odoo:listAccessoryMap', () => odoo.listAccessoryMap())
   ipcMain.handle('odoo:sync', () => odoo.syncInvoiceStatuses())
+
+  // --- Identifiants Cardmarket (chiffrés) -------------------------------------------
+  ipcMain.handle('cm:saveCreds', (_e, userId: number, username: string, password: string) =>
+    cmauth.saveCredentials(userId, username, password)
+  )
+  ipcMain.handle('cm:clearCreds', (_e, userId: number) => cmauth.clearCredentials(userId))
+  ipcMain.handle('cm:hasCreds', () => cmauth.hasCredentials())
+  ipcMain.handle('cm:fillLogin', (_e, webContentsId: number) => cmauth.fillLogin(webContentsId))
 
   // --- Dossier surveillé ----------------------------------------------------------
   ipcMain.handle('watcher:config', () => watcherMod.getWatcherConfig())

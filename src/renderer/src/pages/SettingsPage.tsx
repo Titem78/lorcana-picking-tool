@@ -683,6 +683,17 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
   const [newPin, setNewPin] = useState('')
   const [newAdmin, setNewAdmin] = useState(false)
   const [msg, setMsg] = useState('')
+  const [cat, setCat] = useState('general')
+
+  const CATS = [
+    { id: 'general', label: '🧭 Général' },
+    { id: 'import', label: '📥 Import & Cardmarket' },
+    { id: 'stamps', label: '🎟 Timbres' },
+    ...(user.is_admin === 1 ? [{ id: 'odoo', label: '🧾 Odoo' }] : []),
+    { id: 'team', label: '👥 Équipe & journal' },
+    { id: 'backup', label: '💾 Sauvegardes' },
+    ...(user.is_admin === 1 ? [{ id: 'danger', label: '⚠ Avancé' }] : [])
+  ]
 
   const refresh = (): void => {
     window.api.appInfo().then(setInfo)
@@ -721,6 +732,24 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
     <div>
       <h1>⚙️ Réglages</h1>
 
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 }}>
+        {CATS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCat(c.id)}
+            style={
+              cat === c.id
+                ? { background: 'var(--accent-soft)', borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 600 }
+                : {}
+            }
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {cat === 'general' && (
+      <>
       <section style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Application</h2>
         <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
@@ -733,7 +762,10 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
       </section>
 
       <ChangelogSection />
+      </>
+      )}
 
+      {cat === 'backup' && (
       <section style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Exports &amp; sauvegardes</h2>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -814,7 +846,10 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </span>
         </div>
       </section>
+      )}
 
+      {cat === 'team' && (
+      <>
       <section style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Préparateurs</h2>
         <table className="data" style={{ maxWidth: 560 }}>
@@ -877,15 +912,23 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </form>
         )}
       </section>
+      </>
+      )}
 
-      <WatcherSection user={user} />
+      {cat === 'import' && (
+        <>
+          <WatcherSection user={user} />
+          <CmCredsSection user={user} />
+        </>
+      )}
 
-      <StampsSection user={user} />
+      {cat === 'stamps' && <StampsSection user={user} />}
 
-      {user.is_admin === 1 && <OdooSection user={user} />}
+      {cat === 'odoo' && user.is_admin === 1 && <OdooSection user={user} />}
 
-      {user.is_admin === 1 && <DangerZone user={user} />}
+      {cat === 'danger' && user.is_admin === 1 && <DangerZone user={user} />}
 
+      {cat === 'team' && (
       <section>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Journal d&apos;activité</h2>
         <table className="data">
@@ -909,6 +952,87 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
           </tbody>
         </table>
       </section>
+      )}
     </div>
+  )
+}
+
+/**
+ * Identifiants Cardmarket mémorisés (chiffrés par Windows sur CE poste) :
+ * dans l'onglet Cardmarket, le bouton 🔑 remplit le formulaire de connexion.
+ */
+function CmCredsSection({ user }: { user: User }): React.JSX.Element {
+  const [saved, setSaved] = useState<{ saved: boolean; username: string | null }>({
+    saved: false,
+    username: null
+  })
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState('')
+
+  const refresh = (): void => {
+    window.api.cm.hasCreds().then(setSaved)
+  }
+  useEffect(refresh, [])
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>🔑 Connexion Cardmarket</h2>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 720 }}>
+        Enregistre tes identifiants pour remplir la page de connexion en un clic (bouton 🔑 dans
+        l&apos;onglet Cardmarket). Le mot de passe est <b>chiffré par Windows</b> et lisible
+        uniquement sur ce PC — sur une sauvegarde restaurée ailleurs, il faudra le re-saisir.
+      </p>
+      {saved.saved ? (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="badge" style={{ borderColor: 'var(--ok)' }}>
+            Identifiants enregistrés pour « {saved.username} » ✔
+          </span>
+          <button
+            onClick={() =>
+              window.api.cm.clearCreds(user.id).then(() => {
+                setMsg('Identifiants effacés')
+                refresh()
+              })
+            }
+          >
+            Effacer
+          </button>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{msg}</span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            placeholder="Nom d'utilisateur Cardmarket"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <input
+            placeholder="Mot de passe"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            className="primary"
+            disabled={!username.trim() || !password}
+            onClick={() =>
+              window.api.cm
+                .saveCreds(user.id, username.trim(), password)
+                .then(() => {
+                  setUsername('')
+                  setPassword('')
+                  setMsg('Enregistrés ✔ — bouton 🔑 disponible dans l’onglet Cardmarket')
+                  refresh()
+                })
+                .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+            }
+          >
+            Enregistrer (chiffré)
+          </button>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{msg}</span>
+        </div>
+      )}
+    </section>
   )
 }

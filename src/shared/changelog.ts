@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.15.0',
+    title: 'Réglages organisés & connexion Cardmarket',
+    items: [
+      'Réglages réorganisés par catégories (Général, Import, Timbres, Odoo, Équipe, Sauvegardes…)',
+      'Identifiants Cardmarket mémorisés (chiffrés par Windows) : bouton 🔑 qui remplit la connexion en un clic',
+      'Import via l’onglet Cardmarket : le visuel EXACT de la version vendue est récupéré automatiquement depuis la page',
+      'Retrait du badge « V. alternative » : chaque version a son propre numéro, le visuel est le bon'
+    ]
+  },
+  {
     version: '2.14.0',
     title: 'Visuels fiabilisés & nouveautés',
     items: [

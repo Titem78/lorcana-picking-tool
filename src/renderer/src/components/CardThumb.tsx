@@ -90,12 +90,11 @@ export default function CardThumb({
         onMouseEnter={enter}
         onMouseLeave={leave}
         onContextMenu={context}
-        title={onCustomize ? 'Survol : zoom — Clic droit : remplacer le visuel' : line.name}
+        title={line.name}
         style={{
           width: size,
           borderRadius: 4,
-          flexShrink: 0,
-          outline: alt ? '2px solid var(--accent)' : undefined
+          flexShrink: 0
         }}
       />
       {zoom && (
@@ -161,11 +160,6 @@ export default function CardThumb({
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}
               >
                 ✨ FOIL
-              </span>
-            )}
-            {alt && (
-              <span className="badge" style={{ borderColor: 'var(--danger)', color: 'var(--danger)', fontWeight: 700 }}>
-                ⚠ version alternative — le visuel peut différer (clic droit pour corriger)
               </span>
             )}
           </div>
