@@ -140,10 +140,25 @@ export function imagesDir(): string {
  * les chapitres récents peuvent manquer → null, on retombe sur l'anglais).
  * Format : https://cdn.dreamborn.ink/images/fr/cards/001-001 (webp)
  */
-export async function getFrenchImage(setCode: string, number: string): Promise<string | null> {
+export async function getFrenchImage(
+  setCode: string,
+  number: string,
+  name?: string
+): Promise<string | null> {
   const set = setCode.replace(/\D/g, '')
   const num = number.replace(/\D/g, '')
-  if (!set || !num) return null
+  if (!set || !num) {
+    // Promo / carte sans chapitre standard : recherche par nom dans LorCards
+    if (name) {
+      try {
+        const { getLorcardsFrImageByName } = await import('./lorcards')
+        return await getLorcardsFrImageByName(name, join(cacheDir(), 'images'))
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
   const fname = `${set}_${number}_fr.webp`.replace(/[^\w.-]/g, '_')
   const local = join(cacheDir(), 'images', fname)
   if (existsSync(local) && statSync(local).size > 0) return fname

@@ -12,7 +12,8 @@ import { join } from 'path'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36'
 const LIST_BASE = 'https://www.lorcards.fr/cards/liste-cartes-francaises'
-const URL_RE = /https:\/\/static\.lorcards\.fr\/cards\/fr\/[^\s"']+?-(\d+)-\d+-fr-(\d+)-[^\s"']*?\.webp/g
+const URL_RE = /https:\/\/static\.lorcards\.fr\/cards\/fr\/[^\s"']+?\.webp/g
+const SETNUM_RE = /-(\d+)-\d+-fr-(\d+)-/
 const STALE_MS = 7 * 24 * 3600_000
 const MAX_PAGES = 130
 
@@ -20,6 +21,7 @@ interface LorcardsIndex {
   fullCrawlAt: string | null
   refreshAt: string | null
   map: Record<string, string> // "set/num" -> url
+  urls?: string[] // toutes les URLs vues (recherche par nom : promos, etc.)
 }
 
 let index: LorcardsIndex | null = null
@@ -53,15 +55,34 @@ async function fetchPage(page: number): Promise<number> {
   if (!res.ok) return 0
   const html = await res.text()
   const idx = loadIndex()
+  if (!idx.urls) idx.urls = []
+  const seen = new Set(idx.urls)
   let added = 0
   for (const m of html.matchAll(URL_RE)) {
-    const key = `${parseInt(m[2], 10)}/${parseInt(m[1], 10)}`
-    if (!idx.map[key]) {
-      idx.map[key] = m[0]
+    const url = m[0]
+    if (!seen.has(url)) {
+      seen.add(url)
+      idx.urls.push(url)
       added++
+    }
+    const sn = url.match(SETNUM_RE)
+    if (sn) {
+      const key = `${parseInt(sn[2], 10)}/${parseInt(sn[1], 10)}`
+      if (!idx.map[key]) idx.map[key] = url
     }
   }
   return added
+}
+
+/** « La Fée Clochette - Collectionneuse… (V.1) » → la-fee-clochette-collectionneuse… */
+export function slugify(name: string): string {
+  return name
+    .replace(/\(V\.\d+\)/gi, '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 async function crawl(fromPage: number, toPage: number, stopWhenStale: boolean): Promise<void> {
@@ -92,6 +113,11 @@ async function crawl(fromPage: number, toPage: number, stopWhenStale: boolean): 
 export function ensureIndexBackground(onComplete?: () => void): void {
   if (process.env.VITEST || crawling) return
   const idx = loadIndex()
+  // Index marqué complet mais visiblement tronqué (interruption réseau) :
+  // on relance un passage complet (les pages déjà vues sont dédupliquées).
+  if (idx.fullCrawlAt && (idx.urls?.length ?? Object.keys(idx.map).length) < 2000) {
+    idx.fullCrawlAt = null
+  }
   if (!idx.fullCrawlAt) {
     crawling = crawl(1, MAX_PAGES, false).then(() => {
       idx.fullCrawlAt = new Date().toISOString()
@@ -132,12 +158,37 @@ export async function getLorcardsFrImage(
   // visuels FR sur les lignes existantes quand elle aboutit.
   const url = loadIndex().map[`${set}/${num}`]
   if (!url) return null
+  return (await downloadToAsync(url, local)) ? fname : null
+}
+
+async function downloadToAsync(url: string, local: string): Promise<boolean> {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) })
-    if (!res.ok) return null
+    if (!res.ok) return false
     await writeFile(local, Buffer.from(await res.arrayBuffer()))
-    return fname
+    return true
   } catch {
-    return null
+    return false
   }
+}
+
+/**
+ * Recherche par NOM (promos et cartes sans chapitre/numéro standard) :
+ * le nom FR est slugifié et comparé aux URLs de l'index ; les URLs « promo »
+ * sont préférées quand la carte n'a pas de chapitre.
+ */
+export async function getLorcardsFrImageByName(
+  name: string,
+  imagesDir: string
+): Promise<string | null> {
+  const slug = slugify(name)
+  if (slug.length < 8) return null
+  const urls = loadIndex().urls ?? []
+  const matches = urls.filter((u) => u.includes(slug))
+  if (matches.length === 0) return null
+  const url = matches.find((u) => u.includes('-promo')) ?? matches[0]
+  const fname = `name_${slug.slice(0, 60)}_fr.webp`
+  const local = join(imagesDir, fname)
+  if (existsSync(local) && statSync(local).size > 0) return fname
+  return (await downloadToAsync(url, local)) ? fname : null
 }

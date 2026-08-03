@@ -119,6 +119,16 @@ describe.skipIf(!existsSync(STAMP_SHEET))('parseSheet — planche de timbres', (
   })
 })
 
+describe('slugify (recherche LorCards par nom)', () => {
+  it('normalise les noms FR comme les URLs LorCards', async () => {
+    const { slugify } = await import('../src/main/lorcards')
+    expect(slugify('La Fée Clochette - Collectionneuse de flocons de neige (V.1)')).toBe(
+      'la-fee-clochette-collectionneuse-de-flocons-de-neige'
+    )
+    expect(slugify("Raiponce - S'échappe de la tour")).toBe('raiponce-s-echappe-de-la-tour')
+  })
+})
+
 describe('helpers règles', () => {
   it('parseChaptersInput', () => {
     expect(parseChaptersInput('1-5, 8, 10')).toEqual([1, 2, 3, 4, 5, 8, 10])

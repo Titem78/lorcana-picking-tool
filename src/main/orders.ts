@@ -59,9 +59,10 @@ export async function persistParsedOrder(
         // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
         const isCard = /cartes/i.test(line.section) && line.number
         const card = isCard ? await getCard(line.set_code, line.number) : null
-        // Carte FR → visuel FRANÇAIS (Dreamborn) prioritaire sur le scan anglais
-        const frImage =
-          isCard && /^FR/i.test(line.language) ? await getFrenchImage(line.set_code, line.number) : null
+        // Carte FR → visuel FRANÇAIS prioritaire (promos : recherche par nom)
+        const frImage = /^FR/i.test(line.language)
+          ? await getFrenchImage(line.set_code, line.number, line.name)
+          : null
         enriched.push({
           line,
           ink: card?.ink ?? null,
@@ -357,14 +358,14 @@ export async function backfillFrenchImages(): Promise<number> {
   const db = getDb()
   const lines = db
     .prepare(
-      `SELECT id, set_code, number FROM order_lines
-       WHERE language LIKE 'FR%' AND section LIKE '%arte%' AND number != ''
+      `SELECT id, set_code, number, name FROM order_lines
+       WHERE language LIKE 'FR%' AND section LIKE '%arte%'
          AND (image_file IS NULL OR image_file NOT LIKE '%_fr.webp')`
     )
-    .all() as { id: number; set_code: string; number: string }[]
+    .all() as { id: number; set_code: string; number: string; name: string }[]
   let updated = 0
   for (const l of lines) {
-    const fr = await getFrenchImage(l.set_code, l.number)
+    const fr = await getFrenchImage(l.set_code, l.number, l.name)
     if (fr) {
       db.prepare('UPDATE order_lines SET image_file = ?, image_large_file = ? WHERE id = ?').run(
         fr,

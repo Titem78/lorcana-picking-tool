@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.17.3',
+    title: 'Promos en français aussi',
+    items: [
+      'Les cartes PROMO (sans chapitre standard) trouvent leur scan français par leur nom',
+      'Un index interrompu par le réseau reprend automatiquement jusqu’à être complet'
+    ]
+  },
+  {
     version: '2.17.2',
     title: 'Import réparé (plus jamais bloquant)',
     items: [
