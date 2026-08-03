@@ -158,14 +158,22 @@ export async function getFrenchImage(setCode: string, number: string): Promise<s
       headers: { 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(15_000)
     })
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('image')) {
-      missCache.set(key, Date.now())
-      return null
+    if (res.ok && (res.headers.get('content-type') ?? '').includes('image')) {
+      await writeFile(local, Buffer.from(await res.arrayBuffer()))
+      return fname
     }
-    await writeFile(local, Buffer.from(await res.arrayBuffer()))
-    return fname
   } catch {
-    missCache.set(key, Date.now())
-    return null
+    /* on tente la source suivante */
   }
+
+  // Source 2 : LorCards.fr (couvre les chapitres récents, Enchanted/Epic compris)
+  try {
+    const { getLorcardsFrImage } = await import('./lorcards')
+    const viaLorcards = await getLorcardsFrImage(setCode, number, join(cacheDir(), 'images'))
+    if (viaLorcards) return viaLorcards
+  } catch {
+    /* réseau : tant pis */
+  }
+  missCache.set(key, Date.now())
+  return null
 }

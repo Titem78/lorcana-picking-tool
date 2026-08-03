@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.17.0',
+    title: 'Visuels FRANÇAIS pour tous les chapitres',
+    items: [
+      'Nouvelle source LorCards.fr : scans français y compris pour les chapitres les plus récents (set 13, Enchanted/Epic compris)',
+      'Ordre des visuels : scan FRANÇAIS → scan exact de l’annonce Cardmarket → anglais en dernier recours',
+      'Premier import après la mise à jour : l’app construit son index des cartes françaises (environ une minute, une seule fois)'
+    ]
+  },
+  {
     version: '2.16.2',
     title: 'Visuels exacts réparés',
     items: [
