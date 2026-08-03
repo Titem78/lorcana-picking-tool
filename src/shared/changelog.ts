@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.17.2',
+    title: 'Import réparé (plus jamais bloquant)',
+    items: [
+      'L’import n’attend plus l’indexation des cartes françaises : il aboutit immédiatement',
+      'L’index se construit en arrière-plan, puis les visuels FRANÇAIS se mettent à jour automatiquement sur toutes les commandes (même déjà importées)'
+    ]
+  },
+  {
     version: '2.17.0',
     title: 'Visuels FRANÇAIS pour tous les chapitres',
     items: [

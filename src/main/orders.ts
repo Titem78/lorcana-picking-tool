@@ -348,6 +348,35 @@ export function setPrepChecked(userId: number, lineId: number, checked: boolean)
   })
 }
 
+/**
+ * Rattrapage des visuels FRANÇAIS : repasse sur toutes les lignes de cartes FR
+ * qui n'ont pas encore de scan français et tente Dreamborn/LorCards (index
+ * désormais construit). Lancé au démarrage et à la fin de l'indexation.
+ */
+export async function backfillFrenchImages(): Promise<number> {
+  const db = getDb()
+  const lines = db
+    .prepare(
+      `SELECT id, set_code, number FROM order_lines
+       WHERE language LIKE 'FR%' AND section LIKE '%arte%' AND number != ''
+         AND (image_file IS NULL OR image_file NOT LIKE '%_fr.webp')`
+    )
+    .all() as { id: number; set_code: string; number: string }[]
+  let updated = 0
+  for (const l of lines) {
+    const fr = await getFrenchImage(l.set_code, l.number)
+    if (fr) {
+      db.prepare('UPDATE order_lines SET image_file = ?, image_large_file = ? WHERE id = ?').run(
+        fr,
+        fr,
+        l.id
+      )
+      updated++
+    }
+  }
+  return updated
+}
+
 // --- Statistiques (historique) -------------------------------------------------
 
 export interface HistoryStats {

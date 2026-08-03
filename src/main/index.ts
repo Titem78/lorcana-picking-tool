@@ -10,6 +10,8 @@ import { imagesDir } from './lorcast'
 import { stampsDir } from './stamps'
 import { syncInvoiceStatuses } from './odoo'
 import { startWatcher } from './watcher'
+import { ensureIndexBackground } from './lorcards'
+import { backfillFrenchImages } from './orders'
 
 // Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
 // connu, réglé en désactivant l'accélération matérielle (aucun impact pour
@@ -123,6 +125,15 @@ app.whenReady().then(() => {
 
   // Dossier surveillé (import automatique des PDF de vente)
   startWatcher()
+
+  // Index des scans français (LorCards) : construction/rafraîchissement en
+  // arrière-plan, puis rattrapage des visuels FR sur les commandes existantes.
+  setTimeout(() => {
+    ensureIndexBackground(() => {
+      backfillFrenchImages().catch(() => {})
+    })
+    backfillFrenchImages().catch(() => {})
+  }, 15_000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

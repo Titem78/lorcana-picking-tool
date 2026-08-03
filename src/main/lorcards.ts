@@ -64,14 +64,15 @@ async function fetchPage(page: number): Promise<number> {
   return added
 }
 
-async function crawl(fromPage: number, toPage: number, stopWhenStale = false): Promise<void> {
+async function crawl(fromPage: number, toPage: number, stopWhenStale: boolean): Promise<void> {
   let stalePages = 0
   for (let p = fromPage; p <= toPage; p++) {
     try {
       const added = await fetchPage(p)
       if (added === 0) {
         stalePages++
-        if (stopWhenStale && stalePages >= 2) break
+        // en mode complet aussi : 3 pages vides/erreur d'affilée = fin de liste
+        if (stalePages >= (stopWhenStale ? 2 : 3)) break
       } else {
         stalePages = 0
       }
@@ -83,27 +84,29 @@ async function crawl(fromPage: number, toPage: number, stopWhenStale = false): P
   saveIndex()
 }
 
-async function ensureIndex(): Promise<void> {
-  if (process.env.VITEST) return // pas de crawl réseau pendant les tests
+/**
+ * Construction/rafraîchissement de l'index en ARRIÈRE-PLAN : ne bloque JAMAIS
+ * un import. `onComplete` est appelé quand du neuf est arrivé (pour remettre
+ * à jour les visuels des commandes existantes).
+ */
+export function ensureIndexBackground(onComplete?: () => void): void {
+  if (process.env.VITEST || crawling) return
   const idx = loadIndex()
-  if (crawling) return crawling
   if (!idx.fullCrawlAt) {
-    crawling = crawl(1, MAX_PAGES).then(() => {
+    crawling = crawl(1, MAX_PAGES, false).then(() => {
       idx.fullCrawlAt = new Date().toISOString()
       idx.refreshAt = idx.fullCrawlAt
       saveIndex()
       crawling = null
+      onComplete?.()
     })
-    return crawling
-  }
-  const last = Date.parse(idx.refreshAt ?? idx.fullCrawlAt)
-  if (Date.now() - last > STALE_MS) {
+  } else if (Date.now() - Date.parse(idx.refreshAt ?? idx.fullCrawlAt) > STALE_MS) {
     crawling = crawl(1, 12, true).then(() => {
       idx.refreshAt = new Date().toISOString()
       saveIndex()
       crawling = null
+      onComplete?.()
     })
-    return crawling
   }
 }
 
@@ -124,7 +127,9 @@ export async function getLorcardsFrImage(
   const local = join(imagesDir, fname)
   if (existsSync(local) && statSync(local).size > 0) return fname
 
-  await ensureIndex()
+  // Recherche uniquement dans l'index DÉJÀ construit (jamais bloquant) —
+  // la construction tourne en arrière-plan et un rattrapage remettra les
+  // visuels FR sur les lignes existantes quand elle aboutit.
   const url = loadIndex().map[`${set}/${num}`]
   if (!url) return null
   try {
