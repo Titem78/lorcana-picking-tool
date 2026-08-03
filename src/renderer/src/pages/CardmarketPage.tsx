@@ -219,6 +219,20 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         >
           🔑 Connexion
         </button>
+        <button
+          title="Enregistre la structure de la page affichée (cm-page-debug.html/.txt) pour améliorer l'extraction — à m'envoyer en cas de souci d'import"
+          onClick={async () => {
+            const wv = webviewRef.current
+            if (!wv) return
+            const dump = (await wv.executeJavaScript(
+              `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
+            )) as { html: string; text: string }
+            const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
+            setMsg(`🐞 Diagnostic enregistré dans ${dir} (cm-page-debug.html et .txt) — envoie-moi ces fichiers.`)
+          }}
+        >
+          🐞
+        </button>
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>

@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.16.0',
+    title: 'Visuels en FRANÇAIS',
+    items: [
+      'Cartes FR → visuel FRANÇAIS automatique (CDN Dreamborn) quand disponible, sinon repli sur l’anglais',
+      'Bouton 🐞 dans l’onglet Cardmarket : enregistre la structure de la page pour corriger rapidement les imports incomplets (chapitre manquant, image absente)'
+    ]
+  },
+  {
     version: '2.15.0',
     title: 'Réglages organisés & connexion Cardmarket',
     items: [

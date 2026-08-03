@@ -1,6 +1,6 @@
 import { getDb, logActivity } from './db'
 import { parseCardmarketPdf, canonicalRarity } from './pdf-parser'
-import { getCard } from './lorcast'
+import { getCard, getFrenchImage } from './lorcast'
 import type { ImportResult, Order, OrderLine, OrderStatus } from '@shared/types'
 
 /**
@@ -59,12 +59,15 @@ export async function persistParsedOrder(
         // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
         const isCard = /cartes/i.test(line.section) && line.number
         const card = isCard ? await getCard(line.set_code, line.number) : null
+        // Carte FR → visuel FRANÇAIS (Dreamborn) prioritaire sur le scan anglais
+        const frImage =
+          isCard && /^FR/i.test(line.language) ? await getFrenchImage(line.set_code, line.number) : null
         enriched.push({
           line,
           ink: card?.ink ?? null,
           rarity: card?.rarity ?? null,
-          image_file: card?.image_file ?? null,
-          image_large_file: card?.image_large_file ?? null,
+          image_file: frImage ?? card?.image_file ?? null,
+          image_large_file: frImage ?? card?.image_large_file ?? null,
           lorcast_name: card ? [card.name, card.version].filter(Boolean).join(' - ') : null
         })
       }
@@ -174,9 +177,14 @@ export async function applyCardImages(
     .prepare('SELECT id FROM order_lines WHERE order_id = ? ORDER BY id')
     .all(orderId) as { id: number }[]
   let applied = 0
+  const current = db
+    .prepare('SELECT id, image_file FROM order_lines WHERE order_id = ? ORDER BY id')
+    .all(orderId) as { id: number; image_file: string | null }[]
   for (let i = 0; i < lines.length && i < images.length; i++) {
     const img = images[i]
     if (!img?.b64) continue
+    // Un visuel FRANÇAIS déjà trouvé (Dreamborn) reste prioritaire
+    if (current[i]?.image_file?.endsWith('_fr.webp')) continue
     const ext = ['png', 'jpg', 'jpeg', 'webp', 'avif'].includes(img.ext) ? img.ext : 'jpg'
     const fname = `cm_${orderId}_${lines[i].id}.${ext === 'jpeg' ? 'jpg' : ext}`
     writeFileSync(join(imagesDir(), fname), Buffer.from(img.b64, 'base64'))

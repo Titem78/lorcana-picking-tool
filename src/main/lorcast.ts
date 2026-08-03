@@ -134,3 +134,38 @@ async function ensureImage(
 export function imagesDir(): string {
   return join(cacheDir(), 'images')
 }
+
+/**
+ * Visuel FRANÇAIS de la carte via le CDN Dreamborn (couverture partielle :
+ * les chapitres récents peuvent manquer → null, on retombe sur l'anglais).
+ * Format : https://cdn.dreamborn.ink/images/fr/cards/001-001 (webp)
+ */
+export async function getFrenchImage(setCode: string, number: string): Promise<string | null> {
+  const set = setCode.replace(/\D/g, '')
+  const num = number.replace(/\D/g, '')
+  if (!set || !num) return null
+  const fname = `${set}_${number}_fr.webp`.replace(/[^\w.-]/g, '_')
+  const local = join(cacheDir(), 'images', fname)
+  if (existsSync(local) && statSync(local).size > 0) return fname
+  // échec récent mémorisé pour ne pas marteler le CDN
+  const key = `fr:${set}/${num}`
+  const lastMiss = missCache.get(key)
+  if (lastMiss && Date.now() - lastMiss < MISS_TTL_MS) return null
+
+  const url = `https://cdn.dreamborn.ink/images/fr/cards/${set.padStart(3, '0')}-${num.padStart(3, '0')}`
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('image')) {
+      missCache.set(key, Date.now())
+      return null
+    }
+    await writeFile(local, Buffer.from(await res.arrayBuffer()))
+    return fname
+  } catch {
+    missCache.set(key, Date.now())
+    return null
+  }
+}
