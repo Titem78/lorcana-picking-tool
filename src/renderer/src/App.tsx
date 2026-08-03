@@ -5,6 +5,7 @@ import PickingPage from './pages/PickingPage'
 import PrepPage from './pages/PrepPage'
 import OrdersPage from './pages/OrdersPage'
 import CardmarketPage from './pages/CardmarketPage'
+import { CHANGELOG } from '@shared/changelog'
 import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
@@ -27,6 +28,16 @@ export default function App(): React.JSX.Element {
   const [user, setUser] = useState<User | null>(null)
   const [tab, setTab] = useState<TabId>('orders')
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+  const [whatsNew, setWhatsNew] = useState<string | null>(null)
+
+  // Récap « Quoi de neuf » à la première ouverture après une mise à jour
+  useEffect(() => {
+    window.api.appInfo().then((info: { version: string }) => {
+      const seen = localStorage.getItem('lastSeenVersion')
+      if (seen && seen !== info.version) setWhatsNew(info.version)
+      localStorage.setItem('lastSeenVersion', info.version)
+    })
+  }, [])
 
   // Navigation entre pages (ex. bouton « Lancer le picking → » après un import)
   useEffect(() => {
@@ -99,6 +110,53 @@ export default function App(): React.JSX.Element {
       {updateMsg && (
         <div className="toast" onClick={() => setUpdateMsg(null)}>
           {updateMsg}
+        </div>
+      )}
+      {whatsNew && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setWhatsNew(null)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 70
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--accent)',
+              borderRadius: 'var(--radius)',
+              padding: 24,
+              width: 560,
+              maxWidth: '92vw',
+              maxHeight: '80vh',
+              overflow: 'auto'
+            }}
+          >
+            <h2 style={{ color: 'var(--accent)', marginBottom: 4 }}>
+              🎉 Mise à jour installée — v{whatsNew}
+            </h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 12 }}>
+              {CHANGELOG[0]?.title}
+            </p>
+            <ul style={{ margin: '0 0 14px 18px', lineHeight: 1.7 }}>
+              {CHANGELOG[0]?.items.map((it, i) => <li key={i}>{it}</li>)}
+            </ul>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: 12 }}>
+              Historique complet : ⚙️ Réglages → 📋 Nouveautés
+            </p>
+            <div style={{ textAlign: 'right' }}>
+              <button className="primary" onClick={() => setWhatsNew(null)}>
+                C&apos;est noté !
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

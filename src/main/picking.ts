@@ -91,8 +91,10 @@ export function buildPickingList(): PickingList {
         rarity: line.rarity ?? canonicalRarity(line.rarity_code ?? ''),
         is_foil: line.is_foil === 1,
         language: line.language ?? '',
-        image_file: line.image_file ?? customImages.get(line.name) ?? null,
-        image_large_file: line.image_large_file ?? customImages.get(line.name) ?? null,
+        // Un visuel personnalisé (clic droit) est PRIORITAIRE : il corrige les
+        // variantes (V.2, promos) dont l'image Lorcast par numéro serait trompeuse.
+        image_file: customImages.get(line.name) ?? line.image_file ?? null,
+        image_large_file: customImages.get(line.name) ?? line.image_large_file ?? null,
         total_qty: 0,
         picked_qty: 0,
         sublines: []

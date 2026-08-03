@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ActivityEntry, AppInfo, User } from '@shared/types'
 import { alertDialog, confirmDialog } from '@/lib/dialogs'
+import { CHANGELOG } from '@shared/changelog'
 
 function UpdateChecker(): React.JSX.Element {
   const [state, setState] = useState<string>('')
@@ -318,6 +319,45 @@ function OdooSection({ user }: { user: User }): React.JSX.Element {
         </button>
         <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>{status}</span>
       </div>
+    </section>
+  )
+}
+
+/** Historique des versions et fonctionnalités. */
+function ChangelogSection(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 8 }}>
+        📋 Nouveautés{' '}
+        <button style={{ fontSize: '0.85rem', marginLeft: 8 }} onClick={() => setOpen(!open)}>
+          {open ? 'Replier' : 'Voir l’historique des versions'}
+        </button>
+      </h2>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760 }}>
+          {CHANGELOG.map((e) => (
+            <div
+              key={e.version}
+              style={{
+                background: 'var(--bg-panel)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '10px 16px'
+              }}
+            >
+              <b>
+                v{e.version} — {e.title}
+              </b>
+              <ul style={{ margin: '6px 0 0 18px', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                {e.items.map((it, i) => (
+                  <li key={i}>{it}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -691,6 +731,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
         </p>
         <UpdateChecker />
       </section>
+
+      <ChangelogSection />
 
       <section style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>Exports &amp; sauvegardes</h2>

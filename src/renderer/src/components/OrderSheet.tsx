@@ -269,7 +269,26 @@ export default function OrderSheet({
                 <b>
                   {l.quantity}× {l.name}
                 </b>{' '}
-                {l.is_foil === 1 && '✨'}
+                {l.is_foil === 1 && (
+                  <span
+                    className="badge"
+                    style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700 }}
+                  >
+                    ✨ FOIL
+                  </span>
+                )}{' '}
+                {l.language && (
+                  <span
+                    className="badge"
+                    style={
+                      l.language !== 'FR'
+                        ? { borderColor: '#58a6d3', color: '#58a6d3', fontWeight: 700 }
+                        : {}
+                    }
+                  >
+                    {l.language}
+                  </span>
+                )}
                 <div style={{ color: 'var(--text-dim)', fontSize: '0.83rem' }}>
                   Ch. {l.set_code} · n° {l.number} · {l.language} · {l.condition}
                   {l.comment && ` · ${l.comment}`} · {l.price}

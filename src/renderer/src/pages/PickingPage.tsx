@@ -324,11 +324,8 @@ function PickingRow({
         <CardThumb
           line={item}
           size={96}
-          onMissingClick={
-            !/carte/i.test(item.section)
-              ? () => onSetAccessoryImage(item.name)
-              : undefined
-          }
+          onMissingClick={() => onSetAccessoryImage(item.name)}
+          onCustomize={() => onSetAccessoryImage(item.name)}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -357,6 +354,15 @@ function PickingRow({
             )}
             {!/cartes/i.test(item.section) && (
               <span className="badge">🎲 {item.section}</span>
+            )}
+            {/\(V\.[2-9]\d*\)/i.test(item.name) && (
+              <span
+                className="badge"
+                style={{ borderColor: 'var(--danger)', color: 'var(--danger)', fontWeight: 700 }}
+                title="Version alternative (V.2+) : le visuel obtenu par numéro peut être celui d'une autre version — vérifie, et corrige-le par clic droit sur l'image."
+              >
+                ⚠ V. alternative
+              </span>
             )}
             {done && <span style={{ color: 'var(--ok)' }}>✅</span>}
           </div>
