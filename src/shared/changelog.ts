@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.18.0',
+    title: 'Timbres en option',
+    items: [
+      'La gestion des timbres devient une option (Réglages → Timbres) : désactivée, tout ce qui concerne les timbres est masqué',
+      'Le numéro de suivi et son lien de vérification restent bien sûr toujours disponibles'
+    ]
+  },
+  {
     version: '2.17.3',
     title: 'Promos en français aussi',
     items: [

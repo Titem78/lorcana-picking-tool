@@ -13,6 +13,11 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   const [orders, setOrders] = useState<Order[]>([])
   const [detail, setDetail] = useState<Order | null>(null)
   const [batchPrint, setBatchPrint] = useState(false)
+  const [stampsEnabled, setStampsEnabled] = useState(false)
+
+  useEffect(() => {
+    window.api.stamps.enabled().then(setStampsEnabled)
+  }, [])
 
   const refresh = (): void => {
     window.api.orders.list(['picked', 'prepared', 'shipped']).then(setOrders)
@@ -41,7 +46,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
         <h1 style={{ marginBottom: 0 }}>③ 🧾 Préparation</h1>
-        {withStamp.length > 0 && (
+        {stampsEnabled && withStamp.length > 0 && (
           <button onClick={() => setBatchPrint(true)}>
             🖨 Imprimer les étiquettes ({withStamp.length})
           </button>

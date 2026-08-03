@@ -33,6 +33,23 @@ export interface Stamp {
   used_by: number | null
 }
 
+/** Gestion des timbres activée ? (option, activée par défaut) */
+export function isEnabled(): boolean {
+  const r = getDb().prepare("SELECT value FROM settings WHERE key = 'stamps_enabled'").get() as
+    | { value: string }
+    | undefined
+  return r?.value !== '0'
+}
+
+export function setEnabled(userId: number, enabled: boolean): void {
+  getDb()
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES ('stamps_enabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
+    .run(enabled ? '1' : '0')
+  logActivity(userId, 'stamps.toggled', { enabled })
+}
+
 export function stampsDir(): string {
   const dir = join(app.getPath('userData'), 'stamps')
   mkdirSync(dir, { recursive: true })

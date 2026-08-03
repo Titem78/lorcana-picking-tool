@@ -139,6 +139,9 @@ const api = {
   stamps: {
     import: (userId: number) => ipcRenderer.invoke('stamps:import', userId),
     stock: () => ipcRenderer.invoke('stamps:stock'),
+    enabled: () => ipcRenderer.invoke('stamps:enabled'),
+    setEnabled: (userId: number, enabled: boolean) =>
+      ipcRenderer.invoke('stamps:setEnabled', userId, enabled),
     assign: (userId: number, orderId: number, stampType: string) =>
       ipcRenderer.invoke('stamps:assign', userId, orderId, stampType),
     release: (userId: number, orderId: number) => ipcRenderer.invoke('stamps:release', userId, orderId),

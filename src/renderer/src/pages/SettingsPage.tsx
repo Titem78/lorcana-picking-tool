@@ -423,11 +423,17 @@ function WatcherSection({ user }: { user: User }): React.JSX.Element {
 function StampsSection({ user }: { user: User }): React.JSX.Element {
   const [stock, setStock] = useState<{ stamp_type: string; free: number; used: number }[]>([])
   const [msg, setMsg] = useState('')
+  const [enabled, setEnabledState] = useState(true)
 
   const refresh = (): void => {
+    window.api.stamps.enabled().then(setEnabledState)
     window.api.stamps.stock().then(setStock)
   }
   useEffect(refresh, [])
+
+  const toggle = (): void => {
+    window.api.stamps.setEnabled(user.id, !enabled).then(refresh)
+  }
 
   const doImport = (): void => {
     setMsg('Analyse des planches…')
@@ -448,7 +454,22 @@ function StampsSection({ user }: { user: User }): React.JSX.Element {
 
   return (
     <section style={{ marginBottom: 30 }}>
-      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>🎟 Timbres La Poste</h2>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 6 }}>
+        🎟 Timbres La Poste{' '}
+        <label style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginLeft: 10, fontWeight: 400 }}>
+          <input type="checkbox" checked={enabled} onChange={toggle} style={{ marginRight: 6 }} />
+          activer la gestion des timbres
+        </label>
+      </h2>
+      {!enabled && (
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>
+          Gestion des timbres désactivée : tout ce qui concerne les timbres est masqué dans
+          l&apos;application. Le numéro de suivi et son lien de vérification restent bien sûr
+          disponibles sur les commandes.
+        </p>
+      )}
+      {enabled && (
+      <>
       <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 720 }}>
         Importe tes planches PDF « Mon Timbre en Ligne » (Lettre verte 20g, suivie, 100g...) :
         chaque timbre est enregistré avec son numéro unique. À l&apos;expédition, tu affectes le
@@ -483,6 +504,8 @@ function StampsSection({ user }: { user: User }): React.JSX.Element {
             ))}
           </tbody>
         </table>
+      )}
+      </>
       )}
     </section>
   )

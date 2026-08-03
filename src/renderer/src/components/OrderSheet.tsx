@@ -37,6 +37,7 @@ export default function OrderSheet({
   const saveRefund = (): void => {
     window.api.orders.setRefund(user.id, order.id, refundAmount, refundReason).then(reload)
   }
+  const [stampsEnabled, setStampsEnabled] = useState(false)
   const [stampStock, setStampStock] = useState<{ stamp_type: string; free: number }[]>([])
   const [stampType, setStampType] = useState('')
   const [stampMsg, setStampMsg] = useState('')
@@ -46,8 +47,13 @@ export default function OrderSheet({
 
   useEffect(() => {
     window.api.odoo.getConfig().then((c: { url: string } | null) => setOdooUrl(c?.url ?? null))
-    window.api.stamps.stock().then((s: { stamp_type: string; free: number; used: number }[]) => {
-      setStampStock(s.filter((x) => x.free > 0))
+    window.api.stamps.enabled().then((on: boolean) => {
+      setStampsEnabled(on)
+      if (on) {
+        window.api.stamps.stock().then((s: { stamp_type: string; free: number; used: number }[]) => {
+          setStampStock(s.filter((x) => x.free > 0))
+        })
+      }
     })
   }, [])
 
@@ -400,6 +406,7 @@ export default function OrderSheet({
           </div>
         </div>
 
+        {stampsEnabled && (
         <div
           style={{
             display: 'flex',
@@ -449,6 +456,7 @@ export default function OrderSheet({
           )}
           <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{stampMsg}</span>
         </div>
+        )}
 
         {odooConfigured && (
           <div

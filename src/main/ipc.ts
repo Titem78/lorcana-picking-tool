@@ -284,6 +284,10 @@ export function registerIpc(): void {
     stamps.importSheets(userId, BrowserWindow.fromWebContents(e.sender)!)
   )
   ipcMain.handle('stamps:stock', () => stamps.getStock())
+  ipcMain.handle('stamps:enabled', () => stamps.isEnabled())
+  ipcMain.handle('stamps:setEnabled', (_e, userId: number, enabled: boolean) =>
+    stamps.setEnabled(userId, enabled)
+  )
   ipcMain.handle('stamps:assign', (_e, userId: number, orderId: number, stampType: string) =>
     stamps.assignStamp(userId, orderId, stampType)
   )
