@@ -84,6 +84,7 @@ async function crawl(fromPage: number, toPage: number, stopWhenStale = false): P
 }
 
 async function ensureIndex(): Promise<void> {
+  if (process.env.VITEST) return // pas de crawl réseau pendant les tests
   const idx = loadIndex()
   if (crawling) return crawling
   if (!idx.fullCrawlAt) {
