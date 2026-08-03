@@ -161,6 +161,43 @@ export async function persistParsedOrder(
 }
 
 /**
+ * Télécharge côté application les visuels EXACTS des annonces (URLs S3 de la
+ * page Cardmarket) et les applique aux lignes. Le S3 exige le Referer
+ * cardmarket.com (403 sinon) et le fetch depuis la page est bloqué par CORS —
+ * d'où ce téléchargement dans le processus principal.
+ */
+export async function applyCardImageUrls(orderId: number, urls: (string | null)[]): Promise<number> {
+  const images: ({ b64: string; ext: string } | null)[] = []
+  for (const u of urls) {
+    if (!u || !/^https?:\/\//.test(u)) {
+      images.push(null)
+      continue
+    }
+    try {
+      const res = await fetch(u, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36',
+          Referer: 'https://www.cardmarket.com/'
+        },
+        signal: AbortSignal.timeout(20_000)
+      })
+      if (!res.ok) {
+        images.push(null)
+        continue
+      }
+      const buf = Buffer.from(await res.arrayBuffer())
+      // le bucket renvoie parfois un content-type fantaisiste : on se fie aux octets
+      const ext = buf.subarray(0, 4).toString('hex') === '89504e47' ? 'png' : 'jpg'
+      images.push({ b64: buf.toString('base64'), ext })
+    } catch {
+      images.push(null)
+    }
+  }
+  return applyCardImages(orderId, images)
+}
+
+/**
  * Applique aux lignes d'une commande les visuels EXACTS extraits de la page
  * Cardmarket (bonne version/variante/langue garantie — prioritaire sur Lorcast).
  * Les images arrivent en base64, dans l'ordre des lignes.

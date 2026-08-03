@@ -127,6 +127,9 @@ const api = {
   applyCardImages: (orderId: number, images: unknown[]) =>
     ipcRenderer.invoke('orders:applyCardImages', orderId, images),
 
+  applyCardImageUrls: (orderId: number, urls: (string | null)[]) =>
+    ipcRenderer.invoke('orders:applyCardImageUrls', orderId, urls),
+
   saveCmDebug: (html: string, text: string) => ipcRenderer.invoke('orders:saveCmDebug', html, text),
 
   onAutoImported: (cb: (results: unknown[]) => void) => {

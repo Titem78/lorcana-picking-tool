@@ -53,7 +53,13 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         }
         if (img) break
       }
-      const setM = img.match(/\\/(\\d{1,2})([A-Z0-9]{2,5})\\//)
+      // Segment type « 13ATV » de l'URL S3 : chiffres + LETTRES uniquement
+      // (le premier segment numérique, ex. /1629/, est un id technique)
+      let setM = null
+      for (const seg of img.split('/')) {
+        const m = seg.match(/^(\\d{1,2})([A-Z]{2,5})$/)
+        if (m) { setM = m; break }
+      }
       const section = (tr.closest('.category-subsection')?.querySelector('h3')?.textContent || 'Lorcana Cartes')
         .replace(/\\s*\\(\\d+\\)\\s*$/, '').trim()
       const priceRaw = tr.dataset.price || ''
@@ -75,27 +81,6 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     }
     return out
   })()`
-
-  const downloadImages = async (wv: WebviewEl, urls: string[]): Promise<({ b64: string; ext: string } | null)[]> => {
-    return (await wv.executeJavaScript(`(async () => {
-      const urls = ${JSON.stringify(urls)}
-      const out = []
-      for (const u of urls) {
-        if (!u) { out.push(null); continue }
-        try {
-          const r = await fetch(u, { credentials: 'include' })
-          if (!r.ok) { out.push(null); continue }
-          const buf = new Uint8Array(await r.arrayBuffer())
-          let bin = ''
-          for (let i = 0; i < buf.length; i += 0x8000) {
-            bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
-          }
-          out.push({ b64: btoa(bin), ext: (u.split('?')[0].split('.').pop() || 'jpg').toLowerCase() })
-        } catch { out.push(null) }
-      }
-      return out
-    })()`)) as ({ b64: string; ext: string } | null)[]
-  }
 
   const showResult = (r: ImportResult): void => {
     if (r.status === 'ok') {
@@ -190,11 +175,11 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         result = results[0]
       }
 
-      // --- Visuels exacts des lignes (image S3 de l'info-bulle)
+      // --- Visuels exacts des lignes : téléchargés côté application
+      // (le S3 Cardmarket exige le Referer et bloque le fetch dans la page)
       if (result?.status === 'ok' && result.order_id && rows.length > 0) {
         setMsg('Récupération des visuels des cartes…')
-        const images = await downloadImages(wv, rows.map((r) => r.image_url))
-        await window.api.applyCardImages(result.order_id, images)
+        await window.api.applyCardImageUrls(result.order_id, rows.map((r) => r.image_url || null))
       }
       if (result) showResult(result)
     } catch (err) {

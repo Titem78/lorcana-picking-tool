@@ -213,7 +213,10 @@ export async function setAccessoryImageFromUrl(
   let target = url.trim()
   if (!/^https?:\/\//i.test(target)) throw new Error('Adresse invalide (elle doit commencer par https://)')
 
-  let res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
+  // Les images Cardmarket (S3) exigent le Referer cardmarket.com
+  const headers: Record<string, string> = { 'User-Agent': UA }
+  if (/cardmarket/i.test(target)) headers.Referer = 'https://www.cardmarket.com/'
+  let res = await fetch(target, { headers, signal: AbortSignal.timeout(20000) })
   if (!res.ok) throw new Error(`Téléchargement refusé (HTTP ${res.status}) — copie plutôt l'adresse de l'IMAGE (clic droit → Copier l'adresse de l'image)`)
   let contentType = res.headers.get('content-type') ?? ''
 
@@ -224,7 +227,8 @@ export async function setAccessoryImageFromUrl(
       html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/)
     if (!og) throw new Error("Pas d'image trouvée sur cette page — copie l'adresse de l'image directement")
     target = og[1]
-    res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
+    if (/cardmarket/i.test(target)) headers.Referer = 'https://www.cardmarket.com/'
+    res = await fetch(target, { headers, signal: AbortSignal.timeout(20000) })
     if (!res.ok) throw new Error(`Image inaccessible (HTTP ${res.status})`)
     contentType = res.headers.get('content-type') ?? ''
   }

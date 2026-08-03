@@ -265,6 +265,9 @@ export function registerIpc(): void {
     (_e, orderId: number, images: ({ b64: string; ext: string } | null)[]) =>
       orders.applyCardImages(orderId, images)
   )
+  ipcMain.handle('orders:applyCardImageUrls', (_e, orderId: number, urls: (string | null)[]) =>
+    orders.applyCardImageUrls(orderId, urls)
+  )
 
   // --- Diagnostic : page Cardmarket non reconnue -----------------------------------
   ipcMain.handle('orders:saveCmDebug', async (_e, html: string, text: string) => {

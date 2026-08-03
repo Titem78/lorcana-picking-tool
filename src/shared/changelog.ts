@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.16.2',
+    title: 'Visuels exacts réparés',
+    items: [
+      'Le scan exact de chaque annonce est maintenant réellement téléchargé (le serveur d’images Cardmarket exigeait un en-tête particulier)',
+      'Correction du faux « Ch. 16 » sur certaines cartes (segment technique de l’URL pris pour un chapitre)',
+      'Coller une adresse d’image Cardmarket (clic droit sur un visuel) fonctionne aussi désormais'
+    ]
+  },
+  {
     version: '2.16.1',
     title: 'Import Cardmarket calibré sur la vraie page',
     items: [
