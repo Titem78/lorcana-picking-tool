@@ -124,6 +124,9 @@ const api = {
   importParsed: (userId: number, data: unknown) =>
     ipcRenderer.invoke('orders:importParsed', userId, data),
 
+  applyCardImages: (orderId: number, images: unknown[]) =>
+    ipcRenderer.invoke('orders:applyCardImages', orderId, images),
+
   saveCmDebug: (html: string, text: string) => ipcRenderer.invoke('orders:saveCmDebug', html, text),
 
   onAutoImported: (cb: (results: unknown[]) => void) => {

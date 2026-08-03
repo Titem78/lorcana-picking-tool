@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.16.1',
+    title: 'Import Cardmarket calibré sur la vraie page',
+    items: [
+      'Import d’une vente : le PDF officiel est récupéré via « Imprimer la commande » (parseur PDF infaillible : chapitre, langue, foil, tout)',
+      'Repli robuste : lecture des données exactes fournies par Cardmarket dans le tableau (nom, numéro, langue, état, prix)',
+      'Visuel EXACT de chaque ligne (scan de l’annonce) téléchargé et appliqué automatiquement'
+    ]
+  },
+  {
     version: '2.16.0',
     title: 'Visuels en FRANÇAIS',
     items: [

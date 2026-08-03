@@ -260,6 +260,12 @@ export function registerIpc(): void {
     return [result]
   })
 
+  ipcMain.handle(
+    'orders:applyCardImages',
+    (_e, orderId: number, images: ({ b64: string; ext: string } | null)[]) =>
+      orders.applyCardImages(orderId, images)
+  )
+
   // --- Diagnostic : page Cardmarket non reconnue -----------------------------------
   ipcMain.handle('orders:saveCmDebug', async (_e, html: string, text: string) => {
     const { writeFileSync } = await import('fs')

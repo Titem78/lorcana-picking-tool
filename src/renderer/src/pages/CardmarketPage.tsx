@@ -20,111 +20,163 @@ interface WebviewEl extends HTMLElement {
 
 /**
  * Navigateur Cardmarket intégré : l'utilisateur se connecte et navigue
- * LUI-MÊME (session normale, aucune automatisation). Sur la page d'une vente,
- * le bouton « Importer » télécharge le PDF d'export de la commande via la
- * session de la page — le même fichier que l'export manuel — puis l'app
- * l'importe avec le parseur habituel.
+ * LUI-MÊME (session normale, aucune automatisation).
+ *
+ * Import d'une vente (bouton) — deux étages, calibrés sur la vraie structure
+ * de la page (cm-page-debug fournie par l'utilisateur) :
+ *  1. Le formulaire « Imprimer la commande » (POST Shipment_PrintShipmentPage)
+ *     est soumis via la session de la page → si la réponse est un PDF, on
+ *     l'importe avec le parseur PDF éprouvé.
+ *  2. Sinon, repli : lecture des attributs data-* des lignes du tableau
+ *     (data-name, data-number, data-amount, data-language, data-condition,
+ *     data-price…) — fournis par Cardmarket lui-même, donc fiables.
+ * Dans tous les cas, les visuels EXACTS des lignes (image S3 de l'info-bulle
+ * 📷) sont téléchargés via la session et appliqués aux lignes.
  */
 export default function CardmarketPage({ user }: { user: User }): React.JSX.Element {
   const webviewRef = useRef<WebviewEl>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // Lecture des lignes du tableau via leurs attributs data-* (+ URL d'image)
+  const EXTRACT_ROWS = `(() => {
+    const LANG = { '1': 'EN', '2': 'FR', '3': 'DE', '4': 'ES', '5': 'IT', '6': 'ZH', '7': 'JA', '8': 'PT', '9': 'RU', '10': 'KO' }
+    const COND = { '1': 'MT', '2': 'NM', '3': 'EX', '4': 'GD', '5': 'LP', '6': 'PL', '7': 'PO' }
+    const out = []
+    for (const tr of document.querySelectorAll('tr[data-article-id]')) {
+      let img = ''
+      for (const el of tr.querySelectorAll('[data-bs-title],[data-bs-original-title],[data-original-title]')) {
+        for (const a of ['data-bs-title', 'data-bs-original-title', 'data-original-title']) {
+          const v = el.getAttribute(a)
+          const m = v && v.match(/src=["']([^"']+)["']/)
+          if (m) { img = m[1]; break }
+        }
+        if (img) break
+      }
+      const setM = img.match(/\\/(\\d{1,2})([A-Z0-9]{2,5})\\//)
+      const section = (tr.closest('.category-subsection')?.querySelector('h3')?.textContent || 'Lorcana Cartes')
+        .replace(/\\s*\\(\\d+\\)\\s*$/, '').trim()
+      const priceRaw = tr.dataset.price || ''
+      out.push({
+        quantity: parseInt(tr.dataset.amount || '1', 10) || 1,
+        name: tr.dataset.name || '',
+        number: tr.dataset.number || '',
+        language: LANG[tr.dataset.language || ''] || '',
+        condition: COND[tr.dataset.condition || ''] || '',
+        set_code: setM ? setM[1] : '',
+        color_code: setM ? setM[2] : '',
+        rarity_code: '',
+        price: priceRaw ? priceRaw.replace('.', ',') + ' EUR' : '',
+        comment: tr.dataset.comment || '',
+        is_foil: /fonticon-foil|data-foil="1"|>\\s*Foil\\s*</i.test(tr.innerHTML),
+        section,
+        image_url: img
+      })
+    }
+    return out
+  })()`
+
+  const downloadImages = async (wv: WebviewEl, urls: string[]): Promise<({ b64: string; ext: string } | null)[]> => {
+    return (await wv.executeJavaScript(`(async () => {
+      const urls = ${JSON.stringify(urls)}
+      const out = []
+      for (const u of urls) {
+        if (!u) { out.push(null); continue }
+        try {
+          const r = await fetch(u, { credentials: 'include' })
+          if (!r.ok) { out.push(null); continue }
+          const buf = new Uint8Array(await r.arrayBuffer())
+          let bin = ''
+          for (let i = 0; i < buf.length; i += 0x8000) {
+            bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
+          }
+          out.push({ b64: btoa(bin), ext: (u.split('?')[0].split('.').pop() || 'jpg').toLowerCase() })
+        } catch { out.push(null) }
+      }
+      return out
+    })()`)) as ({ b64: string; ext: string } | null)[]
+  }
+
+  const showResult = (r: ImportResult): void => {
+    if (r.status === 'ok') {
+      setMsg(`✅ Vente #${r.sale_id} (${r.buyer_username}) importée — ${r.cards} ligne(s)${r.message ? ` ${r.message}` : ''}`)
+    } else if (r.status === 'duplicate') {
+      setMsg(`⏭ Vente #${r.sale_id} déjà importée`)
+    } else {
+      setMsg(`❌ ${r.message}`)
+    }
+  }
+
   const importCurrent = async (): Promise<void> => {
     const wv = webviewRef.current
     if (!wv) return
     setBusy(true)
-    setMsg('Lecture de la page…')
     try {
-      // Extraction des données de la commande directement depuis la page de
-      // vente affichée (aucun PDF nécessaire).
-      const result = (await wv.executeJavaScript(`(() => {
-        const txt = document.body.innerText
-        const eur = (s) => (s ? s.replace(/\\s/g, ' ').trim().replace('€', 'EUR').replace(/EUR?$/, 'EUR') : '')
-        const sale = (document.querySelector('h1')?.textContent || txt).match(/#\\s*(\\d{6,})/)
-        if (!sale) return { err: 'nosale' }
+      // --- Étage 1 : le PDF officiel via le formulaire « Imprimer la commande »
+      setMsg('Récupération du PDF de la commande…')
+      const pdfTry = (await wv.executeJavaScript(`(async () => {
+        const form = document.querySelector('form[action*="PrintShipmentPage"]')
+        if (!form) return { err: 'noform' }
+        const r = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'include' })
+        if (!r.ok) return { err: 'http' + r.status }
+        const buf = new Uint8Array(await r.arrayBuffer())
+        if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) {
+          return { err: 'notpdf', ct: r.headers.get('content-type') || '' }
+        }
+        let bin = ''
+        for (let i = 0; i < buf.length; i += 0x8000) {
+          bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
+        }
+        return { b64: btoa(bin) }
+      })()`)) as { err?: string; ct?: string; b64?: string }
 
-        // Pseudo de l'acheteur : premier lien vers un profil utilisateur
-        const userLink = [...document.querySelectorAll('a')].find((a) => /\\/Users\\//.test(a.getAttribute('href') || ''))
-        const buyer_username = userLink ? userLink.textContent.trim() : ''
+      let result: ImportResult | null = null
+      if (pdfTry.b64) {
+        setMsg('Import du PDF…')
+        const results = (await window.api.importPdfBase64(user.id, pdfTry.b64)) as ImportResult[]
+        result = results[0]
+      }
 
-        // Sommaire
-        const num = (label) => {
-          const m = txt.match(new RegExp(label + "[^0-9]{0,30}([\\\\d.,]+)\\\\s*€"))
+      // --- Étage 2 (repli) : lecture des attributs data-* du tableau
+      const rows = (await wv.executeJavaScript(EXTRACT_ROWS)) as {
+        image_url: string
+        [k: string]: unknown
+      }[]
+
+      if (!result || result.status === 'error') {
+        const txt = (await wv.executeJavaScript('document.body.innerText')) as string
+        const sale = txt.match(/Vente\s*#(\d{6,})/)
+        if (!sale) {
+          setMsg("Cette page n'est pas la page d'une vente — ouvre une vente précise puis réessaie.")
+          return
+        }
+        if (rows.length === 0) {
+          const dump = (await wv.executeJavaScript(
+            `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
+          )) as { html: string; text: string }
+          const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
+          setMsg(`⚠ Vente détectée mais lignes illisibles — diagnostic enregistré dans ${dir}, envoie-le-moi.`)
+          return
+        }
+        const num = (label: string): string => {
+          const m = txt.match(new RegExp(label + '[^0-9]{0,30}([\\d.,]+)\\s*€'))
           return m ? m[1] + ' EUR' : ''
         }
-        const contenu = txt.match(/Contenu[^0-9]{0,20}(\\d+)\\s*Article/i)
-        const envoi = txt.match(/M[ée]thode d'envoi:?\\s*\\n?\\s*([^\\n]+)/)
+        const contenu = txt.match(/Contenu[^0-9]{0,20}(\d+)\s*Article/i)
+        const envoi = txt.match(/M[ée]thode d'envoi:?\s*\n?\s*([^\n]+)/)
         const suivi = txt.match(/Num[ée]ro de suivi[^A-Z0-9]{0,20}([A-Z0-9]{8,})/i)
-        const remb = txt.match(/Rembours[^\\d]{0,30}([\\d.,]+)\\s*€/i)
+        const remb = txt.match(/Rembours[^\d]{0,30}([\d.,]+)\s*€/i)
+        const addr = txt.match(/Adresse de livraison\s*\n([\s\S]{0,300}?\n[A-ZÉÈ][a-zé]+)\n/)
+        const addrLines = addr ? addr[1].split('\n').map((l) => l.trim()).filter(Boolean) : []
+        const userLink = (await wv.executeJavaScript(
+          `[...document.querySelectorAll('a')].find((a) => /\\/Users\\//.test(a.getAttribute('href') || ''))?.textContent?.trim() || ''`
+        )) as string
 
-        // Adresse de livraison : lignes entre le titre et « France » (incluse)
-        let buyer_name = ''
-        let buyer_address = ''
-        const addr = txt.match(/Adresse de livraison\\s*\\n([\\s\\S]{0,300}?\\n[A-ZÉÈ][a-zé]+)\\n/)
-        if (addr) {
-          const lines = addr[1].split('\\n').map((l) => l.trim()).filter(Boolean)
-          buyer_name = lines[0] || ''
-          buyer_address = lines.slice(1).join('\\n')
-        }
-
-        // Tableau des cartes : la table dont l'en-tête contient « Nom »
-        const cards = []
-        for (const table of document.querySelectorAll('table')) {
-          const head = table.querySelector('thead')?.innerText || ''
-          if (!/Nom/i.test(head)) continue
-          for (const row of table.querySelectorAll('tbody tr')) {
-            const rtxt = row.innerText
-            const qty = rtxt.match(/(\\d+)\\s*x/)
-            const name = row.querySelector('a')?.textContent?.trim() || ''
-            const number = rtxt.match(/#(\\d+)/)
-            const setc = rtxt.match(/\\b(\\d{1,2})([A-Z]{3})\\b/)
-            const cond = rtxt.match(/\\b(NM|MT|M|EX|GD|LP|PL|PO)\\b/)
-            const price = rtxt.match(/([\\d.,]+)\\s*€\\s*$/m)
-            // Langue et foil : via les info-bulles/attributs des icônes
-            const titles = [...row.querySelectorAll('[title],[aria-label],[data-original-title],[data-bs-original-title]')]
-              .flatMap((el) => [el.getAttribute('title'), el.getAttribute('aria-label'), el.getAttribute('data-original-title'), el.getAttribute('data-bs-original-title')])
-              .filter(Boolean).join(' | ')
-            const langMap = { 'Français': 'FR', 'Anglais': 'EN', 'English': 'EN', 'French': 'FR', 'Allemand': 'DE', 'German': 'DE', 'Italien': 'IT', 'Italian': 'IT', 'Espagnol': 'ES', 'Spanish': 'ES' }
-            let language = ''
-            for (const [k, v] of Object.entries(langMap)) if (titles.includes(k)) { language = v; break }
-            const is_foil = /foil/i.test(titles) || /foil/i.test(rtxt)
-            // Visuel exact de la version vendue : image de l'info-bulle de la
-            // ligne (l'icône 📷) ou toute image de scan présente dans la ligne
-            let image_url = ''
-            for (const el of row.querySelectorAll('[data-original-title],[data-bs-original-title],[title],[data-echo],img')) {
-              for (const attr of ['data-original-title', 'data-bs-original-title', 'title', 'data-echo', 'src']) {
-                const v = el.getAttribute && el.getAttribute(attr)
-                if (!v) continue
-                const m = v.match(/<img[^>]+src=["']([^"']+)["']/) || (/\\.(jpg|jpeg|png|webp)(\\?|$)/i.test(v) && /^https?:/.test(v) ? [null, v] : null)
-                if (m && m[1] && !/flag|icon|sprite/i.test(m[1])) { image_url = m[1]; break }
-              }
-              if (image_url) break
-            }
-            if (!name || !qty) continue
-            cards.push({
-              quantity: parseInt(qty[1], 10),
-              name,
-              number: number ? number[1] : '',
-              language,
-              condition: cond ? cond[1] : '',
-              set_code: setc ? setc[1] : '',
-              color_code: setc ? setc[2] : '',
-              rarity_code: '',
-              price: price ? price[1] + ' EUR' : '',
-              comment: '',
-              is_foil,
-              image_url
-            })
-          }
-          if (cards.length) break
-        }
-
-        return {
+        const results = (await window.api.importParsed(user.id, {
           sale_id: sale[1],
-          buyer_username,
-          buyer_name,
-          buyer_address,
+          buyer_username: userLink,
+          buyer_name: addrLines[0] ?? '',
+          buyer_address: addrLines.slice(1).join('\n'),
           article_count: contenu ? parseInt(contenu[1], 10) : null,
           item_value: num("Valeur de l'article"),
           shipping_cost: num('Frais de port'),
@@ -132,61 +184,19 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
           shipping_method: envoi ? envoi[1].trim() : '',
           tracking_number: suivi ? suivi[1] : '',
           refund_amount: remb ? remb[1] + ' EUR' : '',
-          url: location.href,
-          cards
-        }
-      })()`)) as { err?: string; sale_id?: string; cards?: unknown[] }
-
-      if (result.err === 'nosale' || !result.sale_id) {
-        setMsg("Cette page n'est pas la page d'une vente — ouvre une vente précise puis réessaie.")
-        return
+          url: wv.getURL(),
+          cards: rows
+        })) as ImportResult[]
+        result = results[0]
       }
-      // Téléchargement des visuels exacts (dans la session de la page)
-      if (result.cards && result.cards.length > 0) {
+
+      // --- Visuels exacts des lignes (image S3 de l'info-bulle)
+      if (result?.status === 'ok' && result.order_id && rows.length > 0) {
         setMsg('Récupération des visuels des cartes…')
-        const withImages = (await wv.executeJavaScript(`(async () => {
-          const urls = ${JSON.stringify((result.cards as { image_url?: string }[]).map((c) => c.image_url ?? ''))}
-          const out = []
-          for (const u of urls) {
-            if (!u) { out.push(null); continue }
-            try {
-              const r = await fetch(u, { credentials: 'include' })
-              if (!r.ok) { out.push(null); continue }
-              const buf = new Uint8Array(await r.arrayBuffer())
-              let bin = ''
-              for (let i = 0; i < buf.length; i += 0x8000) {
-                bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
-              }
-              const ext = (u.split('?')[0].split('.').pop() || 'jpg').toLowerCase()
-              out.push({ b64: btoa(bin), ext })
-            } catch { out.push(null) }
-          }
-          return out
-        })()`)) as ({ b64: string; ext: string } | null)[]
-        ;(result as Record<string, unknown>).card_images = withImages
+        const images = await downloadImages(wv, rows.map((r) => r.image_url))
+        await window.api.applyCardImages(result.order_id, images)
       }
-
-      if (!result.cards || result.cards.length === 0) {
-        // Page de vente mais tableau non reconnu : capture de diagnostic
-        const dump = (await wv.executeJavaScript(
-          `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
-        )) as { html: string; text: string }
-        const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
-        setMsg(
-          `⚠ Vente #${result.sale_id} détectée mais cartes illisibles — fichiers de diagnostic enregistrés dans ${dir} (cm-page-debug.html/.txt) : envoie-les-moi pour que j'affine.`
-        )
-        return
-      }
-      setMsg('Import de la commande…')
-      const results = (await window.api.importParsed(user.id, result)) as ImportResult[]
-      const r = results[0]
-      if (r.status === 'ok') {
-        setMsg(`✅ Vente #${r.sale_id} (${r.buyer_username}) importée — ${r.cards} ligne(s)${r.message ? ` ${r.message}` : ''}`)
-      } else if (r.status === 'duplicate') {
-        setMsg(`⏭ Vente #${r.sale_id} déjà importée`)
-      } else {
-        setMsg(`❌ ${r.message}`)
-      }
+      if (result) showResult(result)
     } catch (err) {
       setMsg(`❌ ${String((err as Error).message ?? err)}`)
     } finally {
@@ -220,7 +230,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
           🔑 Connexion
         </button>
         <button
-          title="Enregistre la structure de la page affichée (cm-page-debug.html/.txt) pour améliorer l'extraction — à m'envoyer en cas de souci d'import"
+          title="Enregistre la structure de la page affichée (cm-page-debug.html/.txt) pour améliorer l'extraction"
           onClick={async () => {
             const wv = webviewRef.current
             if (!wv) return
@@ -228,7 +238,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
               `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
             )) as { html: string; text: string }
             const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
-            setMsg(`🐞 Diagnostic enregistré dans ${dir} (cm-page-debug.html et .txt) — envoie-moi ces fichiers.`)
+            setMsg(`🐞 Diagnostic enregistré dans ${dir} — envoie-moi les fichiers cm-page-debug.`)
           }}
         >
           🐞
