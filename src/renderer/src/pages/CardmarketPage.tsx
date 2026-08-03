@@ -88,6 +88,18 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
             let language = ''
             for (const [k, v] of Object.entries(langMap)) if (titles.includes(k)) { language = v; break }
             const is_foil = /foil/i.test(titles) || /foil/i.test(rtxt)
+            // Visuel exact de la version vendue : image de l'info-bulle de la
+            // ligne (l'icône 📷) ou toute image de scan présente dans la ligne
+            let image_url = ''
+            for (const el of row.querySelectorAll('[data-original-title],[data-bs-original-title],[title],[data-echo],img')) {
+              for (const attr of ['data-original-title', 'data-bs-original-title', 'title', 'data-echo', 'src']) {
+                const v = el.getAttribute && el.getAttribute(attr)
+                if (!v) continue
+                const m = v.match(/<img[^>]+src=["']([^"']+)["']/) || (/\\.(jpg|jpeg|png|webp)(\\?|$)/i.test(v) && /^https?:/.test(v) ? [null, v] : null)
+                if (m && m[1] && !/flag|icon|sprite/i.test(m[1])) { image_url = m[1]; break }
+              }
+              if (image_url) break
+            }
             if (!name || !qty) continue
             cards.push({
               quantity: parseInt(qty[1], 10),
@@ -100,7 +112,8 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
               rarity_code: '',
               price: price ? price[1] + ' EUR' : '',
               comment: '',
-              is_foil
+              is_foil,
+              image_url
             })
           }
           if (cards.length) break
@@ -127,6 +140,31 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         setMsg("Cette page n'est pas la page d'une vente — ouvre une vente précise puis réessaie.")
         return
       }
+      // Téléchargement des visuels exacts (dans la session de la page)
+      if (result.cards && result.cards.length > 0) {
+        setMsg('Récupération des visuels des cartes…')
+        const withImages = (await wv.executeJavaScript(`(async () => {
+          const urls = ${JSON.stringify((result.cards as { image_url?: string }[]).map((c) => c.image_url ?? ''))}
+          const out = []
+          for (const u of urls) {
+            if (!u) { out.push(null); continue }
+            try {
+              const r = await fetch(u, { credentials: 'include' })
+              if (!r.ok) { out.push(null); continue }
+              const buf = new Uint8Array(await r.arrayBuffer())
+              let bin = ''
+              for (let i = 0; i < buf.length; i += 0x8000) {
+                bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
+              }
+              const ext = (u.split('?')[0].split('.').pop() || 'jpg').toLowerCase()
+              out.push({ b64: btoa(bin), ext })
+            } catch { out.push(null) }
+          }
+          return out
+        })()`)) as ({ b64: string; ext: string } | null)[]
+        ;(result as Record<string, unknown>).card_images = withImages
+      }
+
       if (!result.cards || result.cards.length === 0) {
         // Page de vente mais tableau non reconnu : capture de diagnostic
         const dump = (await wv.executeJavaScript(

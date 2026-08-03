@@ -182,6 +182,7 @@ export interface ImportResult {
   buyer_username?: string
   cards?: number
   message?: string
+  order_id?: number
 }
 
 export interface AppInfo {

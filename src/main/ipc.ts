@@ -242,7 +242,13 @@ export function registerIpc(): void {
         section: 'Lorcana Cartes'
       }))
     }
-    return [await orders.persistParsedOrder(userId, parsed, parsed.source_pdf)]
+    const result = await orders.persistParsedOrder(userId, parsed, parsed.source_pdf)
+    // Visuels exacts extraits de la page (bonne version/variante garantie)
+    const images = (data as { card_images?: ({ b64: string; ext: string } | null)[] }).card_images
+    if (result.status === 'ok' && result.order_id && Array.isArray(images)) {
+      await orders.applyCardImages(result.order_id, images)
+    }
+    return [result]
   })
 
   // --- Diagnostic : page Cardmarket non reconnue -----------------------------------

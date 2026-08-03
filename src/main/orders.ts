@@ -152,8 +152,42 @@ export async function persistParsedOrder(
     sale_id: parsed.sale_id,
     buyer_username: parsed.buyer_username,
     cards: parsed.cards.length,
-    message: mismatch
+    message: mismatch,
+    order_id: orderId
   }
+}
+
+/**
+ * Applique aux lignes d'une commande les visuels EXACTS extraits de la page
+ * Cardmarket (bonne version/variante/langue garantie — prioritaire sur Lorcast).
+ * Les images arrivent en base64, dans l'ordre des lignes.
+ */
+export async function applyCardImages(
+  orderId: number,
+  images: ({ b64: string; ext: string } | null)[]
+): Promise<number> {
+  const { writeFileSync } = await import('fs')
+  const { join } = await import('path')
+  const { imagesDir } = await import('./lorcast')
+  const db = getDb()
+  const lines = db
+    .prepare('SELECT id FROM order_lines WHERE order_id = ? ORDER BY id')
+    .all(orderId) as { id: number }[]
+  let applied = 0
+  for (let i = 0; i < lines.length && i < images.length; i++) {
+    const img = images[i]
+    if (!img?.b64) continue
+    const ext = ['png', 'jpg', 'jpeg', 'webp', 'avif'].includes(img.ext) ? img.ext : 'jpg'
+    const fname = `cm_${orderId}_${lines[i].id}.${ext === 'jpeg' ? 'jpg' : ext}`
+    writeFileSync(join(imagesDir(), fname), Buffer.from(img.b64, 'base64'))
+    db.prepare('UPDATE order_lines SET image_file = ?, image_large_file = ? WHERE id = ?').run(
+      fname,
+      fname,
+      lines[i].id
+    )
+    applied++
+  }
+  return applied
 }
 
 const ORDER_SELECT = `
