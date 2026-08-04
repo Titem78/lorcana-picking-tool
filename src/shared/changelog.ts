@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.21.0',
+    title: 'Inventaire général',
+    items: [
+      'Un seul bouton « 📦 Inventaire général » balaye TOUT ton stock Cardmarket (même au-delà de la limite des 300 résultats, en passant extension par extension)',
+      'Rapide et discret : lecture en arrière-plan dans ta session (~2 pages/s), sans tourner les pages à l’écran — toujours en lecture seule',
+      'À la fin d’un balayage complet, les articles vendus/retirés disparaissent du miroir',
+      'Onglet 📦 Stock : bouton « ⬇ Export CSV » (fichier Excel de tout l’inventaire)'
+    ]
+  },
+  {
     version: '2.20.0',
     title: 'Import du stock en un clic',
     items: [

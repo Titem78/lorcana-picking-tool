@@ -23,14 +23,15 @@ interface StockTotals {
 }
 
 /**
- * Miroir local du stock Cardmarket, alimenté page par page depuis l'onglet
- * 🌐 Cardmarket (bouton « 📥 Stock (page) »), et décrémenté automatiquement à
- * chaque commande importée. Recherche + valeur totale de l'inventaire.
+ * Miroir local du stock Cardmarket, alimenté par le balayage « 📦 Inventaire
+ * général » de l'onglet 🌐 Cardmarket, et décrémenté automatiquement à chaque
+ * commande importée. Recherche + valeur totale + export CSV.
  */
 export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [items, setItems] = useState<StockItem[]>([])
   const [totals, setTotals] = useState<StockTotals>({ items: 0, copies: 0, value_cents: 0 })
   const [search, setSearch] = useState('')
+  const [exportMsg, setExportMsg] = useState('')
 
   const refresh = (q: string): void => {
     window.api.stock.list(q).then((r: { items: StockItem[]; totals: StockTotals }) => {
@@ -48,9 +49,9 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       <div>
         <h1>📦 Stock</h1>
         <div className="placeholder">
-          Ton miroir de stock est vide. Va dans l&apos;onglet 🌐 Cardmarket → Stock → Mes offres,
-          puis clique « 📥 Stock (page) » sur chaque page de ta liste d&apos;articles. Ensuite,
-          chaque commande importée décrémentera automatiquement ce miroir.
+          Ton miroir de stock est vide. Va dans l&apos;onglet 🌐 Cardmarket (connecté à ton compte),
+          puis clique « 📦 Inventaire général » : tout ton stock sera balayé automatiquement.
+          Ensuite, chaque commande importée décrémentera ce miroir.
         </div>
       </div>
     )
@@ -66,6 +67,16 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           valeur : {euros(totals.value_cents)}
         </span>
         <span style={{ flex: 1 }} />
+        <button
+          title="Exporte tout le miroir local en CSV (Excel)"
+          onClick={() => {
+            window.api.stock.exportCsv().then((p: string) => {
+              if (p) setExportMsg(`✅ Export enregistré : ${p}`)
+            })
+          }}
+        >
+          ⬇ Export CSV
+        </button>
         {user.is_admin === 1 && (
           <button
             onClick={() => {
@@ -78,6 +89,9 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
         )}
       </div>
 
+      {exportMsg && (
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: 10 }}>{exportMsg}</p>
+      )}
       <input
         placeholder="Rechercher une carte, un commentaire, un chapitre…"
         value={search}

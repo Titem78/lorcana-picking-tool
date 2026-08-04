@@ -94,10 +94,12 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
 
   // Lignes de la page Stock → Mes offres : structure différente des commandes
   // (div#stockRowNNN.article-row, pas de data-*) — calibré sur cm-page-debug réel.
-  const EXTRACT_STOCK_ROWS = `(() => {
-    const LANG = { 'Français': 'FR', 'Anglais': 'EN', 'English': 'EN', 'Allemand': 'DE', 'Espagnol': 'ES', 'Italien': 'IT', 'Chinois': 'ZH', 'Japonais': 'JA', 'Portugais': 'PT', 'Russe': 'RU', 'Coréen': 'KO' }
+  // __extractStock travaille sur un Document (page live ou HTML récupéré en fetch).
+  const STOCK_CORE = `
+    const LANG = { 'Français': 'FR', 'Anglais': 'EN', 'English': 'EN', 'Allemand': 'DE', 'Espagnol': 'ES', 'Italien': 'IT', 'Chinois-S': 'ZH', 'Chinois': 'ZH', 'Japonais': 'JA', 'Portugais': 'PT', 'Russe': 'RU', 'Coréen': 'KO' }
+    function __extractStock(doc) {
     const out = []
-    for (const row of document.querySelectorAll('div.article-row[id^="stockRow"]')) {
+    for (const row of doc.querySelectorAll('div.article-row[id^="stockRow"]')) {
       let img = ''
       for (const el of row.querySelectorAll('[data-bs-title],[data-bs-original-title]')) {
         for (const a of ['data-bs-title', 'data-bs-original-title']) {
@@ -138,6 +140,39 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       })
     }
     return out
+    }
+    function __pageMeta(doc) {
+      const a = doc.querySelector('.pagination a[data-direction="next"]')
+      return {
+        next: a && !a.classList.contains('disabled') ? a.getAttribute('href') || '' : '',
+        label: (doc.querySelector('.pagination .mx-1')?.textContent || '').trim(),
+        total: (doc.querySelector('.pagination .total-count')?.textContent || '').trim()
+      }
+    }
+    function __options(doc, name) {
+      return [...doc.querySelectorAll('select[name="' + name + '"] option')]
+        .map((o) => ({ v: o.getAttribute('value') || '', t: (o.textContent || '').trim() }))
+        .filter((o) => o.v && o.v !== '0')
+    }
+  `
+
+  // Récupère UNE page de stock via fetch dans la session Cardmarket (aucun
+  // rechargement visible) et renvoie lignes + pagination + valeurs de filtres.
+  const FETCH_STOCK_PAGE = (url: string): string => `(async () => {
+    ${STOCK_CORE}
+    const r = await fetch(${JSON.stringify(url)}, { credentials: 'include' })
+    if (!r.ok) return { status: r.status }
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html')
+    return {
+      status: 200,
+      rows: __extractStock(doc),
+      meta: __pageMeta(doc),
+      expansions: __options(doc, 'idExpansion'),
+      rarities: __options(doc, 'idRarity'),
+      languages: __options(doc, 'idLanguage'),
+      conditions: __options(doc, 'condition'),
+      foils: __options(doc, 'isFoil')
+    }
   })()`
 
   const showResult = (r: ImportResult): void => {
@@ -150,106 +185,120 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     }
   }
 
-  // Import de la PAGE DE STOCK affichée (miroir local de l'inventaire) —
-  // même principe : on lit ce que l'utilisateur affiche, page par page.
-  const importStockPage = async (): Promise<void> => {
-    const wv = webviewRef.current
-    if (!wv) return
-    setBusy(true)
-    try {
-      setMsg('Lecture de la page de stock…')
-      let rows = (await wv.executeJavaScript(EXTRACT_STOCK_ROWS)) as {
-        article_id: string
-        quantity: number
-        [k: string]: unknown
-      }[]
-      // Repli : certaines vues (ex. ventes) utilisent des tr[data-article-id]
-      if (rows.length === 0) rows = (await wv.executeJavaScript(EXTRACT_ROWS)) as typeof rows
-      const valid = rows.filter((r) => r.article_id)
-      if (valid.length === 0) {
-        const dump = (await wv.executeJavaScript(
-          `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
-        )) as { html: string; text: string }
-        const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
-        setMsg(`⚠ Aucun article lisible sur cette page — diagnostic enregistré dans ${dir}, envoie-le-moi. (Es-tu bien sur Stock → Mes offres ?)`)
-        return
-      }
-      const r = (await window.api.stock.upsert(user.id, valid)) as { imported: number }
-      setMsg(`✅ ${r.imported} article(s) de stock importés/actualisés — passe à la page suivante et réimporte, ou consulte l'onglet 📦 Stock.`)
-    } catch (err) {
-      setMsg(`❌ ${String((err as Error).message ?? err)}`)
-    } finally {
-      setBusy(false)
-    }
+  interface StockFetchPage {
+    status: number
+    rows?: { article_id: string; quantity: number; [k: string]: unknown }[]
+    meta?: { next: string; label: string; total: string }
+    expansions?: { v: string; t: string }[]
+    rarities?: { v: string; t: string }[]
+    languages?: { v: string; t: string }[]
+    conditions?: { v: string; t: string }[]
+    foils?: { v: string; t: string }[]
   }
 
-  // Pagination de la page Stock : libellé « Page X sur Y » + lien page suivante
-  const PAGE_INFO = `(() => {
-    const label = (document.querySelector('.pagination .mx-1')?.textContent || '').trim()
-    const a = document.querySelector('.pagination a[data-direction="next"]')
-    const next = a && !a.classList.contains('disabled') ? a.getAttribute('href') || '' : ''
-    return { label, next }
-  })()`
+  // Une page via fetch, avec pause 10 s et reprise en cas de HTTP 429.
+  const fetchStockPage = async (wv: WebviewEl, url: string, attempt = 0): Promise<StockFetchPage> => {
+    const res = (await wv.executeJavaScript(FETCH_STOCK_PAGE(url))) as StockFetchPage
+    if (res.status === 429 && attempt < 3) {
+      await sleep(10000)
+      return fetchStockPage(wv, url, attempt + 1)
+    }
+    return res
+  }
 
-  // Import de TOUTES les pages du stock (choix utilisateur, 2026-08) : l'app
-  // enchaîne les pages elle-même, en LECTURE SEULE, avec une pause « humaine »
-  // entre chaque page — barre de progression et bouton Stop.
-  const importAllStock = async (): Promise<void> => {
+  // INVENTAIRE GÉNÉRAL : balayage complet du stock en lecture seule, comme les
+  // addons Cardmarket connus — le plafond de ~300 résultats ne s'applique qu'aux
+  // vues non filtrées, donc on parcourt extension par extension (tri forcé), et
+  // toute tranche encore plafonnée est re-découpée (rareté → foil → langue →
+  // état). ~2 requêtes/s maximum, pause sur 429, bouton Stop à tout moment.
+  const STOCK_BASE = '/fr/Lorcana/Stock/Offers/Singles'
+  const importFullInventory = async (): Promise<void> => {
     const wv = webviewRef.current
     if (!wv) return
     setBusy(true)
     cancelRef.current = false
+    const warnings: string[] = []
     let items = 0
-    let page = 0
+    let pages = 0
     try {
-      for (;;) {
-        page++
-        const info = (await wv.executeJavaScript(PAGE_INFO)) as { label: string; next: string }
-        const den = info.label.match(/sur\s+(\d+)/)
-        const rows = (await wv.executeJavaScript(EXTRACT_STOCK_ROWS)) as {
-          article_id: string
-          quantity: number
-          [k: string]: unknown
-        }[]
-        const valid = rows.filter((r) => r.article_id)
-        if (valid.length === 0) {
-          if (page === 1) {
-            setMsg('⚠ Aucun article lisible sur cette page — es-tu bien sur Stock → Mes offres ?')
+      const mark = (await window.api.stock.sweepMark()) as string
+      setMsg('')
+      setStockProgress({ label: 'Lecture des filtres…', page: 0, den: null, items: 0 })
+      const first = await fetchStockPage(wv, STOCK_BASE + '?sortBy=name_asc')
+      const expansions = first.expansions ?? []
+      if (first.status !== 200 || expansions.length === 0) {
+        setMsg(`⚠ Impossible de lire la page de stock (HTTP ${first.status}) — es-tu bien connecté à Cardmarket dans cet onglet ?`)
+        return
+      }
+      const SLICERS = [
+        { key: 'idRarity', values: first.rarities ?? [] },
+        { key: 'isFoil', values: first.foils ?? [] },
+        { key: 'idLanguage', values: first.languages ?? [] },
+        { key: 'condition', values: first.conditions ?? [] }
+      ]
+      let exIdx = 0
+
+      const walkSlice = async (params: string, label: string, depth: number): Promise<void> => {
+        if (cancelRef.current) return
+        const sliceUrl = (site: number): string =>
+          STOCK_BASE + '?sortBy=name_asc' + params + (site > 1 ? '&site=' + site : '')
+        let site = 1
+        let capped = false
+        for (;;) {
+          const p = await fetchStockPage(wv, sliceUrl(site))
+          if (p.status !== 200) {
+            warnings.push(`${label} (HTTP ${p.status})`)
             return
           }
-          break
-        }
-        await window.api.stock.upsert(user.id, valid)
-        items += valid.length
-        setStockProgress({ label: info.label, page, den: den ? parseInt(den[1], 10) : null, items })
-        if (cancelRef.current || !info.next) break
-
-        await sleep(2000 + Math.floor(Math.random() * 1200))
-        const firstId = valid[0].article_id
-        await wv.executeJavaScript(`location.href = ${JSON.stringify(info.next)}`)
-        // Attendre que la page suivante soit chargée (la 1re ligne change)
-        let loaded = false
-        for (let t = 0; t < 40 && !loaded; t++) {
-          await sleep(500)
-          try {
-            const id = (await wv.executeJavaScript(
-              `document.querySelector('div.article-row[id^="stockRow"]')?.id || ''`
-            )) as string
-            if (id && id !== 'stockRow' + firstId) loaded = true
-          } catch {
-            // navigation en cours, on réessaie
+          pages++
+          capped = /\+/.test(p.meta?.total ?? '')
+          // Tranche plafonnée détectée dès la 1re page : on re-découpe tout de
+          // suite au lieu de parcourir 15 pages incomplètes.
+          if (capped && site === 1 && depth < SLICERS.length && SLICERS[depth].values.length > 0) break
+          const valid = (p.rows ?? []).filter((r) => r.article_id)
+          if (valid.length > 0) {
+            await window.api.stock.upsert(user.id, valid)
+            items += valid.length
           }
+          setStockProgress({
+            label: `${label} — ${p.meta?.label || 'page ' + site} — ${items} article(s)`,
+            page: exIdx,
+            den: expansions.length,
+            items
+          })
+          if (cancelRef.current || !p.meta?.next) return
+          const m = p.meta.next.match(/[?&]site=(\d+)/)
+          if (!m) return
+          site = parseInt(m[1], 10)
+          await sleep(600 + Math.floor(Math.random() * 400))
         }
-        if (!loaded) {
-          setMsg(`⚠ La page suivante n'a pas chargé — import arrêté après ${page} page(s), ${items} article(s) importés.`)
+        // Re-découpage de la tranche plafonnée avec le filtre suivant
+        const slicer = SLICERS[depth]
+        if (!slicer || slicer.values.length === 0) {
+          warnings.push(`${label} (>300 résultats, non découpable)`)
           return
         }
+        for (const v of slicer.values) {
+          await walkSlice(`${params}&${slicer.key}=${encodeURIComponent(v.v)}`, `${label} · ${v.t}`, depth + 1)
+          if (cancelRef.current) return
+        }
       }
-      setMsg(
-        cancelRef.current
-          ? `✋ Arrêté à ta demande — ${items} article(s) importés sur ${page} page(s) (onglet 📦 Stock).`
-          : `✅ Stock complet : ${items} article(s) importés sur ${page} page(s) (onglet 📦 Stock).`
-      )
+
+      for (exIdx = 0; exIdx < expansions.length && !cancelRef.current; exIdx++) {
+        const ex = expansions[exIdx]
+        await walkSlice('&idExpansion=' + encodeURIComponent(ex.v), ex.t, 0)
+      }
+
+      if (cancelRef.current) {
+        setMsg(`✋ Arrêté — ${items} article(s) importés/actualisés (inventaire partiel conservé, rien n'est retiré).`)
+      } else {
+        const purged = (await window.api.stock.purgeOlder(user.id, mark)) as { removed: number }
+        setMsg(
+          `✅ Inventaire général terminé : ${items} article(s) sur ${pages} page(s), ` +
+            `${purged.removed} article(s) disparu(s) retiré(s) du miroir (onglet 📦 Stock).` +
+            (warnings.length ? ` ⚠ Tranches incomplètes : ${warnings.join(' ; ')}` : '')
+        )
+      }
     } catch (err) {
       setMsg(`❌ ${String((err as Error).message ?? err)}`)
     } finally {
@@ -397,15 +446,12 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>
-        <button disabled={busy} onClick={importStockPage} title="Sur ta page Stock → Mes offres : ajoute les articles affichés au miroir local (onglet 📦 Stock)">
-          📥 Stock (page)
-        </button>
         <button
           disabled={busy}
-          onClick={importAllStock}
-          title="Sur ta page Stock → Mes offres : importe TOUTES les pages du stock (l'app tourne les pages avec une pause entre chaque — bouton Stop pour interrompre)"
+          onClick={importFullInventory}
+          title="Balaye TOUT ton stock Cardmarket (extension par extension, en lecture seule, ~2 requêtes/s) et met à jour le miroir local — onglet 📦 Stock. Bouton Stop à tout moment."
         >
-          📥 Stock (tout)
+          📦 Inventaire général
         </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande

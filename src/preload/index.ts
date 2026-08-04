@@ -105,7 +105,10 @@ const api = {
   stock: {
     upsert: (userId: number, rows: unknown[]) => ipcRenderer.invoke('stock:upsert', userId, rows),
     list: (search: string) => ipcRenderer.invoke('stock:list', search),
-    clear: (userId: number) => ipcRenderer.invoke('stock:clear', userId)
+    clear: (userId: number) => ipcRenderer.invoke('stock:clear', userId),
+    sweepMark: () => ipcRenderer.invoke('stock:sweepMark'),
+    purgeOlder: (userId: number, mark: string) => ipcRenderer.invoke('stock:purgeOlder', userId, mark),
+    exportCsv: () => ipcRenderer.invoke('stock:exportCsv')
   },
 
   cm: {

@@ -286,6 +286,23 @@ export function registerIpc(): void {
   )
   ipcMain.handle('stock:list', (_e, search: string) => stock.listStock(search ?? ''))
   ipcMain.handle('stock:clear', (_e, userId: number) => stock.clearStock(userId))
+  ipcMain.handle('stock:sweepMark', () => stock.sweepMark())
+  ipcMain.handle('stock:purgeOlder', (_e, userId: number, mark: string) =>
+    stock.purgeOlder(userId, mark)
+  )
+  ipcMain.handle('stock:exportCsv', async (e) => {
+    const { dialog } = await import('electron')
+    const { writeFileSync } = await import('fs')
+    const win = BrowserWindow.fromWebContents(e.sender)!
+    const r = await dialog.showSaveDialog(win, {
+      title: 'Exporter le stock en CSV',
+      defaultPath: `stock-cardmarket-${new Date().toISOString().slice(0, 10)}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (r.canceled || !r.filePath) return ''
+    writeFileSync(r.filePath, stock.exportCsv(), 'utf-8')
+    return r.filePath
+  })
 
   // --- Timbres La Poste -----------------------------------------------------------
   ipcMain.handle('stamps:import', (e, userId: number) =>

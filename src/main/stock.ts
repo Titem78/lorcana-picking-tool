@@ -1,8 +1,9 @@
 // Inventaire : miroir LOCAL du stock Cardmarket.
-// Alimenté depuis l'onglet Cardmarket : page affichée (bouton « Stock (page) »)
-// ou parcours automatique de toutes les pages en LECTURE SEULE (« Stock (tout) »,
-// choix utilisateur 2026-08 — jamais d'écriture sur Cardmarket). Clé = l'id
-// d'article Cardmarket, donc réimporter une page met à jour sans doublon.
+// Alimenté par le balayage « Inventaire général » de l'onglet Cardmarket :
+// parcours complet en LECTURE SEULE, extension par extension (le plafond de
+// ~300 résultats ne vaut que pour les vues non filtrées), choix utilisateur
+// 2026-08 — jamais d'écriture sur Cardmarket. Clé = l'id d'article Cardmarket,
+// donc réimporter met à jour sans doublon.
 
 import { getDb, logActivity } from './db'
 
@@ -127,4 +128,34 @@ export function decrementForSale(line: {
 export function clearStock(userId: number): void {
   getDb().prepare('DELETE FROM stock_items').run()
   logActivity(userId, 'stock.cleared')
+}
+
+/** Horodatage de référence (horloge de la base) avant un balayage complet. */
+export function sweepMark(): string {
+  return (getDb().prepare(`SELECT datetime('now', 'localtime') AS t`).get() as { t: string }).t
+}
+
+/** Après un balayage COMPLET : retire les articles non revus (vendus/retirés). */
+export function purgeOlder(userId: number, mark: string): { removed: number } {
+  const r = getDb().prepare('DELETE FROM stock_items WHERE updated_at < ?').run(mark)
+  logActivity(userId, 'stock.sweep_purged', { removed: r.changes })
+  return { removed: r.changes }
+}
+
+/** Export CSV (séparateur ; + BOM, pour Excel FR) de tout le miroir local. */
+export function exportCsv(): string {
+  const items = getDb()
+    .prepare('SELECT * FROM stock_items ORDER BY set_code, name')
+    .all() as StockItem[]
+  const esc = (v: unknown): string => {
+    const s = v == null ? '' : String(v)
+    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const head = ['cm_article_id', 'name', 'set_code', 'color_code', 'number', 'language', 'condition', 'is_foil', 'comment', 'price', 'quantity', 'updated_at']
+  const lines = [head.join(';')]
+  for (const it of items) {
+    lines.push(head.map((k) => esc((it as unknown as Record<string, unknown>)[k])).join(';'))
+  }
+  // La chaîne retournée commence par un BOM U+FEFF (invisible) pour Excel
+  return '﻿' + lines.join('\r\n')
 }
