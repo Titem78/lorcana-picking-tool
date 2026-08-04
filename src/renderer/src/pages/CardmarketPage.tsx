@@ -83,6 +83,54 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     return out
   })()`
 
+  // Lignes de la page Stock → Mes offres : structure différente des commandes
+  // (div#stockRowNNN.article-row, pas de data-*) — calibré sur cm-page-debug réel.
+  const EXTRACT_STOCK_ROWS = `(() => {
+    const LANG = { 'Français': 'FR', 'Anglais': 'EN', 'English': 'EN', 'Allemand': 'DE', 'Espagnol': 'ES', 'Italien': 'IT', 'Chinois': 'ZH', 'Japonais': 'JA', 'Portugais': 'PT', 'Russe': 'RU', 'Coréen': 'KO' }
+    const out = []
+    for (const row of document.querySelectorAll('div.article-row[id^="stockRow"]')) {
+      let img = ''
+      for (const el of row.querySelectorAll('[data-bs-title],[data-bs-original-title]')) {
+        for (const a of ['data-bs-title', 'data-bs-original-title']) {
+          const v = el.getAttribute(a)
+          const m = v && v.match(/src=["']([^"']+)["']/)
+          if (m) { img = m[1]; break }
+        }
+        if (img) break
+      }
+      // Code d'extension affiché (« 10WHI ») ; repli : segment type 13ATV de l'URL S3
+      let setM = (row.querySelector('.expansion-symbol span')?.textContent || '').trim().match(/^(\\d{1,2})([A-Z]{2,5})$/)
+      if (!setM) {
+        for (const seg of img.split('/')) {
+          const m = seg.match(/^(\\d{1,2})([A-Z]{2,5})$/)
+          if (m) { setM = m; break }
+        }
+      }
+      let language = ''
+      for (const el of row.querySelectorAll('.product-attributes [aria-label]')) {
+        const l = LANG[(el.getAttribute('aria-label') || '').trim()]
+        if (l) { language = l; break }
+      }
+      out.push({
+        article_id: row.id.replace('stockRow', ''),
+        quantity: parseInt((row.querySelector('.amount-container .item-count')?.textContent || '1').trim(), 10) || 1,
+        name: (row.querySelector('.col-seller a')?.textContent || '').trim(),
+        number: '',
+        language,
+        condition: (row.querySelector('.article-condition .badge')?.textContent || '').trim(),
+        set_code: setM ? setM[1] : '',
+        color_code: setM ? setM[2] : '',
+        rarity_code: '',
+        price: (row.querySelector('.price-container .color-primary')?.textContent || row.querySelector('.color-primary')?.textContent || '').trim(),
+        comment: (row.querySelector('.product-comments .text-truncate')?.textContent || row.querySelector('.product-comments [aria-label]')?.getAttribute('aria-label') || '').trim(),
+        is_foil: !!row.querySelector('[aria-label*="Foil" i],[data-bs-original-title*="Foil" i],.fonticon-foil'),
+        section: 'Lorcana Cartes',
+        image_url: img
+      })
+    }
+    return out
+  })()`
+
   const showResult = (r: ImportResult): void => {
     if (r.status === 'ok') {
       setMsg(`✅ Vente #${r.sale_id} (${r.buyer_username}) importée — ${r.cards} ligne(s)${r.message ? ` ${r.message}` : ''}`)
@@ -101,11 +149,13 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     setBusy(true)
     try {
       setMsg('Lecture de la page de stock…')
-      const rows = (await wv.executeJavaScript(EXTRACT_ROWS)) as {
+      let rows = (await wv.executeJavaScript(EXTRACT_STOCK_ROWS)) as {
         article_id: string
         quantity: number
         [k: string]: unknown
       }[]
+      // Repli : certaines vues (ex. ventes) utilisent des tr[data-article-id]
+      if (rows.length === 0) rows = (await wv.executeJavaScript(EXTRACT_ROWS)) as typeof rows
       const valid = rows.filter((r) => r.article_id)
       if (valid.length === 0) {
         const dump = (await wv.executeJavaScript(

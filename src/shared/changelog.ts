@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.19.1',
+    title: 'Import du stock réparé',
+    items: [
+      'L’import « 📥 Stock (page) » lit maintenant la vraie structure de la page Stock → Mes offres (elle diffère des pages de commande)',
+      'Nom, extension, état, langue, foil, commentaire, prix et quantité sont extraits de chaque ligne affichée'
+    ]
+  },
+  {
     version: '2.19.0',
     title: 'Inventaire de vente',
     items: [
