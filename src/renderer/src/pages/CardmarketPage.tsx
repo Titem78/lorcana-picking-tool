@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import type { ImportResult, User } from '@shared/types'
 
+const sleep = (ms: number): Promise<void> => new Promise((res) => setTimeout(res, ms))
+
 // Balise <webview> d'Electron : pas dans les types React, on l'aliase localement.
 const WebView = 'webview' as unknown as React.FC<{
   ref?: React.Ref<HTMLElement>
@@ -37,6 +39,13 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
   const webviewRef = useRef<WebviewEl>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const cancelRef = useRef(false)
+  const [stockProgress, setStockProgress] = useState<{
+    label: string
+    page: number
+    den: number | null
+    items: number
+  } | null>(null)
 
   // Lecture des lignes du tableau via leurs attributs data-* (+ URL d'image)
   const EXTRACT_ROWS = `(() => {
@@ -171,6 +180,81 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       setMsg(`❌ ${String((err as Error).message ?? err)}`)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Pagination de la page Stock : libellé « Page X sur Y » + lien page suivante
+  const PAGE_INFO = `(() => {
+    const label = (document.querySelector('.pagination .mx-1')?.textContent || '').trim()
+    const a = document.querySelector('.pagination a[data-direction="next"]')
+    const next = a && !a.classList.contains('disabled') ? a.getAttribute('href') || '' : ''
+    return { label, next }
+  })()`
+
+  // Import de TOUTES les pages du stock (choix utilisateur, 2026-08) : l'app
+  // enchaîne les pages elle-même, en LECTURE SEULE, avec une pause « humaine »
+  // entre chaque page — barre de progression et bouton Stop.
+  const importAllStock = async (): Promise<void> => {
+    const wv = webviewRef.current
+    if (!wv) return
+    setBusy(true)
+    cancelRef.current = false
+    let items = 0
+    let page = 0
+    try {
+      for (;;) {
+        page++
+        const info = (await wv.executeJavaScript(PAGE_INFO)) as { label: string; next: string }
+        const den = info.label.match(/sur\s+(\d+)/)
+        const rows = (await wv.executeJavaScript(EXTRACT_STOCK_ROWS)) as {
+          article_id: string
+          quantity: number
+          [k: string]: unknown
+        }[]
+        const valid = rows.filter((r) => r.article_id)
+        if (valid.length === 0) {
+          if (page === 1) {
+            setMsg('⚠ Aucun article lisible sur cette page — es-tu bien sur Stock → Mes offres ?')
+            return
+          }
+          break
+        }
+        await window.api.stock.upsert(user.id, valid)
+        items += valid.length
+        setStockProgress({ label: info.label, page, den: den ? parseInt(den[1], 10) : null, items })
+        if (cancelRef.current || !info.next) break
+
+        await sleep(2000 + Math.floor(Math.random() * 1200))
+        const firstId = valid[0].article_id
+        await wv.executeJavaScript(`location.href = ${JSON.stringify(info.next)}`)
+        // Attendre que la page suivante soit chargée (la 1re ligne change)
+        let loaded = false
+        for (let t = 0; t < 40 && !loaded; t++) {
+          await sleep(500)
+          try {
+            const id = (await wv.executeJavaScript(
+              `document.querySelector('div.article-row[id^="stockRow"]')?.id || ''`
+            )) as string
+            if (id && id !== 'stockRow' + firstId) loaded = true
+          } catch {
+            // navigation en cours, on réessaie
+          }
+        }
+        if (!loaded) {
+          setMsg(`⚠ La page suivante n'a pas chargé — import arrêté après ${page} page(s), ${items} article(s) importés.`)
+          return
+        }
+      }
+      setMsg(
+        cancelRef.current
+          ? `✋ Arrêté à ta demande — ${items} article(s) importés sur ${page} page(s) (onglet 📦 Stock).`
+          : `✅ Stock complet : ${items} article(s) importés sur ${page} page(s) (onglet 📦 Stock).`
+      )
+    } catch (err) {
+      setMsg(`❌ ${String((err as Error).message ?? err)}`)
+    } finally {
+      setBusy(false)
+      setStockProgress(null)
     }
   }
 
@@ -316,10 +400,46 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <button disabled={busy} onClick={importStockPage} title="Sur ta page Stock → Mes offres : ajoute les articles affichés au miroir local (onglet 📦 Stock)">
           📥 Stock (page)
         </button>
+        <button
+          disabled={busy}
+          onClick={importAllStock}
+          title="Sur ta page Stock → Mes offres : importe TOUTES les pages du stock (l'app tourne les pages avec une pause entre chaque — bouton Stop pour interrompre)"
+        >
+          📥 Stock (tout)
+        </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande
         </button>
       </div>
+      {stockProgress && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 12px',
+            background: 'var(--bg-raised)',
+            borderBottom: '1px solid var(--border)',
+            fontSize: '0.88rem'
+          }}
+        >
+          <div style={{ flex: 1, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                borderRadius: 4,
+                background: 'var(--accent, #3b82f6)',
+                transition: 'width .4s',
+                width: `${stockProgress.den ? Math.min(100, Math.round((stockProgress.page / stockProgress.den) * 100)) : 100}%`
+              }}
+            />
+          </div>
+          <span style={{ whiteSpace: 'nowrap' }}>
+            {stockProgress.label || `Page ${stockProgress.page}`} — {stockProgress.items} article(s)
+          </span>
+          <button onClick={() => { cancelRef.current = true }}>✋ Stop</button>
+        </div>
+      )}
       {msg && (
         <div
           style={{

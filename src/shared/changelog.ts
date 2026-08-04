@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.20.0',
+    title: 'Import du stock en un clic',
+    items: [
+      'Nouveau bouton « 📥 Stock (tout) » : importe toutes les pages de Stock → Mes offres automatiquement (pause entre chaque page)',
+      'Barre de progression avec compteur d’articles et bouton ✋ Stop pour interrompre à tout moment',
+      'Toujours en lecture seule : l’app ne modifie jamais rien sur Cardmarket'
+    ]
+  },
+  {
     version: '2.19.1',
     title: 'Import du stock réparé',
     items: [

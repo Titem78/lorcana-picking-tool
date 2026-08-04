@@ -1,8 +1,8 @@
 // Inventaire : miroir LOCAL du stock Cardmarket.
-// Alimenté page par page depuis l'onglet Cardmarket (l'utilisateur affiche sa
-// page de stock et clique — aucune navigation automatisée). Clé = l'id
-// d'article Cardmarket (data-article-id), donc réimporter une page met à jour
-// sans doublon.
+// Alimenté depuis l'onglet Cardmarket : page affichée (bouton « Stock (page) »)
+// ou parcours automatique de toutes les pages en LECTURE SEULE (« Stock (tout) »,
+// choix utilisateur 2026-08 — jamais d'écriture sur Cardmarket). Clé = l'id
+// d'article Cardmarket, donc réimporter une page met à jour sans doublon.
 
 import { getDb, logActivity } from './db'
 
