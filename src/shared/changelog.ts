@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.19.0',
+    title: 'Inventaire de vente',
+    items: [
+      'Nouvel onglet 📦 Stock : miroir local de tes articles en vente Cardmarket',
+      'Alimenté page par page depuis l’onglet Cardmarket (bouton « 📥 Stock (page) » sur Stock → Mes offres)',
+      'Recherche, valeur totale de l’inventaire, et décrément automatique à chaque commande importée'
+    ]
+  },
+  {
     version: '2.18.0',
     title: 'Timbres en option',
     items: [

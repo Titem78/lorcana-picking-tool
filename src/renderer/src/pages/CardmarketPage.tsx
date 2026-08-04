@@ -64,6 +64,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         .replace(/\\s*\\(\\d+\\)\\s*$/, '').trim()
       const priceRaw = tr.dataset.price || ''
       out.push({
+        article_id: tr.dataset.articleId || '',
         quantity: parseInt(tr.dataset.amount || '1', 10) || 1,
         name: tr.dataset.name || '',
         number: tr.dataset.number || '',
@@ -89,6 +90,37 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       setMsg(`⏭ Vente #${r.sale_id} déjà importée`)
     } else {
       setMsg(`❌ ${r.message}`)
+    }
+  }
+
+  // Import de la PAGE DE STOCK affichée (miroir local de l'inventaire) —
+  // même principe : on lit ce que l'utilisateur affiche, page par page.
+  const importStockPage = async (): Promise<void> => {
+    const wv = webviewRef.current
+    if (!wv) return
+    setBusy(true)
+    try {
+      setMsg('Lecture de la page de stock…')
+      const rows = (await wv.executeJavaScript(EXTRACT_ROWS)) as {
+        article_id: string
+        quantity: number
+        [k: string]: unknown
+      }[]
+      const valid = rows.filter((r) => r.article_id)
+      if (valid.length === 0) {
+        const dump = (await wv.executeJavaScript(
+          `({ html: document.documentElement.outerHTML, text: document.body.innerText })`
+        )) as { html: string; text: string }
+        const dir = (await window.api.saveCmDebug(dump.html, dump.text)) as string
+        setMsg(`⚠ Aucun article lisible sur cette page — diagnostic enregistré dans ${dir}, envoie-le-moi. (Es-tu bien sur Stock → Mes offres ?)`)
+        return
+      }
+      const r = (await window.api.stock.upsert(user.id, valid)) as { imported: number }
+      setMsg(`✅ ${r.imported} article(s) de stock importés/actualisés — passe à la page suivante et réimporte, ou consulte l'onglet 📦 Stock.`)
+    } catch (err) {
+      setMsg(`❌ ${String((err as Error).message ?? err)}`)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -231,6 +263,9 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>
+        <button disabled={busy} onClick={importStockPage} title="Sur ta page Stock → Mes offres : ajoute les articles affichés au miroir local (onglet 📦 Stock)">
+          📥 Stock (page)
+        </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande
         </button>

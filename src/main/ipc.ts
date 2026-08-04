@@ -10,6 +10,7 @@ import * as backup from './backup'
 import * as stamps from './stamps'
 import * as watcherMod from './watcher'
 import * as cmauth from './cmauth'
+import * as stock from './stock'
 import { checkForUpdatesNow } from './updater'
 import type { ActivityEntry, AppInfo, OrderStatus, RuleCriteria, StorageLocation } from '@shared/types'
 
@@ -278,6 +279,13 @@ export function registerIpc(): void {
     writeFileSync(join(dir, 'cm-page-debug.txt'), text, 'utf-8')
     return dir
   })
+
+  // --- Inventaire (miroir du stock Cardmarket) --------------------------------------
+  ipcMain.handle('stock:upsert', (_e, userId: number, rows: stock.StockRowInput[]) =>
+    stock.upsertStock(userId, rows)
+  )
+  ipcMain.handle('stock:list', (_e, search: string) => stock.listStock(search ?? ''))
+  ipcMain.handle('stock:clear', (_e, userId: number) => stock.clearStock(userId))
 
   // --- Timbres La Poste -----------------------------------------------------------
   ipcMain.handle('stamps:import', (e, userId: number) =>

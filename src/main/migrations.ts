@@ -167,5 +167,23 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE orders ADD COLUMN refund_amount TEXT;
   ALTER TABLE orders ADD COLUMN refund_reason TEXT;
+  `,
+
+  // 010 — inventaire : miroir local du stock Cardmarket
+  `
+  CREATE TABLE stock_items (
+    cm_article_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    number TEXT,
+    set_code TEXT,
+    color_code TEXT,
+    language TEXT,
+    condition TEXT,
+    is_foil INTEGER NOT NULL DEFAULT 0,
+    comment TEXT,
+    price TEXT,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  );
   `
 ]

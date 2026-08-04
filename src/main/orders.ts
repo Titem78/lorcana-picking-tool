@@ -130,6 +130,21 @@ export async function persistParsedOrder(
         return orderId
       })
       const orderId = insertAll()
+      // Miroir de stock : décrémente les articles vendus (meilleure estimation)
+      try {
+        const { decrementForSale } = await import('./stock')
+        for (const line of parsed.cards) {
+          decrementForSale({
+            name: line.name,
+            language: line.language || null,
+            condition: line.condition || null,
+            is_foil: line.is_foil ? 1 : 0,
+            quantity: line.quantity
+          })
+        }
+      } catch {
+        /* miroir facultatif */
+      }
       logActivity(userId, 'order.imported', {
         orderId,
         sale_id: parsed.sale_id,

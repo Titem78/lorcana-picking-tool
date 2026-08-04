@@ -102,6 +102,12 @@ const api = {
     import: (userId: number) => ipcRenderer.invoke('backup:import', userId)
   },
 
+  stock: {
+    upsert: (userId: number, rows: unknown[]) => ipcRenderer.invoke('stock:upsert', userId, rows),
+    list: (search: string) => ipcRenderer.invoke('stock:list', search),
+    clear: (userId: number) => ipcRenderer.invoke('stock:clear', userId)
+  },
+
   cm: {
     saveCreds: (userId: number, username: string, password: string) =>
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),

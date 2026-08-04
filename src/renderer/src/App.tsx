@@ -5,6 +5,7 @@ import PickingPage from './pages/PickingPage'
 import PrepPage from './pages/PrepPage'
 import OrdersPage from './pages/OrdersPage'
 import CardmarketPage from './pages/CardmarketPage'
+import StockPage from './pages/StockPage'
 import { CHANGELOG } from '@shared/changelog'
 import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'picking', label: '② 🎯 Picking' },
   { id: 'prep', label: '③ 🧾 Préparation' },
   { id: 'history', label: '④ 📚 Historique' },
+  { id: 'stock', label: '📦 Stock' },
   { id: 'locations', label: '🗄️ Emplacements' },
   { id: 'settings', label: '⚙️ Réglages' }
 ] as const
@@ -105,6 +107,7 @@ export default function App(): React.JSX.Element {
         {tab === 'orders' && <OrdersPage user={user} />}
         {tab === 'locations' && <LocationsPage user={user} />}
         {tab === 'history' && <HistoryPage user={user} />}
+        {tab === 'stock' && <StockPage user={user} />}
         {tab === 'settings' && <SettingsPage user={user} />}
       </main>
       {updateMsg && (
