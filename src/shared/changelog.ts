@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.22.1',
+    title: 'Écrire au client',
+    items: [
+      'Fiche de commande : bouton « 💬 Écrire au client » — ouvre son profil Cardmarket dans une fenêtre connectée, le bouton ✉ Message est juste là'
+    ]
+  },
+  {
     version: '2.22.0',
     title: 'Les retours de Laure',
     items: [

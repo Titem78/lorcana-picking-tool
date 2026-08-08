@@ -185,7 +185,22 @@ export default function OrderSheet({
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
           <div style={{ minWidth: 220 }}>
             <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 4 }}>Client</h3>
-            <b>{order.buyer_username}</b>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <b>{order.buyer_username}</b>
+              {order.buyer_username && (
+                <button
+                  title="Ouvre le profil Cardmarket du client dans une fenêtre séparée (connectée) — le bouton ✉ Message y est en haut"
+                  style={{ padding: '2px 10px', fontSize: '0.85rem' }}
+                  onClick={() =>
+                    window.api.cm.openWindow(
+                      `https://www.cardmarket.com/fr/Lorcana/Users/${encodeURIComponent(order.buyer_username ?? '')}`
+                    )
+                  }
+                >
+                  💬 Écrire au client
+                </button>
+              )}
+            </div>
             <div style={{ whiteSpace: 'pre-line', color: 'var(--text-dim)' }}>
               {order.buyer_name}
               {'\n'}
