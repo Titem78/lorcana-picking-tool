@@ -46,6 +46,19 @@ export async function persistParsedOrder(
     }
   }
 
+  // Certaines sources collent le numéro de collection à la FIN du nom avec un
+  // champ numéro vide (ex. « Stitch - Au niveau de méchanceté élevé 185 ») :
+  // on l'extrait pour que le tri, l'encre et les visuels fonctionnent.
+  for (const line of parsed.cards) {
+    if (!line.number && /cartes/i.test(line.section)) {
+      const m = line.name.match(/^(.*\S)\s+(\d{1,3})$/)
+      if (m && parseInt(m[2], 10) >= 1) {
+        line.name = m[1]
+        line.number = m[2]
+      }
+    }
+  }
+
       // Enrichissement Lorcast hors transaction (réseau, tolérant au hors-ligne)
       const enriched = [] as {
         line: (typeof parsed.cards)[number]
@@ -391,6 +404,59 @@ export async function backfillFrenchImages(): Promise<number> {
     }
   }
   return updated
+}
+
+/**
+ * Réparation : lignes déjà importées dont le numéro est resté collé au nom
+ * (numéro vide) — on l'extrait puis on ré-enrichit encre/rareté/visuels.
+ */
+export async function repairNumbersInNames(): Promise<number> {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `SELECT id, name, set_code, language, ink, rarity, image_file, lorcast_name
+       FROM order_lines
+       WHERE (number IS NULL OR number = '') AND section LIKE '%arte%'`
+    )
+    .all() as {
+    id: number
+    name: string
+    set_code: string
+    language: string | null
+    ink: string | null
+    rarity: string | null
+    image_file: string | null
+    lorcast_name: string | null
+  }[]
+  let repaired = 0
+  for (const r of rows) {
+    const m = r.name.match(/^(.*\S)\s+(\d{1,3})$/)
+    if (!m || parseInt(m[2], 10) < 1) continue
+    const name = m[1]
+    const number = m[2]
+    const card = await getCard(r.set_code, number).catch(() => null)
+    const frImage = /^FR/i.test(r.language ?? '')
+      ? await getFrenchImage(r.set_code, number, name).catch(() => null)
+      : null
+    db.prepare(
+      `UPDATE order_lines SET name = ?, number = ?,
+         ink = COALESCE(ink, ?), rarity = COALESCE(rarity, ?),
+         image_file = COALESCE(?, image_file), image_large_file = COALESCE(?, image_large_file),
+         lorcast_name = COALESCE(lorcast_name, ?)
+       WHERE id = ?`
+    ).run(
+      name,
+      number,
+      card?.ink ?? null,
+      card?.rarity ?? null,
+      frImage ?? card?.image_file ?? null,
+      frImage ?? card?.image_large_file ?? null,
+      card ? [card.name, card.version].filter(Boolean).join(' - ') : null,
+      r.id
+    )
+    repaired++
+  }
+  return repaired
 }
 
 // --- Statistiques (historique) -------------------------------------------------

@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.23.0',
+    title: 'Générateur enrichi + numéro réparé',
+    items: [
+      'Générer en série : critères raretés et langues, et nouveau mode « une box par rareté »',
+      'Correction : certaines cartes arrivaient avec le numéro collé au nom (ex. « … élevé 185 ») et sans numéro — corrigé à l’import, et les commandes déjà importées sont réparées automatiquement au démarrage (numéro, encre, rareté, visuel)'
+    ]
+  },
+  {
     version: '2.22.1',
     title: 'Écrire au client',
     items: [

@@ -254,8 +254,10 @@ function SeriesGenerator({
   onCreated: () => void
 }): React.JSX.Element {
   const [colors, setColors] = useState<string[]>([...INK_COLORS])
+  const [rarities, setRarities] = useState<string[]>([])
+  const [languages, setLanguages] = useState<string[]>([])
   const [chaptersText, setChaptersText] = useState('')
-  const [mode, setMode] = useState<'perColor' | 'single'>('perColor')
+  const [mode, setMode] = useState<'perColor' | 'perRarity' | 'single'>('perColor')
   const [foil, setFoil] = useState<'any' | 'foil' | 'nonfoil'>('any')
   const [prefix, setPrefix] = useState('Box')
   const [busy, setBusy] = useState(false)
@@ -263,26 +265,37 @@ function SeriesGenerator({
   const chapters = chaptersText.trim() ? parseChaptersInput(chaptersText) : []
   const rangeText = chaptersText.trim() ? ` ${chaptersText.trim().replace(/\s+/g, '')}` : ''
   const foilCrit = foil === 'foil' ? true : foil === 'nonfoil' ? false : null
-  const baseCriteria = (cs: string[]): RuleCriteria => ({
-    colors: cs,
+  // Critères communs : tout ce qui est coché s'applique à chaque box créée
+  // (rareté vide / langue vide = « peu importe »).
+  const baseCriteria = (cs: string[], rs: string[]): RuleCriteria => ({
+    ...(cs.length ? { colors: cs } : {}),
+    ...(rs.length ? { rarities: rs } : {}),
+    ...(languages.length ? { languages } : {}),
     ...(chapters.length ? { chapters } : {}),
     ...(foilCrit != null ? { foil: foilCrit } : {})
   })
+  const name = (middle: string): string => `${prefix.trim() || 'Box'}${middle}${rangeText}`
 
   const planned =
     mode === 'perColor'
       ? colors.map((c) => ({
-          name: `${prefix.trim() || 'Box'} ${INK_LABELS_FR[c] ?? c}${rangeText}`,
+          name: name(` ${INK_LABELS_FR[c] ?? c}`),
           color: INK_HEX[c] ?? null,
-          criteria: baseCriteria([c])
+          criteria: baseCriteria([c], rarities)
         }))
-      : [
-          {
-            name: `${prefix.trim() || 'Box'}${rangeText}`,
+      : mode === 'perRarity'
+        ? (rarities.length ? rarities : [...RARITIES]).map((r) => ({
+            name: name(` ${RARITY_LABELS_FR[r] ?? r}`),
             color: null,
-            criteria: baseCriteria(colors)
-          }
-        ]
+            criteria: baseCriteria(colors, [r])
+          }))
+        : [
+            {
+              name: name(''),
+              color: null,
+              criteria: baseCriteria(colors, rarities)
+            }
+          ]
 
   const create = async (): Promise<void> => {
     setBusy(true)
@@ -308,8 +321,9 @@ function SeriesGenerator({
       <h2 style={{ marginBottom: 4 }}>⚡ Générer des emplacements en série</h2>
       <p style={{ color: 'var(--text-dim)', marginBottom: 14, maxWidth: 560 }}>
         Exemple : encres cochées + chapitres « 1-4 » + « une box par encre » crée 6 boxes
-        (« Box Ambre 1-4 », « Box Émeraude 1-4 »…), chacune avec sa règle. Relance ensuite avec
-        « 5-8 » pour la tranche suivante.
+        (« Box Ambre 1-4 », « Box Émeraude 1-4 »…), chacune avec sa règle. Les raretés et
+        langues cochées s&apos;ajoutent comme critères (vide = peu importe). Relance ensuite
+        avec « 5-8 » pour la tranche suivante, ou en mode « une box par rareté ».
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
         <ChipRow
@@ -317,6 +331,18 @@ function SeriesGenerator({
           options={INK_COLORS.map((c) => ({ id: c, label: INK_LABELS_FR[c], hex: INK_HEX[c] }))}
           selected={colors}
           onChange={setColors}
+        />
+        <ChipRow
+          label="Raretés"
+          options={RARITIES.map((r) => ({ id: r, label: RARITY_LABELS_FR[r] }))}
+          selected={rarities}
+          onChange={setRarities}
+        />
+        <ChipRow
+          label="Langues"
+          options={LANGUAGES.map((l) => ({ id: l, label: l }))}
+          selected={languages}
+          onChange={setLanguages}
         />
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
@@ -344,6 +370,7 @@ function SeriesGenerator({
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
           <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
             <option value="perColor">Une box par encre cochée</option>
+            <option value="perRarity">Une box par rareté (cochée, sinon toutes)</option>
             <option value="single">Une seule box pour toute la sélection</option>
           </select>
         </label>
@@ -372,7 +399,12 @@ function SeriesGenerator({
           <button onClick={onClose}>Annuler</button>
           <button
             className="primary"
-            disabled={busy || colors.length === 0 || planned.length === 0}
+            disabled={
+              busy ||
+              planned.length === 0 ||
+              // Une règle totalement vide rangerait TOUT dedans : au moins un critère.
+              planned.some((p) => Object.keys(p.criteria).length === 0)
+            }
             onClick={create}
           >
             {busy ? 'Création…' : `Créer ${planned.length} emplacement(s)`}
