@@ -111,7 +111,14 @@ const api = {
     exportCsv: () => ipcRenderer.invoke('stock:exportCsv')
   },
 
+  settings: {
+    get: (key: string) => ipcRenderer.invoke('settings:get', key),
+    set: (userId: number, key: string, value: string) =>
+      ipcRenderer.invoke('settings:set', userId, key, value)
+  },
+
   cm: {
+    openWindow: (url?: string) => ipcRenderer.invoke('cm:openWindow', url),
     saveCreds: (userId: number, username: string, password: string) =>
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),
     clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),

@@ -179,7 +179,8 @@ function PrepColumn({
                   <b style={{ fontSize: '1.05rem' }}>{o.buyer_username}</b>
                   <span style={{ color: 'var(--text-dim)' }}> — vente #{o.sale_id}</span>
                   <div style={{ color: 'var(--text-dim)', fontSize: '0.87rem', marginTop: 3 }}>
-                    {o.article_count} article(s) · {o.total} · {o.shipping_method ?? '—'}
+                    {o.article_count} article(s) · {o.total} · 📮{' '}
+                    <b style={{ color: 'var(--text)' }}>{o.shipping_method ?? '—'}</b>
                     {o.status === 'prepared' && o.prepared_by_name && (
                       <> · préparée par {o.prepared_by_name}</>
                     )}

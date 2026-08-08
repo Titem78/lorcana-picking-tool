@@ -9,6 +9,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.22.0',
+    title: 'Les retours de Laure',
+    items: [
+      'Picking : un bandeau annonce clairement quand une commande est entièrement pickée (au lieu de disparaître sans prévenir)',
+      'Picking : option (Réglages → Général) pour GARDER les commandes terminées affichées ✅ jusqu’à leur préparation',
+      'Picking : case « Masquer les cartes déjà sorties » pour ne voir que le restant',
+      'Emplacements : bouton « ⚡ Générer en série » — une box par encre pour une tranche de chapitres, avec les règles créées automatiquement',
+      'Remboursement et n° de suivi : confirmation visuelle ✅ à l’enregistrement',
+      'Préparation : le mode d’envoi choisi par le client est mis en évidence, même quand les timbres sont désactivés',
+      'Cardmarket : bouton « ⧉ 2e fenêtre » (même session) — garde la messagerie ouverte en naviguant, et les liens qui s’ouvrent en popup fonctionnent'
+    ]
+  },
+  {
     version: '2.21.0',
     title: 'Inventaire général',
     items: [

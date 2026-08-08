@@ -37,6 +37,7 @@ export default function LocationsPage({ user }: { user: User }): React.JSX.Eleme
   const [locations, setLocations] = useState<StorageLocation[]>([])
   const [editing, setEditing] = useState<{ id: number | null; draft: LocationDraft } | null>(null)
   const [rulesFor, setRulesFor] = useState<StorageLocation | null>(null)
+  const [generator, setGenerator] = useState(false)
 
   const refresh = (): void => {
     window.api.locations.list().then(setLocations)
@@ -78,9 +79,17 @@ export default function LocationsPage({ user }: { user: User }): React.JSX.Eleme
         le <b>premier</b> emplacement dont une règle correspond. Utilise ▲▼ pour prioriser.
       </p>
 
-      <button className="primary" onClick={() => setEditing({ id: null, draft: { ...EMPTY_DRAFT } })}>
-        + Nouvel emplacement
-      </button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="primary" onClick={() => setEditing({ id: null, draft: { ...EMPTY_DRAFT } })}>
+          + Nouvel emplacement
+        </button>
+        <button
+          title="Crée d'un coup une série de boxes avec leurs règles — ex. une box par encre pour les chapitres 1 à 4"
+          onClick={() => setGenerator(true)}
+        >
+          ⚡ Générer en série
+        </button>
+      </div>
 
       <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {locations.length === 0 && (
@@ -204,6 +213,17 @@ export default function LocationsPage({ user }: { user: User }): React.JSX.Eleme
         </Modal>
       )}
 
+      {generator && (
+        <SeriesGenerator
+          user={user}
+          onClose={() => setGenerator(false)}
+          onCreated={() => {
+            setGenerator(false)
+            refresh()
+          }}
+        />
+      )}
+
       {rulesFor && (
         <RulesEditor
           location={rulesFor}
@@ -217,6 +237,149 @@ export default function LocationsPage({ user }: { user: User }): React.JSX.Eleme
         />
       )}
     </div>
+  )
+}
+
+// --- Générateur en série -------------------------------------------------------
+// Demande de Laure : créer d'un coup « une box par encre pour les chapitres 1-4 »
+// (et rebelote pour d'autres tranches) au lieu de tout saisir à la main.
+
+function SeriesGenerator({
+  user,
+  onClose,
+  onCreated
+}: {
+  user: User
+  onClose: () => void
+  onCreated: () => void
+}): React.JSX.Element {
+  const [colors, setColors] = useState<string[]>([...INK_COLORS])
+  const [chaptersText, setChaptersText] = useState('')
+  const [mode, setMode] = useState<'perColor' | 'single'>('perColor')
+  const [foil, setFoil] = useState<'any' | 'foil' | 'nonfoil'>('any')
+  const [prefix, setPrefix] = useState('Box')
+  const [busy, setBusy] = useState(false)
+
+  const chapters = chaptersText.trim() ? parseChaptersInput(chaptersText) : []
+  const rangeText = chaptersText.trim() ? ` ${chaptersText.trim().replace(/\s+/g, '')}` : ''
+  const foilCrit = foil === 'foil' ? true : foil === 'nonfoil' ? false : null
+  const baseCriteria = (cs: string[]): RuleCriteria => ({
+    colors: cs,
+    ...(chapters.length ? { chapters } : {}),
+    ...(foilCrit != null ? { foil: foilCrit } : {})
+  })
+
+  const planned =
+    mode === 'perColor'
+      ? colors.map((c) => ({
+          name: `${prefix.trim() || 'Box'} ${INK_LABELS_FR[c] ?? c}${rangeText}`,
+          color: INK_HEX[c] ?? null,
+          criteria: baseCriteria([c])
+        }))
+      : [
+          {
+            name: `${prefix.trim() || 'Box'}${rangeText}`,
+            color: null,
+            criteria: baseCriteria(colors)
+          }
+        ]
+
+  const create = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      for (const p of planned) {
+        const id = (await window.api.locations.create(user.id, {
+          name: p.name,
+          kind: 'box_color',
+          color: p.color,
+          label: null,
+          notes: null
+        })) as number
+        await window.api.locations.setRules(user.id, id, [p.criteria])
+      }
+      onCreated()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 style={{ marginBottom: 4 }}>⚡ Générer des emplacements en série</h2>
+      <p style={{ color: 'var(--text-dim)', marginBottom: 14, maxWidth: 560 }}>
+        Exemple : encres cochées + chapitres « 1-4 » + « une box par encre » crée 6 boxes
+        (« Box Ambre 1-4 », « Box Émeraude 1-4 »…), chacune avec sa règle. Relance ensuite avec
+        « 5-8 » pour la tranche suivante.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
+        <ChipRow
+          label="Encres"
+          options={INK_COLORS.map((c) => ({ id: c, label: INK_LABELS_FR[c], hex: INK_HEX[c] }))}
+          selected={colors}
+          onChange={setColors}
+        />
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+            Chapitres{' '}
+            <input
+              placeholder="ex. 1-4"
+              value={chaptersText}
+              style={{ width: 110 }}
+              onChange={(e) => setChaptersText(e.target.value)}
+            />
+          </label>
+          <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+            Foil{' '}
+            <select value={foil} onChange={(e) => setFoil(e.target.value as typeof foil)}>
+              <option value="any">Peu importe</option>
+              <option value="foil">Foil uniquement</option>
+              <option value="nonfoil">Non-foil uniquement</option>
+            </select>
+          </label>
+          <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+            Nom{' '}
+            <input value={prefix} style={{ width: 90 }} onChange={(e) => setPrefix(e.target.value)} />
+          </label>
+        </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+            <option value="perColor">Une box par encre cochée</option>
+            <option value="single">Une seule box pour toute la sélection</option>
+          </select>
+        </label>
+
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 14px',
+            fontSize: '0.88rem',
+            color: 'var(--text-dim)',
+            maxHeight: 180,
+            overflow: 'auto'
+          }}
+        >
+          <b style={{ color: 'var(--text)' }}>{planned.length} emplacement(s) seront créés :</b>
+          {planned.map((p) => (
+            <div key={p.name} style={{ marginTop: 4 }}>
+              {p.color && <span style={{ color: p.color }}>⬤ </span>}
+              {p.name} — {describeCriteria(p.criteria)}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose}>Annuler</button>
+          <button
+            className="primary"
+            disabled={busy || colors.length === 0 || planned.length === 0}
+            onClick={create}
+          >
+            {busy ? 'Création…' : `Créer ${planned.length} emplacement(s)`}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

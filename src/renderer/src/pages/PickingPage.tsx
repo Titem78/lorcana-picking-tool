@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PickingItem, PickingList, PickingSubline, User } from '@shared/types'
 import { INK_HEX, INK_LABELS_FR, RARITY_LABELS_FR } from '@shared/constants'
 import CardThumb from '@/components/CardThumb'
+
+/** Restant à picker par commande (pour détecter celles qui se terminent). */
+function remainingByOrder(l: PickingList): Map<string, { remaining: number; buyer: string }> {
+  const m = new Map<string, { remaining: number; buyer: string }>()
+  for (const sec of l.sections)
+    for (const it of sec.items)
+      for (const s of it.sublines) {
+        const e = m.get(s.sale_id) ?? { remaining: 0, buyer: s.buyer_username }
+        e.remaining += Math.max(0, s.quantity - s.picked_qty)
+        m.set(s.sale_id, e)
+      }
+  return m
+}
 
 /**
  * Page Picking : liste globale, toutes commandes mélangées, groupée par
@@ -13,9 +26,32 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
   const [imageFor, setImageFor] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [imageMsg, setImageMsg] = useState('')
+  const [hideDone, setHideDone] = useState(localStorage.getItem('picking_hide_done') === '1')
+  const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  const prevRemaining = useRef<Map<string, { remaining: number; buyer: string }> | null>(null)
 
   const refresh = (): void => {
-    window.api.picking.list().then(setList)
+    window.api.picking.list().then((l: PickingList) => {
+      // Une commande vient-elle de se terminer ? On l'annonce clairement au
+      // lieu de la laisser disparaître sans explication.
+      const now = remainingByOrder(l)
+      const prev = prevRemaining.current
+      if (prev) {
+        const finished = [...prev.entries()].filter(
+          ([id, e]) => e.remaining > 0 && (now.get(id)?.remaining ?? 0) === 0
+        )
+        if (finished.length > 0) {
+          setDoneMsg(
+            finished
+              .map(([id, e]) => `✅ Commande #${id} (${e.buyer}) entièrement pickée`)
+              .join(' · ') + ' — elle t’attend en ③ Préparation'
+          )
+          window.setTimeout(() => setDoneMsg(null), 10000)
+        }
+      }
+      prevRemaining.current = now
+      setList(l)
+    })
   }
   useEffect(refresh, [])
 
@@ -54,6 +90,27 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
           {list.order_count} commande(s) mélangée(s) — {list.picked_qty}/{list.total_qty} cartes
           sorties
         </span>
+        <span style={{ flex: 1 }} />
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--text-dim)',
+            fontSize: '0.88rem',
+            cursor: 'pointer'
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={hideDone}
+            onChange={(e) => {
+              setHideDone(e.target.checked)
+              localStorage.setItem('picking_hide_done', e.target.checked ? '1' : '0')
+            }}
+          />
+          Masquer les cartes déjà sorties
+        </label>
       </div>
       <div
         style={{
@@ -147,6 +204,21 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
         </div>
       )}
 
+      {doneMsg && (
+        <div
+          style={{
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--ok)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 16px',
+            marginBottom: 14,
+            fontSize: '0.95rem'
+          }}
+        >
+          {doneMsg}
+        </div>
+      )}
+
       {pct === 100 && (
         <div
           style={{
@@ -173,6 +245,10 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
       {list.sections.map((section) => {
         const remaining = section.items.reduce((s, i) => s + (i.total_qty - i.picked_qty), 0)
         const unassigned = section.location_id === null
+        const visibleItems = hideDone
+          ? section.items.filter((i) => i.picked_qty < i.total_qty)
+          : section.items
+        if (hideDone && visibleItems.length === 0) return null
         return (
           <section key={section.location_id ?? 'none'} style={{ marginBottom: 26 }}>
             <h2
@@ -219,7 +295,7 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {section.items.map((item) => (
+              {visibleItems.map((item) => (
                 <PickingRow
                   key={item.key}
                   item={item}

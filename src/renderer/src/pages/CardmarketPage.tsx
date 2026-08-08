@@ -8,6 +8,7 @@ const WebView = 'webview' as unknown as React.FC<{
   ref?: React.Ref<HTMLElement>
   src: string
   partition?: string
+  allowpopups?: string
   style?: React.CSSProperties
 }>
 
@@ -430,6 +431,15 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
           🔑 Connexion
         </button>
         <button
+          title="Ouvre la page actuelle dans une fenêtre séparée (même session) — pratique pour garder la messagerie ouverte tout en naviguant ici"
+          onClick={() => {
+            const wv = webviewRef.current
+            window.api.cm.openWindow(wv ? wv.getURL() : undefined)
+          }}
+        >
+          ⧉ 2e fenêtre
+        </button>
+        <button
           title="Enregistre la structure de la page affichée (cm-page-debug.html/.txt) pour améliorer l'extraction"
           onClick={async () => {
             const wv = webviewRef.current
@@ -502,6 +512,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         ref={webviewRef as React.RefObject<HTMLElement>}
         src="https://www.cardmarket.com/fr/Lorcana"
         partition="persist:cardmarket"
+        allowpopups="true"
         style={{ flex: 1 }}
       />
     </div>

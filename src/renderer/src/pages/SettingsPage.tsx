@@ -698,6 +698,41 @@ function DangerZone({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/** Options du Picking (demande de Laure : ne pas voir « disparaître » les commandes finies). */
+function PickingOptions({ user }: { user: User }): React.JSX.Element {
+  const [keepDone, setKeepDone] = useState(false)
+
+  useEffect(() => {
+    window.api.settings.get('picking_keep_done').then((v: string | null) => setKeepDone(v === '1'))
+  }, [])
+
+  const toggle = (on: boolean): void => {
+    setKeepDone(on)
+    window.api.settings.set(user.id, 'picking_keep_done', on ? '1' : '0')
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>🎯 Picking</h2>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={keepDone}
+          onChange={(e) => toggle(e.target.checked)}
+          style={{ width: 20, height: 20 }}
+        />
+        Garder visibles les commandes terminées dans le Picking
+      </label>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 6, maxWidth: 620 }}>
+        Activé : quand toutes les cartes d&apos;une commande sont sorties, elles restent affichées
+        (✅) dans la liste de picking jusqu&apos;à ce que la commande soit marquée « préparée ».
+        Désactivé : la commande passe directement dans l&apos;onglet ③ Préparation (un bandeau
+        l&apos;annonce désormais dans le Picking).
+      </p>
+    </section>
+  )
+}
+
 export default function SettingsPage({ user }: { user: User }): React.JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -783,6 +818,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
         </p>
         <UpdateChecker />
       </section>
+
+      <PickingOptions user={user} />
 
       <ChangelogSection />
       </>

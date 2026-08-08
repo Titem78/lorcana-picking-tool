@@ -280,6 +280,41 @@ export function registerIpc(): void {
     return dir
   })
 
+  // --- Réglages génériques (table settings, clé/valeur) -----------------------------
+  ipcMain.handle('settings:get', (_e, key: string) => {
+    const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined
+    return r?.value ?? null
+  })
+  ipcMain.handle('settings:set', (_e, userId: number, key: string, value: string) => {
+    getDb()
+      .prepare(
+        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+      )
+      .run(key, value)
+    logActivity(userId, 'settings.changed', { key, value })
+  })
+
+  // --- Fenêtre Cardmarket séparée (même session persist:cardmarket) ------------------
+  // Permet p. ex. de garder la messagerie ouverte dans une fenêtre tout en
+  // naviguant dans l'onglet intégré. Aucune automatisation : fenêtre normale.
+  ipcMain.handle('cm:openWindow', (_e, url?: string) => {
+    const win = new BrowserWindow({
+      width: 1100,
+      height: 780,
+      autoHideMenuBar: true,
+      title: 'Cardmarket — fenêtre séparée',
+      webPreferences: {
+        partition: 'persist:cardmarket',
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    })
+    win.loadURL(url && /^https:\/\/(www\.)?cardmarket\.com\//.test(url) ? url : 'https://www.cardmarket.com/fr/Lorcana')
+  })
+
   // --- Inventaire (miroir du stock Cardmarket) --------------------------------------
   ipcMain.handle('stock:upsert', (_e, userId: number, rows: stock.StockRowInput[]) =>
     stock.upsertStock(userId, rows)

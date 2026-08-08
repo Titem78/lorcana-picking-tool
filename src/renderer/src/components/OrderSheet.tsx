@@ -33,9 +33,14 @@ export default function OrderSheet({
     (initial.refund_amount ?? '').replace(/\s*EUR$/, '')
   )
   const [refundReason, setRefundReason] = useState(initial.refund_reason ?? '')
+  const [refundMsg, setRefundMsg] = useState('')
+  const [trackingMsg, setTrackingMsg] = useState('')
 
   const saveRefund = (): void => {
-    window.api.orders.setRefund(user.id, order.id, refundAmount, refundReason).then(reload)
+    window.api.orders.setRefund(user.id, order.id, refundAmount, refundReason).then(() => {
+      setRefundMsg('✅ Remboursement enregistré')
+      reload()
+    })
   }
   const [stampsEnabled, setStampsEnabled] = useState(false)
   const [stampStock, setStampStock] = useState<{ stamp_type: string; free: number }[]>([])
@@ -123,7 +128,10 @@ export default function OrderSheet({
   }
 
   const saveTracking = (): void => {
-    window.api.orders.setTracking(user.id, order.id, tracking.trim()).then(reload)
+    window.api.orders.setTracking(user.id, order.id, tracking.trim()).then(() => {
+      setTrackingMsg('✅ Numéro de suivi enregistré')
+      reload()
+    })
   }
 
   const track = trackingInfo(order.shipping_method, order.tracking_number)
@@ -338,13 +346,19 @@ export default function OrderSheet({
               <input
                 value={tracking}
                 placeholder="Saisir / scanner le n° de suivi"
-                onChange={(e) => setTrackingNum(e.target.value)}
+                onChange={(e) => {
+                  setTrackingNum(e.target.value)
+                  setTrackingMsg('')
+                }}
                 style={{ flex: 1 }}
               />
               <button onClick={saveTracking} disabled={tracking.trim() === (order.tracking_number ?? '')}>
                 Enregistrer
               </button>
             </div>
+            {trackingMsg && (
+              <p style={{ color: 'var(--ok)', fontSize: '0.85rem', marginTop: 4 }}>{trackingMsg}</p>
+            )}
             {track && (
               <button
                 style={{ marginTop: 8 }}
@@ -364,13 +378,19 @@ export default function OrderSheet({
                 placeholder="Montant €"
                 value={refundAmount}
                 style={{ width: 100 }}
-                onChange={(e) => setRefundAmount(e.target.value)}
+                onChange={(e) => {
+                  setRefundAmount(e.target.value)
+                  setRefundMsg('')
+                }}
               />
               <input
                 placeholder="Motif (ex. remise en main propre)"
                 value={refundReason}
                 style={{ flex: 1, minWidth: 150 }}
-                onChange={(e) => setRefundReason(e.target.value)}
+                onChange={(e) => {
+                  setRefundReason(e.target.value)
+                  setRefundMsg('')
+                }}
               />
               <button
                 onClick={saveRefund}
@@ -382,6 +402,9 @@ export default function OrderSheet({
                 Enregistrer
               </button>
             </div>
+            {refundMsg && (
+              <p style={{ color: 'var(--ok)', fontSize: '0.85rem', marginTop: 4 }}>{refundMsg}</p>
+            )}
             {order.refund_amount && order.odoo_move_id && (
               <p style={{ color: 'var(--accent)', fontSize: '0.82rem', marginTop: 4 }}>
                 ⚠ La facture Odoo existe déjà : le remboursement n&apos;y figure pas — ajuste-la
@@ -405,6 +428,24 @@ export default function OrderSheet({
             />
           </div>
         </div>
+
+        {!stampsEnabled && order.shipping_method && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              marginTop: 14,
+              padding: '8px 12px',
+              border: '1px solid var(--accent)',
+              background: 'var(--accent-soft)',
+              borderRadius: 'var(--radius)'
+            }}
+          >
+            📮 Mode d&apos;envoi choisi par le client :{' '}
+            <b style={{ fontSize: '1.02rem' }}>{order.shipping_method}</b>
+          </div>
+        )}
 
         {stampsEnabled && (
         <div

@@ -34,13 +34,22 @@ export function lineFacts(line: OrderLine): CardFacts {
 
 export function buildPickingList(): PickingList {
   const db = getDb()
+  // Option « garder visibles les commandes terminées » : les commandes en
+  // statut picked restent affichées (✅) jusqu'à leur passage en « préparée ».
+  const keepDone =
+    (
+      db.prepare("SELECT value FROM settings WHERE key = 'picking_keep_done'").get() as
+        | { value: string }
+        | undefined
+    )?.value === '1'
+  const statuses = keepDone ? "('imported', 'picking', 'picked')" : "('imported', 'picking')"
   const lines = db
     .prepare(
       `SELECT l.*, o.sale_id, o.buyer_username, u.name AS picked_by_name
        FROM order_lines l
        JOIN orders o ON o.id = l.order_id
        LEFT JOIN users u ON u.id = l.picked_by
-       WHERE o.status IN ('imported', 'picking')
+       WHERE o.status IN ${statuses}
        ORDER BY l.id`
     )
     .all() as LineRow[]
