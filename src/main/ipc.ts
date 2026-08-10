@@ -280,6 +280,12 @@ export function registerIpc(): void {
     return dir
   })
 
+  // --- Grammage Cardmarket : récupération à la demande (fiche ouverte) ---------------
+  ipcMain.handle('orders:refreshShipping', async (_e, orderId: number) => {
+    const { enrichShippingFromCm } = await import('./cmshipping')
+    return enrichShippingFromCm(orderId).catch(() => false)
+  })
+
   // --- Réglages génériques (table settings, clé/valeur) -----------------------------
   ipcMain.handle('settings:get', (_e, key: string) => {
     const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as

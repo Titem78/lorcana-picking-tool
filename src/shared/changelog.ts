@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.25.0',
+    title: 'Recommandation Cardmarket complète',
+    items: [
+      'Fiche de commande : « Recommandation Cardmarket : Lettre Verte Suivi (max. 100g) » — dénomination exacte, badge AVEC/sans suivi, grammage demandé',
+      'Le grammage n’est pas dans le PDF de vente : l’app va le lire automatiquement sur la page de la vente (session connectée, lecture seule) — à l’import, au démarrage pour les commandes en cours, et à l’ouverture d’une fiche',
+      'L’alerte rouge compare l’estimation au grammage demandé par Cardmarket'
+    ]
+  },
+  {
     version: '2.24.0',
     title: 'Le grammage des envois',
     items: [

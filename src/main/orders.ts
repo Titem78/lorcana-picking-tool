@@ -143,6 +143,11 @@ export async function persistParsedOrder(
         return orderId
       })
       const orderId = insertAll()
+      // Grammage Cardmarket (« max. NNg ») absent du PDF : récupéré depuis la
+      // page de la vente EN ARRIÈRE-PLAN (jamais dans le chemin d'import).
+      import('./cmshipping')
+        .then((m) => m.enrichShippingFromCm(orderId))
+        .catch(() => {})
       // Miroir de stock : décrémente les articles vendus (meilleure estimation)
       try {
         const { decrementForSale } = await import('./stock')

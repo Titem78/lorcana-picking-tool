@@ -128,6 +128,11 @@ app.whenReady().then(() => {
 
   // Index des scans français (LorCards) : construction/rafraîchissement en
   // arrière-plan, puis rattrapage des visuels FR sur les commandes existantes.
+  // Grammage Cardmarket des commandes actives (page de vente, lecture seule)
+  setTimeout(() => {
+    import('./cmshipping').then((m) => m.backfillShipping().catch(() => {}))
+  }, 20_000)
+
   setTimeout(() => {
     // Répare d'abord les numéros restés collés aux noms, puis les visuels FR
     repairNumbersInNames()

@@ -55,6 +55,13 @@ export default function OrderSheet({
 
   useEffect(() => {
     loadWeightSettings().then(setWeightCfg)
+    // Grammage Cardmarket manquant (import PDF) : on va le lire sur la page de
+    // la vente via la session connectée, puis on rafraîchit la fiche.
+    if (!cmMaxGrams(initial.shipping_method)) {
+      window.api.orders.refreshShipping(initial.id).then((ok: boolean) => {
+        if (ok) reload()
+      })
+    }
     window.api.odoo.getConfig().then((c: { url: string } | null) => setOdooUrl(c?.url ?? null))
     window.api.stamps.enabled().then((on: boolean) => {
       setStampsEnabled(on)
@@ -449,8 +456,8 @@ export default function OrderSheet({
         </div>
 
         {(() => {
-          // Grammage : recommandation Cardmarket (« (max. 100g) » de la
-          // méthode d'envoi) + estimation locale à partir des lignes.
+          // Grammage : recommandation Cardmarket telle quelle (dénomination
+          // complète + « (max. NNg) » lu sur la page de la vente) + estimation.
           const cardQty = lines
             .filter((l) => /arte/i.test(l.section ?? ''))
             .reduce((s, l) => s + l.quantity, 0)
@@ -459,6 +466,7 @@ export default function OrderSheet({
             .reduce((s, l) => s + l.quantity, 0)
           const est = estimateWeight(cardQty, weightCfg)
           const cmMax = cmMaxGrams(order.shipping_method)
+          const tracked = /suivi|tracked/i.test(order.shipping_method ?? '')
           const over = cmMax != null && est.grams > cmMax
           if (!order.shipping_method && lines.length === 0) return null
           return (
@@ -475,13 +483,23 @@ export default function OrderSheet({
               }}
             >
               <span>
-                📮 Envoi : <b style={{ fontSize: '1.02rem' }}>{order.shipping_method ?? '—'}</b>
-                {cmMax != null && (
-                  <>
+                📮 Recommandation Cardmarket :{' '}
+                <b style={{ fontSize: '1.05rem' }}>{order.shipping_method ?? '—'}</b>{' '}
+                <span
+                  className="badge"
+                  style={
+                    tracked
+                      ? { borderColor: 'var(--ok)', color: 'var(--ok)', fontWeight: 700 }
+                      : { fontWeight: 700 }
+                  }
+                >
+                  {tracked ? '✅ AVEC suivi' : '✉ sans suivi'}
+                </span>
+                {cmMax == null && (
+                  <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
                     {' '}
-                    — Cardmarket recommande d&apos;affranchir{' '}
-                    <b style={{ fontSize: '1.02rem' }}>{cmMax} g</b>
-                  </>
+                    (grammage en cours de récupération sur la page de la vente…)
+                  </span>
                 )}
               </span>
               <span style={{ fontSize: '0.9rem', color: over ? 'var(--danger)' : 'var(--text-dim)' }}>
@@ -489,7 +507,7 @@ export default function OrderSheet({
                 ({cardQty} carte(s) × {weightCfg.card_g} g + enveloppe {weightCfg.envelope_g} g
                 {accQty > 0 ? ` — ⚠ hors ${accQty} accessoire(s), à peser` : ''}) → tranche{' '}
                 <b style={{ color: over ? 'var(--danger)' : 'var(--text)' }}>{est.bracket}</b>
-                {over && ` — ⚠ dépasse le max. ${cmMax} g de la méthode !`}
+                {over && ` — ⚠ dépasse le max. ${cmMax} g demandé par Cardmarket !`}
               </span>
             </div>
           )

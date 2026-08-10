@@ -47,6 +47,7 @@ const api = {
     setRefund: (userId: number, orderId: number, amount: string, reason: string) =>
       ipcRenderer.invoke('orders:setRefund', userId, orderId, amount, reason),
     remove: (userId: number, orderId: number) => ipcRenderer.invoke('orders:delete', userId, orderId),
+    refreshShipping: (orderId: number) => ipcRenderer.invoke('orders:refreshShipping', orderId),
     stats: () => ipcRenderer.invoke('orders:stats')
   },
 
