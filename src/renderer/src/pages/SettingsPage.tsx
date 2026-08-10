@@ -733,6 +733,64 @@ function PickingOptions({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/** Calibrage du poids estimé des commandes (demande de Laure : le grammage). */
+function WeightOptions({ user }: { user: User }): React.JSX.Element {
+  const [env, setEnv] = useState('')
+  const [card, setCard] = useState('')
+
+  useEffect(() => {
+    window.api.settings.get('ship_envelope_g').then((v: string | null) => setEnv(v ?? '15'))
+    window.api.settings.get('ship_card_g').then((v: string | null) => setCard(v ?? '3'))
+  }, [])
+
+  const save = (key: string, value: string): void => {
+    if (parseFloat(value) > 0) window.api.settings.set(user.id, key, value)
+  }
+
+  const example = Math.round((parseFloat(env) || 15) + 32 * (parseFloat(card) || 3))
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>⚖ Grammage des envois</h2>
+      <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+          Enveloppe (g){' '}
+          <input
+            type="number"
+            min={1}
+            value={env}
+            style={{ width: 70 }}
+            onChange={(e) => {
+              setEnv(e.target.value)
+              save('ship_envelope_g', e.target.value)
+            }}
+          />
+        </label>
+        <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+          Par carte, sleeve comprise (g){' '}
+          <input
+            type="number"
+            min={0.5}
+            step={0.5}
+            value={card}
+            style={{ width: 70 }}
+            onChange={(e) => {
+              setCard(e.target.value)
+              save('ship_card_g', e.target.value)
+            }}
+          />
+        </label>
+      </div>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 6, maxWidth: 620 }}>
+        Sert au « ⚖ Poids estimé » affiché sur les commandes, à côté de la recommandation
+        Cardmarket (le « max. 100g » de la méthode d&apos;envoi). Exemple avec ces valeurs :
+        une commande de 32 cartes ≈ <b>{example} g</b>. Pèse une vraie enveloppe prête à partir
+        pour calibrer précisément.
+      </p>
+    </section>
+  )
+}
+
 export default function SettingsPage({ user }: { user: User }): React.JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -820,6 +878,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
       </section>
 
       <PickingOptions user={user} />
+
+      <WeightOptions user={user} />
 
       <ChangelogSection />
       </>

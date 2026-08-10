@@ -3,6 +3,7 @@ import type { Order, OrderLine, User } from '@shared/types'
 import { trackingInfo } from '@shared/tracking'
 import { STATUS_LABELS, statusColor } from '@/lib/status'
 import { confirmDialog } from '@/lib/dialogs'
+import { cmMaxGrams, DEFAULT_WEIGHT, estimateWeight, loadWeightSettings, type WeightSettings } from '@/lib/weight'
 import CardThumb from '@/components/CardThumb'
 import StampPrint from '@/components/StampPrint'
 
@@ -50,7 +51,10 @@ export default function OrderSheet({
   const [odooMsg, setOdooMsg] = useState('')
   const odooConfigured = odooUrl !== null
 
+  const [weightCfg, setWeightCfg] = useState<WeightSettings>(DEFAULT_WEIGHT)
+
   useEffect(() => {
+    loadWeightSettings().then(setWeightCfg)
     window.api.odoo.getConfig().then((c: { url: string } | null) => setOdooUrl(c?.url ?? null))
     window.api.stamps.enabled().then((on: boolean) => {
       setStampsEnabled(on)
@@ -444,23 +448,52 @@ export default function OrderSheet({
           </div>
         </div>
 
-        {!stampsEnabled && order.shipping_method && (
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              marginTop: 14,
-              padding: '8px 12px',
-              border: '1px solid var(--accent)',
-              background: 'var(--accent-soft)',
-              borderRadius: 'var(--radius)'
-            }}
-          >
-            📮 Mode d&apos;envoi choisi par le client :{' '}
-            <b style={{ fontSize: '1.02rem' }}>{order.shipping_method}</b>
-          </div>
-        )}
+        {(() => {
+          // Grammage : recommandation Cardmarket (« (max. 100g) » de la
+          // méthode d'envoi) + estimation locale à partir des lignes.
+          const cardQty = lines
+            .filter((l) => /arte/i.test(l.section ?? ''))
+            .reduce((s, l) => s + l.quantity, 0)
+          const accQty = lines
+            .filter((l) => !/arte/i.test(l.section ?? ''))
+            .reduce((s, l) => s + l.quantity, 0)
+          const est = estimateWeight(cardQty, weightCfg)
+          const cmMax = cmMaxGrams(order.shipping_method)
+          const over = cmMax != null && est.grams > cmMax
+          if (!order.shipping_method && lines.length === 0) return null
+          return (
+            <div
+              style={{
+                marginTop: 14,
+                padding: '8px 12px',
+                border: `1px solid ${over ? 'var(--danger)' : 'var(--accent)'}`,
+                background: 'var(--accent-soft)',
+                borderRadius: 'var(--radius)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4
+              }}
+            >
+              <span>
+                📮 Envoi : <b style={{ fontSize: '1.02rem' }}>{order.shipping_method ?? '—'}</b>
+                {cmMax != null && (
+                  <>
+                    {' '}
+                    — Cardmarket recommande d&apos;affranchir{' '}
+                    <b style={{ fontSize: '1.02rem' }}>{cmMax} g</b>
+                  </>
+                )}
+              </span>
+              <span style={{ fontSize: '0.9rem', color: over ? 'var(--danger)' : 'var(--text-dim)' }}>
+                ⚖ Poids estimé ≈ <b style={{ color: 'var(--text)' }}>{est.grams} g</b>{' '}
+                ({cardQty} carte(s) × {weightCfg.card_g} g + enveloppe {weightCfg.envelope_g} g
+                {accQty > 0 ? ` — ⚠ hors ${accQty} accessoire(s), à peser` : ''}) → tranche{' '}
+                <b style={{ color: over ? 'var(--danger)' : 'var(--text)' }}>{est.bracket}</b>
+                {over && ` — ⚠ dépasse le max. ${cmMax} g de la méthode !`}
+              </span>
+            </div>
+          )
+        })()}
 
         {stampsEnabled && (
         <div

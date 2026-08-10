@@ -3,6 +3,7 @@ import type { Order, User } from '@shared/types'
 import { trackingInfo } from '@shared/tracking'
 import OrderSheet from '@/components/OrderSheet'
 import BatchStampPrint from '@/components/BatchStampPrint'
+import { DEFAULT_WEIGHT, estimateWeight, loadWeightSettings, type WeightSettings } from '@/lib/weight'
 
 /**
  * Onglet Préparation : la suite logique du picking.
@@ -14,9 +15,11 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   const [detail, setDetail] = useState<Order | null>(null)
   const [batchPrint, setBatchPrint] = useState(false)
   const [stampsEnabled, setStampsEnabled] = useState(false)
+  const [weightCfg, setWeightCfg] = useState<WeightSettings>(DEFAULT_WEIGHT)
 
   useEffect(() => {
     window.api.stamps.enabled().then(setStampsEnabled)
+    loadWeightSettings().then(setWeightCfg)
   }, [])
 
   const refresh = (): void => {
@@ -59,6 +62,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
           orders={toPrepare}
           user={user}
           accent="#58a6d3"
+          weightCfg={weightCfg}
           onOpen={setDetail}
           onChanged={refresh}
         />
@@ -68,6 +72,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
           orders={toShip}
           user={user}
           accent="var(--ok)"
+          weightCfg={weightCfg}
           onOpen={setDetail}
           onChanged={refresh}
         />
@@ -130,6 +135,7 @@ function PrepColumn({
   orders,
   user,
   accent,
+  weightCfg,
   onOpen,
   onChanged
 }: {
@@ -138,6 +144,7 @@ function PrepColumn({
   orders: Order[]
   user: User
   accent: string
+  weightCfg: WeightSettings
   onOpen: (o: Order) => void
   onChanged: () => void
 }): React.JSX.Element {
@@ -180,7 +187,10 @@ function PrepColumn({
                   <span style={{ color: 'var(--text-dim)' }}> — vente #{o.sale_id}</span>
                   <div style={{ color: 'var(--text-dim)', fontSize: '0.87rem', marginTop: 3 }}>
                     {o.article_count} article(s) · {o.total} · 📮{' '}
-                    <b style={{ color: 'var(--text)' }}>{o.shipping_method ?? '—'}</b>
+                    <b style={{ color: 'var(--text)' }}>{o.shipping_method ?? '—'}</b> · ⚖ ≈{' '}
+                    <b style={{ color: 'var(--text)' }}>
+                      {estimateWeight(o.article_count ?? 0, weightCfg).grams} g
+                    </b>
                     {o.status === 'prepared' && o.prepared_by_name && (
                       <> · préparée par {o.prepared_by_name}</>
                     )}

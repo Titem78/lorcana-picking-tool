@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.24.0',
+    title: 'Le grammage des envois',
+    items: [
+      'Fiche de commande : la recommandation Cardmarket est mise en avant (le « max. 100g » de la méthode d’envoi)',
+      'Poids estimé calculé pour chaque commande (cartes × poids/carte + enveloppe) avec la tranche d’affranchissement 20/100/250/500 g',
+      'Alerte rouge si l’estimation dépasse le max. de la méthode choisie par le client',
+      'Réglages → Général → ⚖ Grammage : calibre le poids de l’enveloppe et des cartes avec ta balance'
+    ]
+  },
+  {
     version: '2.23.0',
     title: 'Générateur enrichi + numéro réparé',
     items: [
