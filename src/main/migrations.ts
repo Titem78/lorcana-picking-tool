@@ -185,5 +185,12 @@ export const MIGRATIONS: string[] = [
     quantity INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
+  `,
+
+  // 011 — suivi demandé par Cardmarket (lu explicitement sur la page de la
+  // vente : « Envoi non suivi » / « Suivi | Trustee Service Oui ») —
+  // 1 = avec suivi, 0 = sans, NULL = pas encore lu
+  `
+  ALTER TABLE orders ADD COLUMN cm_tracked INTEGER;
   `
 ]

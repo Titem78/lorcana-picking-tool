@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.25.1',
+    title: 'Correctif important : suivi et dénomination',
+    items: [
+      '🚨 Correction du bug qui affichait « AVEC suivi » sur des envois NON suivis (la dénomination était polluée par un libellé de la page) — désolé pour les envois sur-affranchis',
+      'Le suivi est maintenant lu explicitement sur la page de la vente (« Envoi non suivi » / « Suivi | Trustee Service ») et affiché AVEC / SANS / à confirmer',
+      'Les commandes déjà polluées sont réparées automatiquement au démarrage'
+    ]
+  },
+  {
     version: '2.25.0',
     title: 'Recommandation Cardmarket complète',
     items: [

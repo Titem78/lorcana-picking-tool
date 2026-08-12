@@ -466,7 +466,16 @@ export default function OrderSheet({
             .reduce((s, l) => s + l.quantity, 0)
           const est = estimateWeight(cardQty, weightCfg)
           const cmMax = cmMaxGrams(order.shipping_method)
-          const tracked = /suivi|tracked/i.test(order.shipping_method ?? '')
+          // Suivi : l'info EXPLICITE lue sur la page de la vente d'abord ;
+          // repli sur le nom (en excluant « non suivi ») ; sinon inconnu.
+          const tracked =
+            order.cm_tracked != null
+              ? order.cm_tracked === 1
+              : /non\s+suivi/i.test(order.shipping_method ?? '')
+                ? false
+                : /suivi|tracked/i.test(order.shipping_method ?? '')
+                  ? true
+                  : null
           const over = cmMax != null && est.grams > cmMax
           if (!order.shipping_method && lines.length === 0) return null
           return (
@@ -488,12 +497,14 @@ export default function OrderSheet({
                 <span
                   className="badge"
                   style={
-                    tracked
+                    tracked === true
                       ? { borderColor: 'var(--ok)', color: 'var(--ok)', fontWeight: 700 }
-                      : { fontWeight: 700 }
+                      : tracked === false
+                        ? { fontWeight: 700 }
+                        : { color: 'var(--text-dim)' }
                   }
                 >
-                  {tracked ? '✅ AVEC suivi' : '✉ sans suivi'}
+                  {tracked === true ? '✅ AVEC suivi' : tracked === false ? '✉ SANS suivi' : 'suivi : à confirmer'}
                 </span>
                 {cmMax == null && (
                   <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>

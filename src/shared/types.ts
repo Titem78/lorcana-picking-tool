@@ -90,6 +90,7 @@ export interface Order {
   stamp_number: string | null // n° du timbre La Poste affecté (SD)
   refund_amount: string | null // remboursement (ex. frais de port), « 3,44 EUR »
   refund_reason: string | null
+  cm_tracked: number | null // suivi demandé par CM (1/0), lu sur la page de la vente
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null
