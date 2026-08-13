@@ -109,6 +109,31 @@ export interface ConfirmShipResult {
   message: string
 }
 
+async function fetchOrderPage(saleId: string): Promise<string | null> {
+  const ses = session.fromPartition('persist:cardmarket')
+  const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana/Orders/${saleId}`, {
+    headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
+  })
+  return r.ok ? r.text() : null
+}
+
+/** Vérifie à la demande si la vente est marquée « envoyée » côté Cardmarket. */
+export async function checkShipmentStatus(
+  orderId: number
+): Promise<{ status: 'sent' | 'pending' | 'error'; message: string }> {
+  const row = getDb()
+    .prepare('SELECT sale_id FROM orders WHERE id = ?')
+    .get(orderId) as { sale_id: string } | undefined
+  if (!row) return { status: 'error', message: 'Commande introuvable' }
+  const html = await fetchOrderPage(row.sale_id).catch(() => null)
+  if (!html) {
+    return { status: 'error', message: '❌ Page de la vente inaccessible — es-tu connecté à Cardmarket ?' }
+  }
+  return hasConfirmForm(html)
+    ? { status: 'pending', message: '⚠ Sur Cardmarket, cette vente n’est PAS encore marquée envoyée' }
+    : { status: 'sent', message: '✔ Sur Cardmarket, cette vente est bien marquée envoyée' }
+}
+
 export async function confirmShipmentOnCm(
   userId: number,
   orderId: number
@@ -121,12 +146,7 @@ export async function confirmShipmentOnCm(
 
   const ses = session.fromPartition('persist:cardmarket')
   const pageUrl = `https://www.cardmarket.com/fr/Lorcana/Orders/${row.sale_id}`
-  const getPage = async (): Promise<string | null> => {
-    const r = await ses.fetch(pageUrl, {
-      headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
-    })
-    return r.ok ? r.text() : null
-  }
+  const getPage = (): Promise<string | null> => fetchOrderPage(row.sale_id)
 
   let html = await getPage()
   if (!html) return { ok: false, message: '❌ Page de la vente inaccessible — es-tu connecté à Cardmarket ?' }

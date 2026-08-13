@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.27.0',
+    title: 'Contrôle Cardmarket à la demande',
+    items: [
+      'Fiche de commande (préparée, expédiée ou archivée) : bouton « 🔍 Vérifier le statut » — l’app te dit si la vente est réellement marquée envoyée sur Cardmarket',
+      'Si elle ne l’est pas : bouton « 📮 Envoyer suivi + valider l’expédition » pour le faire en un clic, même si l’option automatique n’était pas cochée'
+    ]
+  },
+  {
     version: '2.26.1',
     title: 'Garde-fous sur les requêtes Cardmarket',
     items: [

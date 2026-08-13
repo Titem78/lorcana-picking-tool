@@ -295,6 +295,10 @@ export function registerIpc(): void {
     const { isAutoConfirmEnabled } = await import('./cmshipping')
     return isAutoConfirmEnabled()
   })
+  ipcMain.handle('cm:shipmentStatus', async (_e, orderId: number) => {
+    const { checkShipmentStatus } = await import('./cmshipping')
+    return checkShipmentStatus(orderId)
+  })
 
   // --- Réglages génériques (table settings, clé/valeur) -----------------------------
   ipcMain.handle('settings:get', (_e, key: string) => {

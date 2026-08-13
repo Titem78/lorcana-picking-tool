@@ -139,6 +139,33 @@ export default function OrderSheet({
   }, [initial.id])
 
   const [shipMsg, setShipMsg] = useState('')
+  const [cmPending, setCmPending] = useState(false)
+
+  // Vérification à la demande du statut réel de la vente sur Cardmarket,
+  // et validation manuelle si elle n'y est pas encore marquée envoyée
+  // (indépendant de l'option automatique — utile si on a oublié de l'activer).
+  const checkCmStatus = (): void => {
+    setShipMsg('Vérification du statut sur Cardmarket…')
+    setCmPending(false)
+    window.api.cm
+      .shipmentStatus(order.id)
+      .then((r: { status: string; message: string }) => {
+        setShipMsg(r.message)
+        setCmPending(r.status === 'pending')
+      })
+      .catch((err: Error) => setShipMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
+
+  const manualCmConfirm = (): void => {
+    setShipMsg('Dépôt du suivi et validation de l’envoi sur Cardmarket…')
+    window.api.cm
+      .confirmShipment(user.id, order.id)
+      .then((r: { ok: boolean; message: string }) => {
+        setShipMsg(r.message)
+        if (r.ok) setCmPending(false)
+      })
+      .catch((err: Error) => setShipMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
 
   const advance = (status: 'prepared' | 'shipped' | 'archived'): void => {
     window.api.orders.setStatus(user.id, order.id, status).then(() => {
@@ -632,7 +659,38 @@ export default function OrderSheet({
           </div>
         )}
 
-        {shipMsg && (
+        {['prepared', 'shipped', 'archived'].includes(order.status) && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              marginTop: 14,
+              padding: '8px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              flexWrap: 'wrap'
+            }}
+          >
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Cardmarket :</span>
+            <button onClick={checkCmStatus}>🔍 Vérifier le statut</button>
+            {cmPending && (
+              <button className="primary" onClick={manualCmConfirm}>
+                📮 Envoyer suivi + valider l&apos;expédition
+              </button>
+            )}
+            <span
+              style={{
+                flex: 1,
+                color: shipMsg.startsWith('✔') ? 'var(--ok)' : shipMsg.startsWith('⚠') || shipMsg.startsWith('❌') ? 'var(--danger)' : 'var(--text-dim)',
+                fontSize: '0.88rem'
+              }}
+            >
+              {shipMsg}
+            </span>
+          </div>
+        )}
+        {shipMsg && !['prepared', 'shipped', 'archived'].includes(order.status) && (
           <p style={{ color: shipMsg.startsWith('✔') ? 'var(--ok)' : 'var(--text-dim)', fontSize: '0.88rem', marginTop: 10, textAlign: 'right' }}>
             {shipMsg}
           </p>
