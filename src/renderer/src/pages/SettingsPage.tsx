@@ -733,6 +733,45 @@ function PickingOptions({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/**
+ * Validation d'envoi sur Cardmarket (opt-in) : la SEULE action où l'app écrit
+ * sur Cardmarket, déclenchée uniquement par le clic « Marquer expédiée ».
+ */
+function CmConfirmOptions({ user }: { user: User }): React.JSX.Element {
+  const [on, setOn] = useState(false)
+
+  useEffect(() => {
+    window.api.settings.get('cm_confirm_on_ship').then((v: string | null) => setOn(v === '1'))
+  }, [])
+
+  const toggle = (v: boolean): void => {
+    setOn(v)
+    window.api.settings.set(user.id, 'cm_confirm_on_ship', v ? '1' : '0')
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>📮 Validation des envois sur Cardmarket</h2>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => toggle(e.target.checked)}
+          style={{ width: 20, height: 20 }}
+        />
+        Quand une commande est marquée expédiée, valider aussi l&apos;envoi sur Cardmarket
+      </label>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 6, maxWidth: 640 }}>
+        Concrètement : le n° de suivi saisi dans la fiche est déposé sur la vente
+        (« Fournir numéro de suivi »), puis l&apos;envoi est confirmé — exactement les deux
+        gestes que tu ferais sur la page Cardmarket, une commande à la fois, jamais en masse.
+        Le résultat est vérifié et affiché après chaque envoi. Nécessite d&apos;être connecté
+        à Cardmarket dans l&apos;onglet 🌐.
+      </p>
+    </section>
+  )
+}
+
 /** Calibrage du poids estimé des commandes (demande de Laure : le grammage). */
 function WeightOptions({ user }: { user: User }): React.JSX.Element {
   const [env, setEnv] = useState('')
@@ -1039,6 +1078,7 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
         <>
           <WatcherSection user={user} />
           <CmCredsSection user={user} />
+          <CmConfirmOptions user={user} />
         </>
       )}
 

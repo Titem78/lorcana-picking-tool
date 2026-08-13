@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.26.0',
+    title: 'Validation des envois sur Cardmarket',
+    items: [
+      'Nouvelle option (Réglages → Import & Cardmarket, désactivée par défaut) : quand tu cliques « Marquer expédiée », l’app dépose le n° de suivi sur la vente Cardmarket et confirme l’envoi',
+      'Sans n° de suivi (envoi non suivi), l’envoi est confirmé directement — plus besoin de retrouver la vente sur Cardmarket',
+      'Le résultat est vérifié sur la page après coup et affiché ; chaque validation est tracée dans le journal'
+    ]
+  },
+  {
     version: '2.25.2',
     title: 'Réparation à l’ouverture de la fiche',
     items: [

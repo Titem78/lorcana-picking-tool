@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ session: { fromPartition: () => ({}) } }))
 
-import { parseShippingFromHtml } from '../src/main/cmshipping'
+import { hasConfirmForm, parseCmToken, parseShippingFromHtml } from '../src/main/cmshipping'
+
+// Formulaires RÉELS du dump cm-page-debug (vente #1293615602, 2026-08-12)
+const FORMS_REELS = `
+<form method="POST" action="/fr/Lorcana/PostGetAction/Shipment_ConfirmShipment" data-confirmation-message="Confirmer l'envoi de cette commande?" onsubmit="return Form.confirmSubmit(this);" class="w-100"><input type="hidden" name="__cmtkn" value="1dba472566263b0428e9dc9930d836596b131fe06d26692e260897e7f2d8f95d" autocomplete="off"><input type="hidden" name="idShipment" value="1293615602"><div class="d-grid"><input type="submit" value="Confirmer l'envoi" class="btn btn-primary my-2 btn-sm"></div></form>
+<form method="POST" action="/fr/Lorcana/PostGetAction/Shipment_SetTrackingNumber"><input type="hidden" name="__cmtkn" value="1dba472566263b0428e9dc9930d836596b131fe06d26692e260897e7f2d8f95d" autocomplete="off"><input type="hidden" name="idShipment" value="1293615602"><input type="text" name="trackingNumber" maxlength="40" required="" class="form-control form-control-sm"><input type="submit" value="Fournir numéro de suivi" class="btn my-2 btn-sm btn-outline-primary"></form>
+`
 
 // Reproduit la page d'une vente NON suivie, AVEC le panneau « Créer un
 // modèle » qui contient le libellé piège « Méthode d'envoi & Numéro de
@@ -48,5 +54,22 @@ describe('parseShippingFromHtml', () => {
 
   it('renvoie null si la page ne contient pas le bloc', () => {
     expect(parseShippingFromHtml('<html><body>rien ici</body></html>')).toBeNull()
+  })
+})
+
+describe('validation d’envoi (formulaires réels du dump)', () => {
+  it('extrait le jeton __cmtkn', () => {
+    expect(parseCmToken(FORMS_REELS)).toBe(
+      '1dba472566263b0428e9dc9930d836596b131fe06d26692e260897e7f2d8f95d'
+    )
+  })
+
+  it('détecte le formulaire « Confirmer l’envoi » (commande pas encore envoyée)', () => {
+    expect(hasConfirmForm(FORMS_REELS)).toBe(true)
+  })
+
+  it('ne détecte plus le formulaire une fois la commande envoyée', () => {
+    expect(hasConfirmForm('<div>Envoyée: 12.08.2026</div>')).toBe(false)
+    expect(parseCmToken('<div>pas de formulaire</div>')).toBeNull()
   })
 })

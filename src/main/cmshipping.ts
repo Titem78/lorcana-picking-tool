@@ -11,7 +11,7 @@
 // traverser un autre libellé, et suivi lu EXPLICITEMENT sur la page.
 
 import { session } from 'electron'
-import { getDb } from './db'
+import { getDb, logActivity } from './db'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
@@ -86,6 +86,110 @@ export async function enrichShippingFromCm(orderId: number): Promise<boolean> {
     orderId
   )
   return true
+}
+
+// --- Validation d'envoi sur Cardmarket (SEULE écriture de l'app, opt-in) ----------
+// Demande explicite de l'utilisateur (2026-08-12) : au clic « Marquer
+// expédiée », déposer le n° de suivi (formulaire Shipment_SetTrackingNumber)
+// puis confirmer l'envoi (Shipment_ConfirmShipment) — calibré sur le dump réel
+// d'une page de vente. Action 1-pour-1 avec un clic humain, jamais en masse.
+
+/** Jeton anti-CSRF de la page (« __cmtkn »). Exporté pour les tests. */
+export function parseCmToken(html: string): string | null {
+  return html.match(/name="__cmtkn"\s+value="([0-9a-f]+)"/i)?.[1] ?? null
+}
+
+/** Le formulaire « Confirmer l'envoi » est-il encore présent (= pas envoyée) ? */
+export function hasConfirmForm(html: string): boolean {
+  return /Shipment_ConfirmShipment/.test(html)
+}
+
+export interface ConfirmShipResult {
+  ok: boolean
+  message: string
+}
+
+export async function confirmShipmentOnCm(
+  userId: number,
+  orderId: number
+): Promise<ConfirmShipResult> {
+  const db = getDb()
+  const row = db
+    .prepare('SELECT sale_id, tracking_number FROM orders WHERE id = ?')
+    .get(orderId) as { sale_id: string; tracking_number: string | null } | undefined
+  if (!row) return { ok: false, message: 'Commande introuvable' }
+
+  const ses = session.fromPartition('persist:cardmarket')
+  const pageUrl = `https://www.cardmarket.com/fr/Lorcana/Orders/${row.sale_id}`
+  const getPage = async (): Promise<string | null> => {
+    const r = await ses.fetch(pageUrl, {
+      headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
+    })
+    return r.ok ? r.text() : null
+  }
+
+  let html = await getPage()
+  if (!html) return { ok: false, message: '❌ Page de la vente inaccessible — es-tu connecté à Cardmarket ?' }
+  if (!hasConfirmForm(html)) {
+    return { ok: true, message: '✔ Envoi déjà confirmé sur Cardmarket' }
+  }
+  const token = parseCmToken(html)
+  if (!token) return { ok: false, message: '❌ Jeton de formulaire introuvable — envoie-moi un dump 🐞 de la page' }
+
+  const post = async (action: string, fields: Record<string, string>): Promise<boolean> => {
+    const body = new URLSearchParams({ __cmtkn: token, idShipment: row.sale_id, ...fields })
+    const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana/PostGetAction/${action}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'User-Agent': UA,
+        Referer: pageUrl,
+        Origin: 'https://www.cardmarket.com',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    })
+    return r.ok
+  }
+
+  const tracking = (row.tracking_number ?? '').trim()
+  if (tracking) {
+    const ok = await post('Shipment_SetTrackingNumber', { trackingNumber: tracking }).catch(() => false)
+    if (!ok) return { ok: false, message: '❌ Échec du dépôt du n° de suivi sur Cardmarket' }
+  }
+
+  // Le dépôt du n° peut suffire à valider l'envoi : on relit la page,
+  // et on ne confirme explicitement que si ce n'est pas déjà fait.
+  html = await getPage()
+  if (html == null || hasConfirmForm(html)) {
+    const ok = await post('Shipment_ConfirmShipment', {}).catch(() => false)
+    if (!ok) return { ok: false, message: '❌ Échec de la confirmation d’envoi sur Cardmarket' }
+    html = await getPage()
+  }
+
+  const verified = html != null && !hasConfirmForm(html)
+  logActivity(userId, 'cm.shipment_confirmed', {
+    orderId,
+    sale_id: row.sale_id,
+    tracking: tracking || null,
+    verified
+  })
+  return verified
+    ? {
+        ok: true,
+        message: tracking
+          ? `✔ Envoi confirmé sur Cardmarket, n° de suivi ${tracking} déposé`
+          : '✔ Envoi confirmé sur Cardmarket'
+      }
+    : { ok: false, message: '⚠ Confirmation non vérifiée — contrôle la vente sur Cardmarket' }
+}
+
+/** L'option « valider les envois sur Cardmarket » est-elle activée ? (opt-in) */
+export function isAutoConfirmEnabled(): boolean {
+  const r = getDb()
+    .prepare("SELECT value FROM settings WHERE key = 'cm_confirm_on_ship'")
+    .get() as { value: string } | undefined
+  return r?.value === '1'
 }
 
 /**

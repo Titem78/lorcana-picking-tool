@@ -286,6 +286,16 @@ export function registerIpc(): void {
     return enrichShippingFromCm(orderId).catch(() => false)
   })
 
+  // --- Validation d'envoi sur Cardmarket (opt-in, au clic « Marquer expédiée ») ------
+  ipcMain.handle('cm:confirmShipment', async (_e, userId: number, orderId: number) => {
+    const { confirmShipmentOnCm } = await import('./cmshipping')
+    return confirmShipmentOnCm(userId, orderId)
+  })
+  ipcMain.handle('cm:autoConfirmEnabled', async () => {
+    const { isAutoConfirmEnabled } = await import('./cmshipping')
+    return isAutoConfirmEnabled()
+  })
+
   // --- Réglages génériques (table settings, clé/valeur) -----------------------------
   ipcMain.handle('settings:get', (_e, key: string) => {
     const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as

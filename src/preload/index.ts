@@ -120,6 +120,9 @@ const api = {
 
   cm: {
     openWindow: (url?: string) => ipcRenderer.invoke('cm:openWindow', url),
+    confirmShipment: (userId: number, orderId: number) =>
+      ipcRenderer.invoke('cm:confirmShipment', userId, orderId),
+    autoConfirmEnabled: () => ipcRenderer.invoke('cm:autoConfirmEnabled'),
     saveCreds: (userId: number, username: string, password: string) =>
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),
     clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),

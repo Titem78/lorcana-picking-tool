@@ -16,11 +16,27 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
   const [batchPrint, setBatchPrint] = useState(false)
   const [stampsEnabled, setStampsEnabled] = useState(false)
   const [weightCfg, setWeightCfg] = useState<WeightSettings>(DEFAULT_WEIGHT)
+  const [cmMsg, setCmMsg] = useState('')
 
   useEffect(() => {
     window.api.stamps.enabled().then(setStampsEnabled)
     loadWeightSettings().then(setWeightCfg)
   }, [])
+
+  // Marquer expédiée + option : valider aussi l'envoi sur Cardmarket
+  const markShipped = (orderId: number, saleId: string): void => {
+    window.api.orders.setStatus(user.id, orderId, 'shipped').then(() => {
+      refresh()
+      window.api.cm.autoConfirmEnabled().then((on: boolean) => {
+        if (!on) return
+        setCmMsg(`Vente #${saleId} : validation de l’envoi sur Cardmarket…`)
+        window.api.cm
+          .confirmShipment(user.id, orderId)
+          .then((r: { ok: boolean; message: string }) => setCmMsg(`Vente #${saleId} : ${r.message}`))
+          .catch((err: Error) => setCmMsg(`Vente #${saleId} : ❌ ${err.message.replace(/^.*Error: /, '')}`))
+      })
+    })
+  }
 
   const refresh = (): void => {
     window.api.orders.list(['picked', 'prepared', 'shipped']).then(setOrders)
@@ -54,6 +70,11 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
             🖨 Imprimer les étiquettes ({withStamp.length})
           </button>
         )}
+        {cmMsg && (
+          <span style={{ color: cmMsg.includes('✔') ? 'var(--ok)' : 'var(--text-dim)', fontSize: '0.88rem' }}>
+            {cmMsg}
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <PrepColumn
@@ -65,6 +86,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
           weightCfg={weightCfg}
           onOpen={setDetail}
           onChanged={refresh}
+          onShip={markShipped}
         />
         <PrepColumn
           title={`À expédier (${toShip.length})`}
@@ -75,6 +97,7 @@ export default function PrepPage({ user }: { user: User }): React.JSX.Element {
           weightCfg={weightCfg}
           onOpen={setDetail}
           onChanged={refresh}
+          onShip={markShipped}
         />
         {shipped.length > 0 && (
           <div style={{ flex: 1, minWidth: 300 }}>
@@ -137,7 +160,8 @@ function PrepColumn({
   accent,
   weightCfg,
   onOpen,
-  onChanged
+  onChanged,
+  onShip
 }: {
   title: string
   hint: string
@@ -147,6 +171,7 @@ function PrepColumn({
   weightCfg: WeightSettings
   onOpen: (o: Order) => void
   onChanged: () => void
+  onShip: (orderId: number, saleId: string) => void
 }): React.JSX.Element {
   return (
     <div style={{ flex: 1, minWidth: 340 }}>
@@ -224,11 +249,7 @@ function PrepColumn({
                     <>Pas encore de n° de suivi — ajoute-le dans la fiche.</>
                   )}
                   <span style={{ flex: 1 }} />
-                  <button
-                    onClick={() => window.api.orders.setStatus(user.id, o.id, 'shipped').then(onChanged)}
-                  >
-                    📮 Marquer expédiée
-                  </button>
+                  <button onClick={() => onShip(o.id, o.sale_id)}>📮 Marquer expédiée</button>
                 </div>
               )}
             </div>

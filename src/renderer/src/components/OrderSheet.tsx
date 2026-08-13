@@ -138,8 +138,24 @@ export default function OrderSheet({
     window.api.orders.lines(initial.id).then(setLines)
   }, [initial.id])
 
+  const [shipMsg, setShipMsg] = useState('')
+
   const advance = (status: 'prepared' | 'shipped' | 'archived'): void => {
-    window.api.orders.setStatus(user.id, order.id, status).then(reload)
+    window.api.orders.setStatus(user.id, order.id, status).then(() => {
+      reload()
+      // Option (Réglages → Import & Cardmarket) : valider aussi l'envoi sur
+      // Cardmarket — dépôt du n° de suivi puis confirmation, avec vérification.
+      if (status === 'shipped') {
+        window.api.cm.autoConfirmEnabled().then((on: boolean) => {
+          if (!on) return
+          setShipMsg('Validation de l’envoi sur Cardmarket…')
+          window.api.cm
+            .confirmShipment(user.id, order.id)
+            .then((r: { ok: boolean; message: string }) => setShipMsg(r.message))
+            .catch((err: Error) => setShipMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+        })
+      }
+    })
   }
 
   const saveTracking = (): void => {
@@ -616,6 +632,11 @@ export default function OrderSheet({
           </div>
         )}
 
+        {shipMsg && (
+          <p style={{ color: shipMsg.startsWith('✔') ? 'var(--ok)' : 'var(--text-dim)', fontSize: '0.88rem', marginTop: 10, textAlign: 'right' }}>
+            {shipMsg}
+          </p>
+        )}
         <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
           {user.is_admin === 1 &&
             (deleteArm ? (
