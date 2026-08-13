@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.25.2',
+    title: 'Réparation à l’ouverture de la fiche',
+    items: [
+      'Les commandes polluées par le bug de la v2.25.0 (dont les préparées) se réparent maintenant aussi dès l’ouverture de leur fiche — plus besoin d’attendre le rattrapage du démarrage'
+    ]
+  },
+  {
     version: '2.25.1',
     title: 'Correctif important : suivi et dénomination',
     items: [

@@ -55,9 +55,13 @@ export default function OrderSheet({
 
   useEffect(() => {
     loadWeightSettings().then(setWeightCfg)
-    // Grammage Cardmarket manquant (import PDF) : on va le lire sur la page de
-    // la vente via la session connectée, puis on rafraîchit la fiche.
-    if (!cmMaxGrams(initial.shipping_method)) {
+    // Infos d'envoi manquantes, polluées (bug v2.25.0) ou suivi non confirmé :
+    // on relit la page de la vente via la session connectée, puis on rafraîchit.
+    if (
+      !cmMaxGrams(initial.shipping_method) ||
+      /M[ée]thode|Num[ée]ro/i.test(initial.shipping_method ?? '') ||
+      initial.cm_tracked == null
+    ) {
       window.api.orders.refreshShipping(initial.id).then((ok: boolean) => {
         if (ok) reload()
       })
