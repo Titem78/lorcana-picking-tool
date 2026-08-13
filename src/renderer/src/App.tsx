@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@shared/types'
 import UserGate from './components/UserGate'
+import DashboardPage from './pages/DashboardPage'
 import PickingPage from './pages/PickingPage'
 import PrepPage from './pages/PrepPage'
 import OrdersPage from './pages/OrdersPage'
@@ -14,6 +15,7 @@ import SettingsPage from './pages/SettingsPage'
 // L'ordre des onglets suit le flux de travail réel :
 // importer → picker → préparer/expédier → historique.
 const TABS = [
+  { id: 'dashboard', label: '📊 Tableau de bord' },
   { id: 'cardmarket', label: '🌐 Cardmarket' },
   { id: 'orders', label: '① 📦 Commandes' },
   { id: 'picking', label: '② 🎯 Picking' },
@@ -101,6 +103,7 @@ export default function App(): React.JSX.Element {
         </div>
       </nav>
       <main className="content">
+        {tab === 'dashboard' && <DashboardPage user={user} />}
         {tab === 'cardmarket' && <CardmarketPage user={user} />}
         {tab === 'picking' && <PickingPage user={user} />}
         {tab === 'prep' && <PrepPage user={user} />}

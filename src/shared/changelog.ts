@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.28.0',
+    title: 'Tableau de bord',
+    items: [
+      'Nouvel onglet 📊 : ventes payées à traiter sur Cardmarket (avec celles pas encore importées), messages non lus, solde vendeur — et l’état local (picking / à préparer / à expédier)',
+      'Lecture à la demande uniquement (bouton Actualiser, 2 requêtes) — jamais de rafraîchissement en boucle',
+      'Clique une tuile pour ouvrir la page Cardmarket correspondante ou l’onglet de l’app'
+    ]
+  },
+  {
     version: '2.27.0',
     title: 'Contrôle Cardmarket à la demande',
     items: [

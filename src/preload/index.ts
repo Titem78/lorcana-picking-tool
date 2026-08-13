@@ -124,6 +124,7 @@ const api = {
       ipcRenderer.invoke('cm:confirmShipment', userId, orderId),
     autoConfirmEnabled: () => ipcRenderer.invoke('cm:autoConfirmEnabled'),
     shipmentStatus: (orderId: number) => ipcRenderer.invoke('cm:shipmentStatus', orderId),
+    dashboard: () => ipcRenderer.invoke('cm:dashboard'),
     saveCreds: (userId: number, username: string, password: string) =>
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),
     clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),

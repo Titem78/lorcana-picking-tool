@@ -299,6 +299,10 @@ export function registerIpc(): void {
     const { checkShipmentStatus } = await import('./cmshipping')
     return checkShipmentStatus(orderId)
   })
+  ipcMain.handle('cm:dashboard', async () => {
+    const { fetchCmDashboard } = await import('./cmdashboard')
+    return fetchCmDashboard()
+  })
 
   // --- Réglages génériques (table settings, clé/valeur) -----------------------------
   ipcMain.handle('settings:get', (_e, key: string) => {
