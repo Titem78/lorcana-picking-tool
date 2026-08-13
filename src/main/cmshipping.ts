@@ -193,22 +193,39 @@ export function isAutoConfirmEnabled(): boolean {
 }
 
 /**
- * Rattrapage au démarrage : commandes ACTIVES incomplètes, ET toutes les
- * commandes (même expédiées) polluées par l'ancienne extraction.
+ * Rattrapage au démarrage : commandes ACTIVES incomplètes (moins de 30 jours),
+ * ET commandes polluées par l'ancienne extraction. GARDE-FOUS pour ne jamais
+ * accumuler de requêtes avec le temps :
+ *  - 15 commandes maximum par démarrage ;
+ *  - une commande qui a échoué 3 fois n'est plus JAMAIS retentée en auto ;
+ *  - 3 échecs consécutifs (session sûrement déconnectée) = arrêt de la série.
+ * À jour = zéro requête, quel que soit l'historique.
  */
 export async function backfillShipping(): Promise<number> {
   const db = getDb()
   const rows = db
     .prepare(
       `SELECT id FROM orders
-       WHERE (status IN ('imported', 'picking', 'picked', 'prepared')
-              AND (shipping_method IS NULL OR shipping_method NOT LIKE '%max.%' OR cm_tracked IS NULL))
-          OR shipping_method LIKE '%Méthode%' OR shipping_method LIKE '%Numéro%'`
+       WHERE cm_fetch_attempts < 3
+         AND ((status IN ('imported', 'picking', 'picked', 'prepared')
+               AND imported_at >= datetime('now', 'localtime', '-30 days')
+               AND (shipping_method IS NULL OR shipping_method NOT LIKE '%max.%' OR cm_tracked IS NULL))
+              OR shipping_method LIKE '%Méthode%' OR shipping_method LIKE '%Numéro%')
+       LIMIT 15`
     )
     .all() as { id: number }[]
   let done = 0
+  let consecutiveFailures = 0
   for (const r of rows) {
-    if (await enrichShippingFromCm(r.id).catch(() => false)) done++
+    const ok = await enrichShippingFromCm(r.id).catch(() => false)
+    if (ok) {
+      done++
+      consecutiveFailures = 0
+    } else {
+      db.prepare('UPDATE orders SET cm_fetch_attempts = cm_fetch_attempts + 1 WHERE id = ?').run(r.id)
+      consecutiveFailures++
+      if (consecutiveFailures >= 3) break
+    }
     await new Promise((res) => setTimeout(res, 800))
   }
   return done

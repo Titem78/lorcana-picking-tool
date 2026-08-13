@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.26.1',
+    title: 'Garde-fous sur les requêtes Cardmarket',
+    items: [
+      'Le rattrapage du démarrage est plafonné à 15 commandes, ignore les commandes de plus de 30 jours, abandonne définitivement après 3 échecs par commande, et s’arrête net si la session semble déconnectée',
+      'Les commandes expédiées/archivées ne sont jamais re-consultées : app à jour = zéro requête, même avec des années d’historique'
+    ]
+  },
+  {
     version: '2.26.0',
     title: 'Validation des envois sur Cardmarket',
     items: [

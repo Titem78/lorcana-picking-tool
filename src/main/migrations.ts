@@ -192,5 +192,11 @@ export const MIGRATIONS: string[] = [
   // 1 = avec suivi, 0 = sans, NULL = pas encore lu
   `
   ALTER TABLE orders ADD COLUMN cm_tracked INTEGER;
+  `,
+
+  // 012 — garde-fou : nb d'échecs de lecture de la page de vente ; à 3, on
+  // n'essaie plus jamais automatiquement (l'ouverture manuelle reste possible)
+  `
+  ALTER TABLE orders ADD COLUMN cm_fetch_attempts INTEGER NOT NULL DEFAULT 0;
   `
 ]
