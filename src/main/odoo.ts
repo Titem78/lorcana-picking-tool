@@ -192,6 +192,32 @@ export async function findStatementLines(
   )) as { unique_import_id: string; amount: number; date: string; payment_ref: string }[]
 }
 
+/**
+ * Lignes déjà présentes dans le journal sur une période, en séparant celles
+ * créées par l'outil (unique_import_id cardmarket:…) des saisies manuelles —
+ * ces dernières échappent à l'anti-doublon et signalent un mois déjà saisi.
+ */
+export async function statementLinesInPeriod(
+  dateFrom: string,
+  dateTo: string
+): Promise<{ count: number; total: number; manual: number; manualTotal: number }> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
+  const uid = await authenticate(cfg)
+  const rows = (await execute(
+    cfg,
+    uid,
+    'account.bank.statement.line',
+    'search_read',
+    [[['journal_id', '=', cmtxJournalId()], ['date', '>=', dateFrom], ['date', '<=', dateTo]]],
+    { fields: ['amount', 'unique_import_id'] }
+  )) as { amount: number; unique_import_id: string | false }[]
+  const manual = rows.filter((r) => !r.unique_import_id || !String(r.unique_import_id).startsWith('cardmarket:'))
+  const sum = (xs: { amount: number }[]): number =>
+    Math.round(xs.reduce((s, r) => s + r.amount, 0) * 100) / 100
+  return { count: rows.length, total: sum(rows), manual: manual.length, manualTotal: sum(manual) }
+}
+
 export async function createStatementLines(
   lines: { date: string; payment_ref: string; ref: string; amount: number; unique_import_id: string }[]
 ): Promise<number[]> {

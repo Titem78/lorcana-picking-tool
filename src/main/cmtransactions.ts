@@ -433,6 +433,27 @@ export async function analyser(
     )
   }
 
+  // Mois déjà saisi À LA MAIN dans Odoo ? Ces lignes n'ont pas d'étiquette
+  // unique_import_id : l'anti-doublon ne les voit pas, donc on prévient —
+  // importer par-dessus une saisie manuelle doublerait le journal.
+  try {
+    const { statementLinesInPeriod } = await import('./odoo')
+    const [dFrom, dTo] = bornesDuMois(periode)
+    const dansOdoo = await statementLinesInPeriod(dFrom, dTo)
+    if (dansOdoo.manual > 0) {
+      avertissements.push(
+        `SAISIE MANUELLE : le journal contient déjà ${dansOdoo.manual} ligne(s) sur ${periode} ` +
+          `(total ${dansOdoo.manualTotal.toFixed(2)} EUR) qui ne viennent PAS de l'outil — ` +
+          `ce mois a probablement déjà été saisi à la main dans Odoo. L'anti-doublon ne ` +
+          `reconnaît pas ces lignes : importer créerait des DOUBLONS. Règle : un mois = une ` +
+          `seule méthode — n'importe pas ce mois, ou supprime d'abord la saisie manuelle.`
+      )
+    }
+  } catch {
+    // Odoo injoignable pour ce contrôle : l'analyse continue, les autres
+    // barrières restent actives.
+  }
+
   const { findStatementLines } = await import('./odoo')
   const presentes = await findStatementLines(lignes.map((l) => l.cle))
   const parCle = new Map(presentes.map((p) => [p.unique_import_id, p]))

@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.30.1',
+    title: 'Garde-fou : mois déjà saisi à la main',
+    items: [
+      'Import Odoo : si le journal contient déjà des lignes saisies à la main sur la période (par exemple par Laure), l’aperçu l’annonce en rouge — importer par-dessus créerait des doublons que l’anti-doublon ne peut pas voir',
+      'Règle simple : un mois = une seule méthode (manuel OU outil)'
+    ]
+  },
+  {
     version: '2.30.0',
     title: 'Import compta Cardmarket → Odoo',
     items: [
