@@ -304,6 +304,37 @@ export function registerIpc(): void {
     odoo.linkInvoice(userId, orderId, moveId)
   )
 
+  // --- Import compta Cardmarket → Odoo (spec compta portée du zip files-project) -----
+  ipcMain.handle('cmtx:pickFile', async (e) => {
+    const { dialog } = await import('electron')
+    const { readFileSync } = await import('fs')
+    const win = BrowserWindow.fromWebContents(e.sender)!
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Transaction Summary Cardmarket (.csv)',
+      filters: [{ name: 'Export Cardmarket', extensions: ['csv'] }],
+      properties: ['openFile']
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    const path = r.filePaths[0]
+    const name = path.split(/[\\/]/).pop() ?? path
+    // La période est souvent dans le nom : Transaction Summary-2026-06-01_...
+    const m = name.match(/(\d{4})-(\d{2})-\d{2}/)
+    return { name, content: readFileSync(path, 'utf-8'), periodeGuess: m ? `${m[1]}-${m[2]}` : null }
+  })
+  ipcMain.handle('cmtx:analyze', async (_e, content: string, name: string, periode: string) => {
+    const { analyser } = await import('./cmtransactions')
+    return analyser(content, name, periode)
+  })
+  ipcMain.handle('cmtx:download', async (e, periode: string) => {
+    const { recupererExport } = await import('./cmtransactions')
+    return recupererExport(periode, (msg) => e.sender.send('cmtx:progress', msg))
+  })
+  ipcMain.handle('cmtx:import', async (_e, userId: number, analyse: unknown) => {
+    const cmtx = await import('./cmtransactions')
+    return cmtx.importerDansOdoo(userId, analyse as import('./cmtransactions').AnalyseResult)
+  })
+  ipcMain.handle('odoo:searchJournals', (_e, query: string) => odoo.searchJournals(query ?? ''))
+
   ipcMain.handle('cm:dashboard', async () => {
     const { fetchCmDashboard } = await import('./cmdashboard')
     return fetchCmDashboard()

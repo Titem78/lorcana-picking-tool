@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.30.0',
+    title: 'Import compta Cardmarket → Odoo',
+    items: [
+      'Nouvel onglet 💶 Import Odoo (admins) : le relevé mensuel des transactions Cardmarket part dans le journal 517 en quelques clics',
+      '« ⚡ Récupérer depuis Cardmarket » : l’app demande, attend et télécharge le Transaction Summary toute seule (via ta session, sans rien installer) — ou choisis le fichier .csv à la main',
+      'Règles compta appliquées : une ligne par vente/achat/remboursement/retrait, frais et commissions fondus dans « Frais Cardmarket MM/AAAA » datée de fin de mois',
+      'Sécurités : chaîne des soldes vérifiée, type inconnu = arrêt, alerte de période mal choisie, aperçu obligatoire, triple anti-doublon (réimporter ne crée jamais deux fois la même ligne)'
+    ]
+  },
+  {
     version: '2.29.0',
     title: 'Import instantané + rapprochement Odoo',
     items: [

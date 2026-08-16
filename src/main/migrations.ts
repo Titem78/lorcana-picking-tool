@@ -198,5 +198,17 @@ export const MIGRATIONS: string[] = [
   // n'essaie plus jamais automatiquement (l'ouverture manuelle reste possible)
   `
   ALTER TABLE orders ADD COLUMN cm_fetch_attempts INTEGER NOT NULL DEFAULT 0;
+  `,
+
+  // 013 — import compta Cardmarket→Odoo : journal des fichiers déjà importés
+  // (empreinte SHA-256, 3e barrière anti-doublon de la spec compta)
+  `
+  CREATE TABLE cmtx_files (
+    empreinte TEXT PRIMARY KEY,
+    nom TEXT,
+    periode TEXT,
+    importe_le TEXT,
+    nb_lignes INTEGER
+  );
   `
 ]

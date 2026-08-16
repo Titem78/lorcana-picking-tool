@@ -152,6 +152,59 @@ export async function searchTaxes(
   return rows
 }
 
+// --- Import compta Cardmarket : lignes de relevé (account.bank.statement.line) --
+
+function cmtxJournalId(): number {
+  const r = getDb().prepare("SELECT value FROM settings WHERE key = 'cmtx_journal_id'").get() as
+    | { value: string }
+    | undefined
+  const id = parseInt(r?.value ?? '', 10)
+  if (!id) throw new Error('Choisis d’abord le journal Odoo (banque Cardmarket) dans l’onglet Import Odoo')
+  return id
+}
+
+/** Journaux de banque/caisse, pour choisir celui du compte Cardmarket (517). */
+export async function searchJournals(query: string): Promise<{ id: number; name: string; code: string }[]> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
+  const uid = await authenticate(cfg)
+  const domain: unknown[] = [['type', 'in', ['bank', 'cash']]]
+  if (query.trim()) domain.push(['name', 'ilike', query.trim()])
+  return (await execute(cfg, uid, 'account.journal', 'search_read', [domain], {
+    fields: ['id', 'name', 'code'],
+    limit: 12
+  })) as { id: number; name: string; code: string }[]
+}
+
+export async function findStatementLines(
+  keys: string[]
+): Promise<{ unique_import_id: string; amount: number; date: string; payment_ref: string }[]> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
+  const uid = await authenticate(cfg)
+  return (await execute(
+    cfg,
+    uid,
+    'account.bank.statement.line',
+    'search_read',
+    [[['journal_id', '=', cmtxJournalId()], ['unique_import_id', 'in', keys]]],
+    { fields: ['unique_import_id', 'amount', 'date', 'payment_ref'] }
+  )) as { unique_import_id: string; amount: number; date: string; payment_ref: string }[]
+}
+
+export async function createStatementLines(
+  lines: { date: string; payment_ref: string; ref: string; amount: number; unique_import_id: string }[]
+): Promise<number[]> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
+  const uid = await authenticate(cfg)
+  const journal = cmtxJournalId()
+  const ids = (await execute(cfg, uid, 'account.bank.statement.line', 'create', [
+    lines.map((l) => ({ ...l, journal_id: journal }))
+  ])) as number | number[]
+  return Array.isArray(ids) ? ids : [ids]
+}
+
 // --- Rapprochement manuel : lier une commande à une facture Odoo existante -----
 // Cas réels du magasin : brouillon supprimé puis facture recréée à la main
 // (commande annulée/regroupée), ou facture déjà comptabilisée hors app —

@@ -92,6 +92,7 @@ const api = {
       ipcRenderer.invoke('odoo:setProductMap', userId, lineName, productId, productName),
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId),
     searchInvoices: (query: string) => ipcRenderer.invoke('odoo:searchInvoices', query),
+    searchJournals: (query: string) => ipcRenderer.invoke('odoo:searchJournals', query),
     linkInvoice: (userId: number, orderId: number, moveId: number) =>
       ipcRenderer.invoke('odoo:linkInvoice', userId, orderId, moveId)
   },
@@ -113,6 +114,17 @@ const api = {
     sweepMark: () => ipcRenderer.invoke('stock:sweepMark'),
     purgeOlder: (userId: number, mark: string) => ipcRenderer.invoke('stock:purgeOlder', userId, mark),
     exportCsv: () => ipcRenderer.invoke('stock:exportCsv')
+  },
+
+  cmtx: {
+    pickFile: () => ipcRenderer.invoke('cmtx:pickFile'),
+    analyze: (content: string, name: string, periode: string) =>
+      ipcRenderer.invoke('cmtx:analyze', content, name, periode),
+    download: (periode: string) => ipcRenderer.invoke('cmtx:download', periode),
+    import: (userId: number, analyse: unknown) => ipcRenderer.invoke('cmtx:import', userId, analyse),
+    onProgress: (cb: (msg: string) => void) => {
+      ipcRenderer.on('cmtx:progress', (_e, msg) => cb(msg))
+    }
   },
 
   settings: {

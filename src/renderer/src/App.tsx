@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@shared/types'
 import UserGate from './components/UserGate'
+import ComptaPage from './pages/ComptaPage'
 import DashboardPage from './pages/DashboardPage'
 import PickingPage from './pages/PickingPage'
 import PrepPage from './pages/PrepPage'
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'history', label: '④ 📚 Historique' },
   { id: 'stock', label: '📦 Stock' },
   { id: 'locations', label: '🗄️ Emplacements' },
+  { id: 'compta', label: '💶 Import Odoo' },
   { id: 'settings', label: '⚙️ Réglages' }
 ] as const
 
@@ -115,6 +117,7 @@ export default function App(): React.JSX.Element {
         {tab === 'locations' && <LocationsPage user={user} />}
         {tab === 'history' && <HistoryPage user={user} />}
         {tab === 'stock' && <StockPage user={user} />}
+        {tab === 'compta' && <ComptaPage user={user} />}
         {tab === 'settings' && <SettingsPage user={user} />}
       </main>
       {updateMsg && (
