@@ -589,6 +589,27 @@ export function bornesDuMois(periode: string): [string, string] {
   return [`${periode}-01`, finDeMois(periode)]
 }
 
+export function ajouterJours(iso: string, n: number): string {
+  const d = new Date(`${iso}T12:00:00`)
+  d.setDate(d.getDate() + n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Un export existant est UTILISABLE pour une période s'il a été généré APRÈS
+ * la fin de cette période. Piège réel (17/08) : un export « août 01→31 »
+ * généré en cours de mois est figé à sa date de génération — Cardmarket ne le
+ * régénérant jamais, le resservir en septembre livrerait un mois amputé sans
+ * que personne ne le voie.
+ */
+export function exportFrais(l: DownloadRow, finPeriode: string): boolean {
+  try {
+    return enDate(l.debut) > finPeriode
+  } catch {
+    return false
+  }
+}
+
 /**
  * Repère NOTRE export parmi les téléchargements. Terrain (16/08/2026) : on ne
  * peut PAS matcher le nom — Cardmarket renomme les dates soumises (mai
@@ -658,7 +679,9 @@ export async function recupererExport(
   onProgress?: (msg: string) => void
 ): Promise<{ nom: string; contenu: string }> {
   const [debut, fin] = bornesDuMois(periode)
-  return recupererExportRange(debut, fin, onProgress)
+  // Fraîcheur exigée : un export du mois généré AVANT la fin du mois est
+  // périmé (voir exportFrais) — l'app décalera la borne pour régénérer.
+  return recupererExportRange(debut, fin, onProgress, fin)
 }
 
 /**
@@ -698,7 +721,9 @@ export async function testerGeneration(
 export async function recupererExportRange(
   debut: string,
   fin: string,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  /** Si fourni : un export existant n'est réutilisé que s'il a été généré après cette date. */
+  fraicheurApres?: string
 ): Promise<{ nom: string; contenu: string }> {
   const cfg = getCmTxConfig()
   const site = cfg.site
@@ -732,11 +757,20 @@ export async function recupererExportRange(
     const avant = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
     const reference = avant.reduce((mx, l) => Math.max(mx, l.id), 0)
 
-    // Export identique déjà généré (mois clos) : Cardmarket ne le recrée pas —
-    // on le télécharge directement, c'est instantané.
-    let ligne: DownloadRow | null = trouverParDates(avant, debut, fin, site.format.toLowerCase())
+    // Export identique déjà généré : Cardmarket ne le recrée pas — on le
+    // télécharge directement, SI il est frais (généré après la fin de la
+    // période). Note terrain (17/08) : la borne de fin est TRONQUÉE à la date
+    // du jour et le fichier porte la plage effective (« août 01→31 » demandé
+    // en cours de mois ⇒ fichier « …08-01_08-16 ») — un fichier périmé ne
+    // peut donc pas usurper le nom du mois complet ; ce contrôle n'est qu'une
+    // ceinture de sécurité. Un mois max par export : ne JAMAIS décaler la
+    // borne au-delà du mois (Cardmarket refuse).
+    const ext = site.format.toLowerCase()
+    const utilisable = (l: DownloadRow | null): DownloadRow | null =>
+      l && (!fraicheurApres || exportFrais(l, fraicheurApres)) ? l : null
+    let ligne: DownloadRow | null = utilisable(trouverParDates(avant, debut, fin, ext))
     if (ligne) {
-      onProgress?.(`Un export identique existe déjà (${ligne.nom}) — téléchargement direct.`)
+      onProgress?.(`Un export utilisable existe déjà (${ligne.nom}) — téléchargement direct.`)
     } else {
       // ⚠ Le formulaire d'export vit sur la page TRANSACTIONS — cette
       // navigation avait été perdue dans une restructuration (v2.34.1-3 :
@@ -780,9 +814,9 @@ export async function recupererExportRange(
         await charge(site.page_telechargements)
         const rows = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
         // Nouvelle ligne… ou export identique réutilisé par Cardmarket
+        // (le repli par dates respecte aussi la fraîcheur)
         ligne =
-          trouverNotreExport(rows, reference) ??
-          trouverParDates(rows, debut, fin, site.format.toLowerCase())
+          trouverNotreExport(rows, reference) ?? utilisable(trouverParDates(rows, debut, fin, ext))
         if (ligne) break
         onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
       }

@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.37.1',
+    title: 'Fraîcheur des exports garantie',
+    items: [
+      'Un export généré AVANT la fin du mois demandé n’est jamais réutilisé (garde-fou) — Cardmarket tronque de toute façon la borne au jour même et nomme le fichier avec la plage réelle, donc un fichier partiel ne peut pas se faire passer pour le mois complet',
+      'Demander un mois en cours reste possible pour vérifier, avec l’avertissement « mois en cours » dans l’aperçu — l’import compta se fait mois terminé'
+    ]
+  },
+  {
     version: '2.37.0',
     title: 'Clients professionnels',
     items: [

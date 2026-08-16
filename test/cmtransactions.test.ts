@@ -13,6 +13,8 @@ import {
   lignesTelechargements,
   lireExport,
   parseCsv,
+  ajouterJours,
+  exportFrais,
   preparer,
   trouverNotreExport,
   trouverParDates
@@ -184,6 +186,22 @@ describe('page Téléchargements', () => {
     expect(trouverParDates(rows, '2026-07-01', '2026-07-31', 'csv')).toBeNull()
     // mauvais couple de dates → rien
     expect(trouverParDates(rows, '2026-01-01', '2026-01-31', 'csv')).toBeNull()
+  })
+
+  it('fraîcheur : un export généré AVANT la fin du mois est périmé', () => {
+    // Cas réel : « août 01→31 » demandé le 17/08 ⇒ fichier tronqué généré le 17/08
+    const stale = { id: 1, type: 'Bilan des transactions', debut: '17.08.2026 00:50:14', fin: '17.08.2026 00:50:14', nom: 'Transaction Summary-2026-08-01_2026-08-16.csv' }
+    expect(exportFrais(stale, '2026-08-31')).toBe(false)
+    // Mai généré le 16/08 (mois clos depuis longtemps) : utilisable
+    const ok = { ...stale, debut: '16.08.2026 22:12:13', nom: 'Transaction Summary-2026-05-01_2026-05-31.csv' }
+    expect(exportFrais(ok, '2026-05-31')).toBe(true)
+    // Date de génération illisible = considéré périmé (prudence)
+    expect(exportFrais({ ...stale, debut: '???' }, '2026-08-31')).toBe(false)
+  })
+
+  it('ajouterJours gère les fins de mois et d’année', () => {
+    expect(ajouterJours('2026-08-31', 1)).toBe('2026-09-01')
+    expect(ajouterJours('2026-12-31', 1)).toBe('2027-01-01')
   })
 
   it('repli tolérant : structure différente mais idRequest présent', () => {
