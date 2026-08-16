@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.33.1',
+    title: 'Patience sur la file de génération',
+    items: [
+      'La demande d’export est bien acceptée par Cardmarket ; la ligne peut simplement tarder à apparaître dans la liste — l’app attend maintenant 60 s avant de conclure au refus (attente totale 3 min inchangée)',
+      'Formulation neutre « l’utilisateur » dans l’alerte des autres journaux'
+    ]
+  },
+  {
     version: '2.33.0',
     title: 'Récupération Cardmarket enfin complète',
     items: [

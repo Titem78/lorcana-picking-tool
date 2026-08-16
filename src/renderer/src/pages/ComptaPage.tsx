@@ -233,9 +233,10 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
                   }}
                 >
                   ⚠ Rien dans <b>ce</b> journal, mais la période contient des lignes ailleurs :{' '}
-                  {odooData.elsewhere.map((e) => `${e.journal} (${e.count})`).join(' · ')} — Laure
-                  saisit peut-être dans un autre journal. Change le journal ci-dessous pour comparer,
-                  et n&apos;importe pas ce mois dans un journal différent sans vérifier (doublon comptable).
+                  {odooData.elsewhere.map((e) => `${e.journal} (${e.count})`).join(' · ')} —
+                  l&apos;utilisateur a peut-être saisi dans un autre journal. Change le journal
+                  ci-dessous pour comparer, et n&apos;importe pas ce mois dans un journal différent
+                  sans vérifier (doublon comptable).
                 </div>
               )}
               {odooData.lines.length === 0 && odooData.elsewhere.length === 0 ? (

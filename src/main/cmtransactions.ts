@@ -678,11 +678,11 @@ export async function recupererExport(
     await sleep(site.intervalle_s * 1000)
     polls++
     const rows = lignesTelechargements(await get(site.page_telechargements))
-    // La ligne apparaît dans la liste dès l'acceptation (colonne Fin vide le
-    // temps de la génération) : si rien n'apparaît après ~15 s, la demande a
-    // été refusée — inutile d'attendre 3 minutes.
+    // La génération passe par une file d'attente : la ligne peut mettre du
+    // temps à apparaître dans la liste. On ne conclut au refus qu'après 60 s
+    // sans la moindre ligne nouvelle (l'attente complète reste 3 min).
     vuEnCours = vuEnCours || rows.some((l) => l.id > reference && /transaction/i.test(l.type))
-    if (!vuEnCours && polls >= 3) {
+    if (!vuEnCours && polls >= 12) {
       // Capture de la réponse du POST pour diagnostic (à m'envoyer)
       try {
         const { app } = await import('electron')
