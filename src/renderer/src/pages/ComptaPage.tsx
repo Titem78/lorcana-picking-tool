@@ -22,6 +22,86 @@ interface Analyse {
   avertissements: string[]
 }
 
+/**
+ * 🧪 Test de la chaîne de génération avec une plage libre : les mois à données
+ * étant déjà générés (jamais recréés par Cardmarket), seule une plage inédite
+ * déclenche une vraie génération. Rien ne part vers Odoo.
+ */
+function TestGeneration({
+  busy,
+  setBusy
+}: {
+  busy: boolean
+  setBusy: (b: boolean) => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [debut, setDebut] = useState('')
+  const [fin, setFin] = useState('')
+  const [result, setResult] = useState('')
+
+  const run = (): void => {
+    if (!debut || !fin) return
+    setBusy(true)
+    setResult('Test en cours…')
+    window.api.cmtx
+      .testGeneration(debut, fin)
+      .then((r: { nom: string; mouvements: number; repartition: Record<string, number> }) => {
+        setResult(
+          `✅ Chaîne complète OK : « ${r.nom} » généré et téléchargé — ${r.mouvements} mouvement(s) lu(s)` +
+            (Object.keys(r.repartition).length
+              ? ` (${Object.entries(r.repartition)
+                  .map(([p, n]) => `${p} : ${n}`)
+                  .join(', ')})`
+              : '')
+        )
+      })
+      .catch((err: Error) => setResult(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button onClick={() => setOpen(!open)} style={{ fontSize: '0.85rem' }}>
+        {open ? 'Masquer le test' : '🧪 Tester la génération (plage libre, sans import)'}
+      </button>
+      {open && (
+        <div
+          style={{
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: 12,
+            marginTop: 8,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: '0.9rem'
+          }}
+        >
+          <span style={{ color: 'var(--text-dim)' }}>
+            Choisis une plage <b>jamais demandée</b> (ex. un demi-mois) pour forcer une vraie
+            génération. Rien ne part vers Odoo.
+          </span>
+          <label style={{ color: 'var(--text-dim)' }}>
+            De <input type="date" value={debut} onChange={(e) => setDebut(e.target.value)} />
+          </label>
+          <label style={{ color: 'var(--text-dim)' }}>
+            À <input type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+          </label>
+          <button className="primary" disabled={busy || !debut || !fin} onClick={run}>
+            Lancer le test
+          </button>
+          {result && (
+            <span style={{ width: '100%', color: result.startsWith('✅') ? 'var(--ok)' : 'var(--text-dim)' }}>
+              {result}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** 18 derniers mois, du plus récent au plus ancien (défaut : mois précédent). */
 function moisRecents(n = 18): string[] {
   const out: string[] = []
@@ -324,6 +404,8 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
           {msg}
         </div>
       )}
+
+      <TestGeneration busy={busy} setBusy={setBusy} />
 
       {analyse && (
         <div style={{ border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: 16 }}>

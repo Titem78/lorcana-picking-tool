@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.35.0',
+    title: 'Test de génération à plage libre',
+    items: [
+      'Sync gestion co. : bouton « 🧪 Tester la génération » — choisis une plage de dates jamais demandée (ex. un demi-mois) pour valider la chaîne complète génération → téléchargement → lecture, sans rien envoyer vers Odoo',
+      'Nécessaire car Cardmarket ne régénère jamais un export identique : les mois déjà générés ne peuvent plus servir à tester la génération'
+    ]
+  },
+  {
     version: '2.34.3',
     title: 'Téléchargement = un vrai clic',
     items: [

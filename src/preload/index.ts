@@ -123,6 +123,8 @@ const api = {
     analyze: (content: string, name: string, periode: string) =>
       ipcRenderer.invoke('cmtx:analyze', content, name, periode),
     download: (periode: string) => ipcRenderer.invoke('cmtx:download', periode),
+    testGeneration: (debut: string, fin: string) =>
+      ipcRenderer.invoke('cmtx:testGeneration', debut, fin),
     import: (userId: number, analyse: unknown) => ipcRenderer.invoke('cmtx:import', userId, analyse),
     onProgress: (cb: (msg: string) => void) => {
       ipcRenderer.on('cmtx:progress', (_e, msg) => cb(msg))

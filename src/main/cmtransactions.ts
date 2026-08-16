@@ -646,9 +646,34 @@ export async function recupererExport(
   periode: string,
   onProgress?: (msg: string) => void
 ): Promise<{ nom: string; contenu: string }> {
+  const [debut, fin] = bornesDuMois(periode)
+  return recupererExportRange(debut, fin, onProgress)
+}
+
+/**
+ * 🧪 Test de la chaîne de génération avec une plage LIBRE (avancé) : tous les
+ * mois à données étant déjà générés côté Cardmarket (jamais recréés), seule
+ * une plage inédite déclenche une vraie génération. Le test s'arrête à la
+ * lecture du fichier — RIEN ne part vers Odoo (un demi-mois importé fausserait
+ * la ligne de frais).
+ */
+export async function testerGeneration(
+  debut: string,
+  fin: string,
+  onProgress?: (msg: string) => void
+): Promise<{ nom: string; mouvements: number; repartition: Record<string, number> }> {
+  const { nom, contenu } = await recupererExportRange(debut, fin, onProgress)
+  const { mvts } = lireExport(contenu, getCmTxConfig())
+  return { nom, mouvements: mvts.length, repartition: repartitionPeriodes(mvts) }
+}
+
+export async function recupererExportRange(
+  debut: string,
+  fin: string,
+  onProgress?: (msg: string) => void
+): Promise<{ nom: string; contenu: string }> {
   const cfg = getCmTxConfig()
   const site = cfg.site
-  const [debut, fin] = bornesDuMois(periode)
   const { BrowserWindow, app } = await import('electron')
   const { writeFileSync } = await import('fs')
   const { join } = await import('path')

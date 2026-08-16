@@ -329,6 +329,10 @@ export function registerIpc(): void {
     const { recupererExport } = await import('./cmtransactions')
     return recupererExport(periode, (msg) => e.sender.send('cmtx:progress', msg))
   })
+  ipcMain.handle('cmtx:testGeneration', async (e, debut: string, fin: string) => {
+    const { testerGeneration } = await import('./cmtransactions')
+    return testerGeneration(debut, fin, (msg) => e.sender.send('cmtx:progress', msg))
+  })
   ipcMain.handle('cmtx:import', async (_e, userId: number, analyse: unknown) => {
     const cmtx = await import('./cmtransactions')
     return cmtx.importerDansOdoo(userId, analyse as import('./cmtransactions').AnalyseResult)
