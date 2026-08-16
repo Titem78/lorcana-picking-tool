@@ -218,28 +218,60 @@ export async function statementLinesInPeriod(
   return { count: rows.length, total: sum(rows), manual: manual.length, manualTotal: sum(manual) }
 }
 
-/** Les lignes du journal sur une période — pour VOIR ce qu'Odoo contient déjà. */
+/**
+ * Les lignes du journal sur une période — pour VOIR ce qu'Odoo contient déjà.
+ * Si le journal choisi est vide, on regarde aussi les AUTRES journaux : Laure
+ * saisit peut-être ailleurs (sinon « 0 ligne » ferait croire à un mois vierge).
+ */
 export async function listStatementLines(
   dateFrom: string,
   dateTo: string
-): Promise<{ date: string; payment_ref: string; amount: number; from_tool: boolean }[]> {
+): Promise<{
+  lines: { date: string; payment_ref: string; amount: number; from_tool: boolean }[]
+  elsewhere: { journal: string; count: number }[]
+}> {
   const cfg = getOdooConfig()
   if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
   const uid = await authenticate(cfg)
+  const journalId = cmtxJournalId()
   const rows = (await execute(
     cfg,
     uid,
     'account.bank.statement.line',
     'search_read',
-    [[['journal_id', '=', cmtxJournalId()], ['date', '>=', dateFrom], ['date', '<=', dateTo]]],
+    [[['journal_id', '=', journalId], ['date', '>=', dateFrom], ['date', '<=', dateTo]]],
     { fields: ['date', 'payment_ref', 'amount', 'unique_import_id'], order: 'date asc, id asc' }
   )) as { date: string; payment_ref: string; amount: number; unique_import_id: string | false }[]
-  return rows.map((r) => ({
-    date: r.date,
-    payment_ref: r.payment_ref,
-    amount: r.amount,
-    from_tool: !!r.unique_import_id && String(r.unique_import_id).startsWith('cardmarket:')
-  }))
+
+  let elsewhere: { journal: string; count: number }[] = []
+  if (rows.length === 0) {
+    const others = (await execute(
+      cfg,
+      uid,
+      'account.bank.statement.line',
+      'search_read',
+      [[['journal_id', '!=', journalId], ['date', '>=', dateFrom], ['date', '<=', dateTo]]],
+      { fields: ['journal_id'], limit: 500 }
+    )) as { journal_id: [number, string] | false }[]
+    const parJournal = new Map<string, number>()
+    for (const o of others) {
+      const nom = o.journal_id ? o.journal_id[1] : '?'
+      parJournal.set(nom, (parJournal.get(nom) ?? 0) + 1)
+    }
+    elsewhere = [...parJournal.entries()]
+      .map(([journal, count]) => ({ journal, count }))
+      .sort((a, b) => b.count - a.count)
+  }
+
+  return {
+    lines: rows.map((r) => ({
+      date: r.date,
+      payment_ref: r.payment_ref,
+      amount: r.amount,
+      from_tool: !!r.unique_import_id && String(r.unique_import_id).startsWith('cardmarket:')
+    })),
+    elsewhere
+  }
 }
 
 export async function createStatementLines(

@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.33.0',
+    title: 'Récupération Cardmarket enfin complète',
+    items: [
+      'Cause du blocage trouvée : la liste des Téléchargements était relue depuis le cache — le fichier fraîchement généré n’y apparaissait jamais. Anti-cache ajouté, la chaîne complète fonctionne',
+      '« 📖 Voir le mois dans Odoo » se recharge tout seul quand tu changes de mois',
+      'Si le journal choisi est vide mais que la période contient des lignes dans d’AUTRES journaux, l’app te les montre (utile pour retrouver où Laure saisit)'
+    ]
+  },
+  {
     version: '2.32.2',
     title: 'Téléchargement réparé + bulle autonome',
     items: [

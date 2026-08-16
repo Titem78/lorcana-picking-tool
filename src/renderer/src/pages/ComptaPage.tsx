@@ -47,26 +47,27 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [odooLines, setOdooLines] = useState<
-    { date: string; payment_ref: string; amount: number; from_tool: boolean }[] | null
-  >(null)
+  const [odooOpen, setOdooOpen] = useState(false)
+  const [odooData, setOdooData] = useState<{
+    lines: { date: string; payment_ref: string; amount: number; from_tool: boolean }[]
+    elsewhere: { journal: string; count: number }[]
+  } | null>(null)
 
-  const voirOdoo = (): void => {
-    if (odooLines) {
-      setOdooLines(null)
-      return
-    }
+  // Le panneau « Voir le mois dans Odoo » suit le mois choisi : changer la
+  // période pendant qu'il est ouvert recharge automatiquement.
+  useEffect(() => {
+    if (!odooOpen || !journalId) return
+    setOdooData(null)
     const [an, mois] = [periode.slice(0, 4), periode.slice(5, 7)]
     const dernierJour = new Date(parseInt(an, 10), parseInt(mois, 10), 0).getDate()
-    setMsg(`Lecture du journal Odoo sur ${periode}…`)
     window.api.odoo
       .listStatementLines(`${periode}-01`, `${periode}-${String(dernierJour).padStart(2, '0')}`)
-      .then((rows: typeof odooLines) => {
-        setOdooLines(rows)
-        setMsg('')
+      .then((d: typeof odooData) => setOdooData(d))
+      .catch((err: Error) => {
+        setOdooOpen(false)
+        setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`)
       })
-      .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
-  }
+  }, [odooOpen, periode, journalId])
 
   useEffect(() => {
     window.api.settings.get('cmtx_journal_id').then((v: string | null) => {
@@ -193,12 +194,12 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
         <button disabled={busy || !journalId} onClick={pickFile}>
           📄 Choisir le fichier export…
         </button>
-        <button disabled={busy || !journalId} onClick={voirOdoo}>
-          {odooLines ? 'Masquer Odoo' : '📖 Voir le mois dans Odoo'}
+        <button disabled={busy || !journalId} onClick={() => setOdooOpen(!odooOpen)}>
+          {odooOpen ? 'Masquer Odoo' : '📖 Voir le mois dans Odoo'}
         </button>
       </div>
 
-      {odooLines && (
+      {odooOpen && (
         <div
           style={{
             border: '1px solid var(--border)',
@@ -207,47 +208,72 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
             marginBottom: 16
           }}
         >
-          <div style={{ display: 'flex', gap: 14, alignItems: 'baseline', marginBottom: 8 }}>
-            <h2 style={{ fontSize: '1rem', margin: 0 }}>
-              Déjà dans Odoo — {periode} ({odooLines.length} ligne(s))
-            </h2>
-            <span style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>
-              total {odooLines.reduce((s, l) => s + l.amount, 0).toFixed(2)} EUR ·{' '}
-              {odooLines.filter((l) => l.from_tool).length} via l&apos;outil ·{' '}
-              {odooLines.filter((l) => !l.from_tool).length} manuelle(s)
-            </span>
-          </div>
-          {odooLines.length === 0 ? (
-            <p style={{ color: 'var(--ok)' }}>Rien sur cette période — le mois est vierge, tu peux importer.</p>
+          {!odooData ? (
+            <p style={{ color: 'var(--text-dim)' }}>Lecture du journal Odoo sur {periode}…</p>
           ) : (
-            <div style={{ maxHeight: 260, overflow: 'auto' }}>
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Libellé</th>
-                    <th style={{ textAlign: 'right' }}>Montant</th>
-                    <th>Origine</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {odooLines.map((l, i) => (
-                    <tr key={i}>
-                      <td>{l.date.split('-').reverse().join('/')}</td>
-                      <td>{l.payment_ref}</td>
-                      <td style={{ textAlign: 'right', color: l.amount < 0 ? 'var(--danger)' : 'var(--ok)' }}>
-                        {l.amount.toFixed(2)}
-                      </td>
-                      <td>
-                        <span className="badge" style={l.from_tool ? { borderColor: 'var(--ok)', color: 'var(--ok)' } : {}}>
-                          {l.from_tool ? 'outil' : '✍ manuelle'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'baseline', marginBottom: 8 }}>
+                <h2 style={{ fontSize: '1rem', margin: 0 }}>
+                  Déjà dans Odoo — {periode} ({odooData.lines.length} ligne(s))
+                </h2>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>
+                  total {odooData.lines.reduce((s, l) => s + l.amount, 0).toFixed(2)} EUR ·{' '}
+                  {odooData.lines.filter((l) => l.from_tool).length} via l&apos;outil ·{' '}
+                  {odooData.lines.filter((l) => !l.from_tool).length} manuelle(s)
+                </span>
+              </div>
+              {odooData.lines.length === 0 && odooData.elsewhere.length > 0 && (
+                <div
+                  style={{
+                    border: '1px solid var(--accent)',
+                    borderRadius: 'var(--radius)',
+                    padding: '8px 12px',
+                    marginBottom: 8,
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  ⚠ Rien dans <b>ce</b> journal, mais la période contient des lignes ailleurs :{' '}
+                  {odooData.elsewhere.map((e) => `${e.journal} (${e.count})`).join(' · ')} — Laure
+                  saisit peut-être dans un autre journal. Change le journal ci-dessous pour comparer,
+                  et n&apos;importe pas ce mois dans un journal différent sans vérifier (doublon comptable).
+                </div>
+              )}
+              {odooData.lines.length === 0 && odooData.elsewhere.length === 0 ? (
+                <p style={{ color: 'var(--ok)' }}>Rien sur cette période — le mois est vierge, tu peux importer.</p>
+              ) : odooData.lines.length > 0 ? (
+                <div style={{ maxHeight: 260, overflow: 'auto' }}>
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Libellé</th>
+                        <th style={{ textAlign: 'right' }}>Montant</th>
+                        <th>Origine</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {odooData.lines.map((l, i) => (
+                        <tr key={i}>
+                          <td>{l.date.split('-').reverse().join('/')}</td>
+                          <td>{l.payment_ref}</td>
+                          <td style={{ textAlign: 'right', color: l.amount < 0 ? 'var(--danger)' : 'var(--ok)' }}>
+                            {l.amount.toFixed(2)}
+                          </td>
+                          <td>
+                            <span
+                              className="badge"
+                              style={l.from_tool ? { borderColor: 'var(--ok)', color: 'var(--ok)' } : {}}
+                            >
+                              {l.from_tool ? 'outil' : '✍ manuelle'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       )}

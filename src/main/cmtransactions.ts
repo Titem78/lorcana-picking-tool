@@ -610,9 +610,19 @@ export async function recupererExport(
   const { UA } = await import('./cmshipping')
   const { parseCmToken } = await import('./cmshipping')
   const ses = session.fromPartition('persist:cardmarket')
-  const headers = { 'User-Agent': UA, Referer: site.base + '/fr/Lorcana' }
+  const headers = {
+    'User-Agent': UA,
+    Referer: site.base + '/fr/Lorcana',
+    // ⚠ Sans anti-cache, les relectures de la page Téléchargements pendant le
+    // poll recevaient une copie EN CACHE d'avant la demande : le nouveau
+    // fichier n'apparaissait jamais (cause réelle du blocage du 17/08).
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache'
+  }
+  let nc = 0
   const get = async (path: string): Promise<string> => {
-    const r = await ses.fetch(site.base + path, { headers })
+    const sep = path.includes('?') ? '&' : '?'
+    const r = await ses.fetch(`${site.base}${path}${sep}nc=${Date.now()}-${nc++}`, { headers })
     if (!r.ok) throw new Anomalie(`Cardmarket a répondu ${r.status} sur ${path}`)
     return r.text()
   }
