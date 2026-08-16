@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.29.0',
+    title: 'Import instantané + rapprochement Odoo',
+    items: [
+      'L’import d’une commande est maintenant immédiat : les visuels/encres arrivent en arrière-plan quelques secondes après (fini les 45 s sans savoir si ça a planté)',
+      'Odoo : bouton « 🔗 Rapprocher d’une facture existante » dans la fiche — pour les brouillons supprimés puis recréés à la main, ou les factures déjà comptabilisées : associe la bonne facture et l’erreur disparaît',
+      'La recherche propose d’office le n° de vente ; tu peux aussi chercher par n° FACT/… ou nom du client'
+    ]
+  },
+  {
     version: '2.28.0',
     title: 'Tableau de bord',
     items: [

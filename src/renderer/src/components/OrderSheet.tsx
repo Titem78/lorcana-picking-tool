@@ -50,6 +50,34 @@ export default function OrderSheet({
   const [showStampPrint, setShowStampPrint] = useState(false)
   const [odooMsg, setOdooMsg] = useState('')
   const odooConfigured = odooUrl !== null
+  const [reconcileOpen, setReconcileOpen] = useState(false)
+  const [reconcileQuery, setReconcileQuery] = useState('')
+  const [reconcileHits, setReconcileHits] = useState<
+    { id: number; name: string; state: string; ref: string | null; partner: string; total: number; date: string | null }[]
+  >([])
+
+  const searchReconcile = (q: string): void => {
+    setOdooMsg('Recherche dans Odoo…')
+    window.api.odoo
+      .searchInvoices(q)
+      .then((hits: typeof reconcileHits) => {
+        setReconcileHits(hits)
+        setOdooMsg(hits.length === 0 ? 'Aucune facture trouvée — essaie le nom du client ou le n° FACT/…' : '')
+      })
+      .catch((err: Error) => setOdooMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
+
+  const doLink = (moveId: number): void => {
+    window.api.odoo
+      .linkInvoice(user.id, order.id, moveId)
+      .then(() => {
+        setOdooMsg('✅ Commande rapprochée de la facture — erreur effacée')
+        setReconcileOpen(false)
+        setReconcileHits([])
+        reload()
+      })
+      .catch((err: Error) => setOdooMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
 
   const [weightCfg, setWeightCfg] = useState<WeightSettings>(DEFAULT_WEIGHT)
 
@@ -655,7 +683,69 @@ export default function OrderSheet({
             ) : (
               <button onClick={sendOdoo}>📤 Envoyer vers Odoo</button>
             )}
+            {(order.odoo_error || !order.odoo_move_id) && (
+              <button
+                title="La facture existe déjà dans Odoo (recréée à la main, déjà comptabilisée…) ? Associe-la à cette commande pour effacer l'erreur."
+                onClick={() => {
+                  setReconcileOpen(!reconcileOpen)
+                  if (!reconcileOpen) {
+                    setReconcileQuery(order.sale_id)
+                    searchReconcile(order.sale_id)
+                  }
+                }}
+              >
+                🔗 Rapprocher d&apos;une facture existante
+              </button>
+            )}
             <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{odooMsg}</span>
+            {reconcileOpen && (
+              <div style={{ width: '100%', marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    value={reconcileQuery}
+                    placeholder="N° de vente, FACT/2026/…, ou nom du client"
+                    style={{ flex: 1 }}
+                    onChange={(e) => setReconcileQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') searchReconcile(reconcileQuery)
+                    }}
+                  />
+                  <button onClick={() => searchReconcile(reconcileQuery)}>Chercher</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflow: 'auto' }}>
+                  {reconcileHits.map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'center',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: '6px 10px',
+                        fontSize: '0.88rem'
+                      }}
+                    >
+                      <b>{h.name}</b>
+                      <span
+                        className="badge"
+                        style={h.state === 'posted' ? { borderColor: 'var(--ok)', color: 'var(--ok)' } : {}}
+                      >
+                        {h.state === 'posted' ? 'comptabilisée' : h.state === 'draft' ? 'brouillon' : h.state}
+                      </span>
+                      <span style={{ color: 'var(--text-dim)' }}>
+                        {h.partner} · {h.total.toFixed(2)} € {h.date ? `· ${h.date}` : ''}
+                        {h.ref ? ` · réf. ${h.ref}` : ''}
+                      </span>
+                      <span style={{ flex: 1 }} />
+                      <button className="primary" onClick={() => doLink(h.id)}>
+                        Associer
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

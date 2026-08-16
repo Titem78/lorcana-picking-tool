@@ -90,7 +90,10 @@ const api = {
     sync: () => ipcRenderer.invoke('odoo:sync'),
     setProductMap: (userId: number, lineName: string, productId: number | null, productName: string | null) =>
       ipcRenderer.invoke('odoo:setProductMap', userId, lineName, productId, productName),
-    send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId)
+    send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId),
+    searchInvoices: (query: string) => ipcRenderer.invoke('odoo:searchInvoices', query),
+    linkInvoice: (userId: number, orderId: number, moveId: number) =>
+      ipcRenderer.invoke('odoo:linkInvoice', userId, orderId, moveId)
   },
 
   refocus: () => ipcRenderer.invoke('app:refocus'),
@@ -156,6 +159,10 @@ const api = {
 
   onAutoImported: (cb: (results: unknown[]) => void) => {
     ipcRenderer.on('orders:auto-imported', (_e, results) => cb(results))
+  },
+
+  onOrdersEnriched: (cb: (orderId: number) => void) => {
+    ipcRenderer.on('orders:enriched', (_e, orderId) => cb(orderId))
   },
 
   stamps: {

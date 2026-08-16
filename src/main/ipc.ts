@@ -299,6 +299,11 @@ export function registerIpc(): void {
     const { checkShipmentStatus } = await import('./cmshipping')
     return checkShipmentStatus(orderId)
   })
+  ipcMain.handle('odoo:searchInvoices', (_e, query: string) => odoo.searchInvoices(query ?? ''))
+  ipcMain.handle('odoo:linkInvoice', (_e, userId: number, orderId: number, moveId: number) =>
+    odoo.linkInvoice(userId, orderId, moveId)
+  )
+
   ipcMain.handle('cm:dashboard', async () => {
     const { fetchCmDashboard } = await import('./cmdashboard')
     return fetchCmDashboard()

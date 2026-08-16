@@ -152,6 +152,77 @@ export async function searchTaxes(
   return rows
 }
 
+// --- Rapprochement manuel : lier une commande à une facture Odoo existante -----
+// Cas réels du magasin : brouillon supprimé puis facture recréée à la main
+// (commande annulée/regroupée), ou facture déjà comptabilisée hors app —
+// l'app restait « en erreur » sans moyen de pointer la bonne facture.
+
+export interface OdooInvoiceHit {
+  id: number
+  name: string
+  state: string
+  ref: string | null
+  partner: string
+  total: number
+  date: string | null
+}
+
+export async function searchInvoices(query: string): Promise<OdooInvoiceHit[]> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré')
+  const uid = await authenticate(cfg)
+  const domain: unknown[] = [['move_type', '=', 'out_invoice']]
+  if (query.trim()) {
+    domain.push('|', '|', ['name', 'ilike', query.trim()], ['ref', 'ilike', query.trim()], [
+      'partner_id.name',
+      'ilike',
+      query.trim()
+    ])
+  }
+  const rows = (await execute(cfg, uid, 'account.move', 'search_read', [domain], {
+    fields: ['id', 'name', 'state', 'ref', 'partner_id', 'amount_total', 'invoice_date'],
+    order: 'id desc',
+    limit: 15
+  })) as {
+    id: number
+    name: string
+    state: string
+    ref: string | false
+    partner_id: [number, string] | false
+    amount_total: number
+    invoice_date: string | false
+  }[]
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    state: r.state,
+    ref: r.ref || null,
+    partner: r.partner_id ? r.partner_id[1] : '?',
+    total: r.amount_total,
+    date: r.invoice_date || null
+  }))
+}
+
+/** Associe la commande à la facture choisie et efface l'erreur. */
+export async function linkInvoice(userId: number, orderId: number, moveId: number): Promise<void> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré')
+  const uid = await authenticate(cfg)
+  const moves = (await execute(cfg, uid, 'account.move', 'search_read', [[['id', '=', moveId]]], {
+    fields: ['id', 'name', 'state']
+  })) as { id: number; name: string; state: string }[]
+  if (moves.length === 0) throw new Error('Facture introuvable dans Odoo')
+  const m = moves[0]
+  getDb()
+    .prepare(
+      `UPDATE orders SET odoo_move_id = ?, odoo_state = ?, odoo_number = ?,
+         odoo_error = NULL, odoo_sent_at = datetime('now', 'localtime')
+       WHERE id = ?`
+    )
+    .run(m.id, m.state, m.state === 'posted' && m.name && m.name !== '/' ? m.name : null, orderId)
+  logActivity(userId, 'odoo.linked_existing', { orderId, moveId, name: m.name, state: m.state })
+}
+
 // --- Synchronisation de l'état des factures ------------------------------------
 
 export interface OdooSyncResult {

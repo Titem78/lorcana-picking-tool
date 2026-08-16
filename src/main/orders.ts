@@ -59,33 +59,10 @@ export async function persistParsedOrder(
     }
   }
 
-      // Enrichissement Lorcast hors transaction (réseau, tolérant au hors-ligne)
-      const enriched = [] as {
-        line: (typeof parsed.cards)[number]
-        ink: string | null
-        rarity: string | null
-        image_file: string | null
-        image_large_file: string | null
-        lorcast_name: string | null
-      }[]
-      for (const line of parsed.cards) {
-        // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
-        const isCard = /cartes/i.test(line.section) && line.number
-        const card = isCard ? await getCard(line.set_code, line.number) : null
-        // Carte FR → visuel FRANÇAIS prioritaire (promos : recherche par nom)
-        const frImage = /^FR/i.test(line.language)
-          ? await getFrenchImage(line.set_code, line.number, line.name)
-          : null
-        enriched.push({
-          line,
-          ink: card?.ink ?? null,
-          rarity: card?.rarity ?? null,
-          image_file: frImage ?? card?.image_file ?? null,
-          image_large_file: frImage ?? card?.image_large_file ?? null,
-          lorcast_name: card ? [card.name, card.version].filter(Boolean).join(' - ') : null
-        })
-      }
-
+      // Insertion IMMÉDIATE : l'enrichissement Lorcast (visuels, encre, rareté)
+      // se fait EN ARRIÈRE-PLAN après l'import — règle du projet : jamais de
+      // réseau lourd dans le chemin d'import (une grosse commande bloquait
+      // l'interface ~45 s sans aucun retour visuel).
       const insertAll = db.transaction(() => {
         const info = db
           .prepare(
@@ -117,32 +94,34 @@ export async function persistParsedOrder(
              ink, rarity, image_file, image_large_file, lorcast_name, section)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        for (const e of enriched) {
+        for (const line of parsed.cards) {
           ins.run(
             orderId,
-            e.line.quantity,
-            e.line.name,
-            e.line.number,
-            e.line.language,
-            e.line.condition,
-            e.line.set_code,
-            e.line.color_code,
-            e.line.color_label,
-            e.line.rarity_code,
-            e.line.price,
-            e.line.comment,
-            e.line.is_foil ? 1 : 0,
-            e.ink,
-            e.rarity,
-            e.image_file,
-            e.image_large_file,
-            e.lorcast_name,
-            e.line.section
+            line.quantity,
+            line.name,
+            line.number,
+            line.language,
+            line.condition,
+            line.set_code,
+            line.color_code,
+            line.color_label,
+            line.rarity_code,
+            line.price,
+            line.comment,
+            line.is_foil ? 1 : 0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            line.section
           )
         }
         return orderId
       })
       const orderId = insertAll()
+      // Visuels + encre/rareté canoniques : en tâche de fond, jamais bloquant
+      enrichOrderLines(orderId).catch(() => {})
       // Grammage Cardmarket (« max. NNg ») absent du PDF : récupéré depuis la
       // page de la vente EN ARRIÈRE-PLAN (jamais dans le chemin d'import).
       import('./cmshipping')
@@ -409,6 +388,74 @@ export async function backfillFrenchImages(): Promise<number> {
     }
   }
   return updated
+}
+
+/**
+ * Enrichit EN ARRIÈRE-PLAN les lignes d'une commande via Lorcast/LorCards
+ * (encre, rareté, visuels — FR prioritaire). Tolérant au hors-ligne : les
+ * lignes restantes seront reprises par enrichPendingOrders() au démarrage.
+ */
+export async function enrichOrderLines(orderId: number): Promise<number> {
+  // Tests : pas de réseau ni de fenêtre (même précédent que le crawl LorCards)
+  if (process.env.VITEST) return 0
+  const db = getDb()
+  const lines = db
+    .prepare(
+      `SELECT id, name, number, set_code, language, section FROM order_lines
+       WHERE order_id = ? AND ink IS NULL AND rarity IS NULL AND lorcast_name IS NULL`
+    )
+    .all(orderId) as Pick<OrderLine, 'id' | 'name' | 'number' | 'set_code' | 'language' | 'section'>[]
+  let done = 0
+  for (const line of lines) {
+    // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
+    const isCard = /cartes/i.test(line.section ?? '') && line.number
+    const card = isCard ? await getCard(line.set_code ?? '', line.number ?? '').catch(() => null) : null
+    const frImage = /^FR/i.test(line.language ?? '')
+      ? await getFrenchImage(line.set_code ?? '', line.number ?? '', line.name).catch(() => null)
+      : null
+    if (!card && !frImage) continue
+    db.prepare(
+      `UPDATE order_lines SET ink = COALESCE(ink, ?), rarity = COALESCE(rarity, ?),
+         image_file = COALESCE(?, image_file), image_large_file = COALESCE(?, image_large_file),
+         lorcast_name = COALESCE(lorcast_name, ?)
+       WHERE id = ?`
+    ).run(
+      card?.ink ?? null,
+      card?.rarity ?? null,
+      frImage ?? card?.image_file ?? null,
+      frImage ?? card?.image_large_file ?? null,
+      card ? [card.name, card.version].filter(Boolean).join(' - ') : null,
+      line.id
+    )
+    done++
+  }
+  if (done > 0) {
+    // Prévient l'interface : les visuels de la commande viennent d'arriver
+    try {
+      const { BrowserWindow } = await import('electron')
+      for (const w of BrowserWindow.getAllWindows()) {
+        w.webContents.send('orders:enriched', orderId)
+      }
+    } catch {
+      // pas de fenêtre (tests, arrêt en cours) — sans gravité
+    }
+  }
+  return done
+}
+
+/** Rattrapage au démarrage : commandes dont l'enrichissement a été interrompu. */
+export async function enrichPendingOrders(): Promise<void> {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT o.id FROM orders o JOIN order_lines l ON l.order_id = o.id
+       WHERE l.ink IS NULL AND l.rarity IS NULL AND l.lorcast_name IS NULL
+         AND l.section LIKE '%arte%' AND l.number IS NOT NULL AND l.number != ''
+       LIMIT 30`
+    )
+    .all() as { id: number }[]
+  for (const r of rows) {
+    await enrichOrderLines(r.id).catch(() => {})
+  }
 }
 
 /**

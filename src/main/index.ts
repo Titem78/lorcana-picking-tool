@@ -11,7 +11,7 @@ import { stampsDir } from './stamps'
 import { syncInvoiceStatuses } from './odoo'
 import { startWatcher } from './watcher'
 import { ensureIndexBackground } from './lorcards'
-import { backfillFrenchImages, repairNumbersInNames } from './orders'
+import { backfillFrenchImages, enrichPendingOrders, repairNumbersInNames } from './orders'
 
 // Fenêtre noire au démarrage sous certains GPU/drivers Windows : bug Electron
 // connu, réglé en désactivant l'accélération matérielle (aucun impact pour
@@ -134,9 +134,11 @@ app.whenReady().then(() => {
   }, 20_000)
 
   setTimeout(() => {
-    // Répare d'abord les numéros restés collés aux noms, puis les visuels FR
+    // Répare d'abord les numéros restés collés aux noms, puis reprend les
+    // enrichissements interrompus, puis les visuels FR
     repairNumbersInNames()
       .catch(() => {})
+      .then(() => enrichPendingOrders().catch(() => {}))
       .then(() => {
         ensureIndexBackground(() => {
           backfillFrenchImages().catch(() => {})

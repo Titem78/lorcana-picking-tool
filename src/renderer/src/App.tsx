@@ -62,6 +62,10 @@ export default function App(): React.JSX.Element {
         window.dispatchEvent(new CustomEvent('orders-updated'))
       }
     })
+    // Visuels/encres arrivés en arrière-plan après un import : on rafraîchit
+    window.api.onOrdersEnriched(() => {
+      window.dispatchEvent(new CustomEvent('orders-updated'))
+    })
     window.api.onUpdaterEvent((event, payload) => {
       if (event === 'updater:available') {
         setUpdateMsg(`⬇ Mise à jour ${payload} détectée — téléchargement en cours…`)
