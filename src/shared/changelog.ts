@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.34.0',
+    title: 'Récupération pilotée comme un vrai navigateur',
+    items: [
+      'La récupération Cardmarket est réécrite : une fenêtre invisible (ta session) charge réellement les pages et soumet les formulaires — exactement tes clics, plus aucune requête « à part » qui voyait une liste figée',
+      'La demande part depuis la vraie page Transactions, l’attente recharge la vraie page Téléchargements, le téléchargement clique le vrai formulaire de la ligne',
+      'En cas d’échec, cm-export-debug.html contient désormais la liste telle que l’app la voit — diagnostic direct'
+    ]
+  },
+  {
     version: '2.33.1',
     title: 'Patience sur la file de génération',
     items: [

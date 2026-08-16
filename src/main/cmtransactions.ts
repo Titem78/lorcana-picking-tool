@@ -595,9 +595,33 @@ export function trouverNotreExport(lignes: DownloadRow[], reference: number): Do
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
+// Extraction des lignes de Téléchargements DANS la page (DOM réel, pas de
+// regex ni de cache) — exécutée par executeJavaScript.
+const ROWS_IN_PAGE = `(() => {
+  const out = []
+  for (const tr of document.querySelectorAll('tr')) {
+    const inp = tr.querySelector('input[name="idRequest"]')
+    if (!inp) continue
+    const tds = tr.querySelectorAll('td')
+    const btn = tr.querySelector('button[type="submit"]')
+    out.push({
+      id: parseInt(inp.value, 10),
+      type: (tds[0] ? tds[0].innerText : '').trim(),
+      debut: (tds[1] ? tds[1].innerText : '').trim(),
+      fin: (tds[2] ? tds[2].innerText : '').trim(),
+      nom: (btn ? btn.innerText : '').trim()
+    })
+  }
+  return out
+})()`
+
 /**
- * Télécharge le Transaction Summary de la période via la session Cardmarket
- * de l'app (3 requêtes + poll). Renvoie {nom, contenu}.
+ * Télécharge le Transaction Summary de la période. Leçon des 16-17/08 : les
+ * requêtes du process principal (ses.fetch) voyaient une liste de
+ * Téléchargements figée alors que la demande était acceptée — on pilote donc
+ * une VRAIE page dans une fenêtre invisible (même session persist:cardmarket) :
+ * chargements réels, formulaires soumis depuis la page, comme les clics de
+ * l'utilisateur. Même technique éprouvée que l'import des ventes (PDF).
  */
 export async function recupererExport(
   periode: string,
@@ -606,141 +630,104 @@ export async function recupererExport(
   const cfg = getCmTxConfig()
   const site = cfg.site
   const [debut, fin] = bornesDuMois(periode)
-  const { session } = await import('electron')
-  const { UA } = await import('./cmshipping')
-  const { parseCmToken } = await import('./cmshipping')
-  const ses = session.fromPartition('persist:cardmarket')
-  const headers = {
-    'User-Agent': UA,
-    Referer: site.base + '/fr/Lorcana',
-    // ⚠ Sans anti-cache, les relectures de la page Téléchargements pendant le
-    // poll recevaient une copie EN CACHE d'avant la demande : le nouveau
-    // fichier n'apparaissait jamais (cause réelle du blocage du 17/08).
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache'
-  }
-  let nc = 0
-  const get = async (path: string): Promise<string> => {
-    const sep = path.includes('?') ? '&' : '?'
-    const r = await ses.fetch(`${site.base}${path}${sep}nc=${Date.now()}-${nc++}`, { headers })
-    if (!r.ok) throw new Anomalie(`Cardmarket a répondu ${r.status} sur ${path}`)
-    return r.text()
-  }
+  const { BrowserWindow, app } = await import('electron')
+  const { writeFileSync } = await import('fs')
+  const { join } = await import('path')
 
-  onProgress?.('Lecture de la page Transactions…')
-  const details = await get(site.page_details)
-  if (/input[^>]*type="password"/i.test(details)) {
-    throw new Anomalie('Session Cardmarket expirée — connecte-toi dans l’onglet 🌐 Cardmarket puis réessaie.')
-  }
-  const token = parseCmToken(details)
-  if (!token) {
-    throw new Anomalie(
-      'Jeton de sécurité introuvable sur la page Transactions — structure inattendue, envoie-moi un dump 🐞.'
-    )
-  }
-
-  // Référence AVANT la demande : tout fichier déjà présent sera ignoré
-  const reference = lignesTelechargements(await get(site.page_telechargements)).reduce(
-    (mx, l) => Math.max(mx, l.id),
-    0
-  )
-
-  onProgress?.(`Demande de génération ${debut} → ${fin}…`)
-  const gen = await ses.fetch(site.base + site.action_generer, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'User-Agent': UA,
-      // Referer = la page qui PORTE le formulaire (Cardmarket peut le vérifier
-      // en plus du jeton — leçon du 17/08 : la demande partait dans le vide)
-      Referer: site.base + site.page_details,
-      Origin: site.base,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({
-      __cmtkn: token,
-      startDate: debut,
-      endDate: fin,
-      idCurrency: site.id_devise,
-      format: site.format
-    }).toString()
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      partition: 'persist:cardmarket',
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
   })
-  const genBody = await gen.text().catch(() => '')
-  if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
+  const charge = async (path: string): Promise<void> => {
+    // nc : navigation réelle ET URL unique — aucune chance de cache
+    const sep = path.includes('?') ? '&' : '?'
+    await win.loadURL(`${site.base}${path}${sep}nc=${Date.now()}`)
+  }
+  const js = <T>(code: string): Promise<T> => win.webContents.executeJavaScript(code) as Promise<T>
 
-  onProgress?.('Génération en cours (~30 s), attente du fichier…')
-  const limite = Date.now() + site.attente_max_s * 1000
-  let ligne: DownloadRow | null = null
-  let polls = 0
-  let vuEnCours = false
-  while (Date.now() < limite) {
-    await sleep(site.intervalle_s * 1000)
-    polls++
-    const rows = lignesTelechargements(await get(site.page_telechargements))
-    // La génération passe par une file d'attente : la ligne peut mettre du
-    // temps à apparaître dans la liste. On ne conclut au refus qu'après 60 s
-    // sans la moindre ligne nouvelle (l'attente complète reste 3 min).
-    vuEnCours = vuEnCours || rows.some((l) => l.id > reference && /transaction/i.test(l.type))
-    if (!vuEnCours && polls >= 12) {
-      // Capture de la réponse du POST pour diagnostic (à m'envoyer)
+  try {
+    onProgress?.('Ouverture de la page Téléchargements…')
+    await charge(site.page_telechargements)
+    if (await js<boolean>(`!!document.querySelector('input[type="password"]')`)) {
+      throw new Anomalie('Session Cardmarket expirée — connecte-toi dans l’onglet 🌐 Cardmarket puis réessaie.')
+    }
+    // Référence AVANT la demande : tout fichier déjà présent sera ignoré
+    const avant = await js<DownloadRow[]>(ROWS_IN_PAGE)
+    const reference = avant.reduce((mx, l) => Math.max(mx, l.id), 0)
+
+    onProgress?.(`Demande de génération ${debut} → ${fin}…`)
+    await charge(site.page_details)
+    const gen = await js<{ err?: string; ok?: boolean; status?: number }>(`(async () => {
+      const form = document.querySelector('form[action*="Reports_Asynchronous_ExportTransactions"]')
+      if (!form) return { err: 'noform' }
+      const fd = new FormData(form)
+      fd.set('startDate', ${JSON.stringify(debut)})
+      fd.set('endDate', ${JSON.stringify(fin)})
+      fd.set('format', ${JSON.stringify(site.format)})
+      const r = await fetch(form.action, { method: 'POST', body: fd, credentials: 'include' })
+      return { ok: r.ok, status: r.status }
+    })()`)
+    if (gen.err === 'noform') {
+      throw new Anomalie('Formulaire d’export introuvable sur la page Transactions — envoie-moi un dump 🐞 de cette page.')
+    }
+    if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
+
+    onProgress?.('Génération en cours (~30 s), attente du fichier…')
+    const limite = Date.now() + site.attente_max_s * 1000
+    let ligne: DownloadRow | null = null
+    while (Date.now() < limite) {
+      await sleep(site.intervalle_s * 1000)
+      await charge(site.page_telechargements)
+      const rows = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
+      ligne = trouverNotreExport(rows, reference)
+      if (ligne) break
+      onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
+    }
+    if (!ligne) {
+      // Diagnostic : la liste telle que la page la voit vraiment
       try {
-        const { app } = await import('electron')
-        const { writeFileSync } = await import('fs')
-        const { join } = await import('path')
-        writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), genBody, 'utf-8')
+        const html = await js<string>('document.documentElement.outerHTML')
+        writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), html, 'utf-8')
       } catch {
         /* diagnostic seulement */
       }
       throw new Anomalie(
-        `Cardmarket n'a pas accepté la demande d'export (aucun fichier en génération dans ` +
-          `Compte → Téléchargements). Sa réponse a été enregistrée dans cm-export-debug.html ` +
-          `(dossier de l'app) — envoie-moi ce fichier. En attendant : génère l'export sur le ` +
-          `site puis « 📄 Choisir le fichier ».`
+        `Aucun nouveau fichier n'est apparu dans Compte → Téléchargements après ` +
+          `${site.attente_max_s} s (la liste vue par l'app a été enregistrée dans ` +
+          `cm-export-debug.html — envoie-le-moi si le fichier existe pourtant sur le site). ` +
+          `En attendant : génère l'export sur le site puis « 📄 Choisir le fichier ».`
       )
     }
-    ligne = trouverNotreExport(rows, reference)
-    if (ligne) break
-    onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
-  }
-  if (!ligne) {
-    throw new Anomalie(
-      `Aucun nouveau fichier n'est apparu dans Compte → Téléchargements après ` +
-        `${site.attente_max_s} s. Causes possibles : période trop ancienne ou sans transactions ` +
-        `(Cardmarket peut refuser sans message), ou site lent. Vérifie la page Téléchargements ` +
-        `sur le site — si le fichier y est, télécharge-le et utilise « 📄 Choisir le fichier ».`
-    )
-  }
 
-  onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)
-  // L'endpoint redirige vers Amazon S3 (« …FromAws ») : suivre la redirection
-  // automatiquement échouait (net::ERR_FAILED, constaté le 17/08) — on lit
-  // le Location nous-mêmes et on va chercher le fichier avec un GET propre.
-  const dl = await ses.fetch(site.base + site.action_telecharger, {
-    method: 'POST',
-    credentials: 'include',
-    redirect: 'manual',
-    headers: {
-      'User-Agent': UA,
-      Referer: site.base + site.page_telechargements,
-      Origin: site.base,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({ __cmtkn: token, idRequest: String(ligne.id) }).toString()
-  })
-  let contenu: string
-  const location = dl.headers.get('location')
-  if (dl.status >= 300 && dl.status < 400 && location) {
-    const aws = await ses.fetch(location, { headers: { 'User-Agent': UA } })
-    if (!aws.ok) throw new Anomalie(`Téléchargement du fichier refusé par le stockage (code ${aws.status}).`)
-    contenu = await aws.text()
-  } else if (dl.ok) {
-    contenu = await dl.text()
-  } else {
-    throw new Anomalie(`Téléchargement refusé (code ${dl.status}).`)
+    onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)
+    // Téléchargement DANS la page : le formulaire de la ligne est soumis en
+    // fetch (redirection AWS suivie par le navigateur lui-même)
+    const dl = await js<{ err?: string; b64?: string }>(`(async () => {
+      const inp = [...document.querySelectorAll('input[name="idRequest"]')]
+        .find((i) => i.value === ${JSON.stringify(String(ligne.id))})
+      if (!inp) return { err: 'norow' }
+      const form = inp.closest('form')
+      const r = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'include' })
+      if (!r.ok) return { err: 'http' + r.status }
+      const buf = new Uint8Array(await r.arrayBuffer())
+      let bin = ''
+      for (let i = 0; i < buf.length; i += 0x8000) {
+        bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
+      }
+      return { b64: btoa(bin) }
+    })()`)
+    if (!dl.b64) throw new Anomalie(`Téléchargement du fichier refusé (${dl.err ?? 'inconnu'}).`)
+    const contenu = Buffer.from(dl.b64, 'base64').toString('utf-8')
+    if (/<html/i.test(contenu.slice(0, 200))) {
+      throw new Anomalie('Cardmarket a renvoyé une page au lieu du fichier — réessaie dans une minute.')
+    }
+    return { nom: ligne.nom, contenu }
+  } finally {
+    win.destroy()
   }
-  if (/<html/i.test(contenu.slice(0, 200))) {
-    throw new Anomalie('Cardmarket a renvoyé une page au lieu du fichier — réessaie dans une minute.')
-  }
-  return { nom: ligne.nom, contenu }
 }
