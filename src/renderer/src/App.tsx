@@ -24,7 +24,7 @@ const TABS = [
   { id: 'history', label: '④ 📚 Historique' },
   { id: 'stock', label: '📦 Stock' },
   { id: 'locations', label: '🗄️ Emplacements' },
-  { id: 'compta', label: '💶 Import Odoo' },
+  { id: 'compta', label: '🔄 Sync gestion co.' },
   { id: 'settings', label: '⚙️ Réglages' }
 ] as const
 

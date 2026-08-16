@@ -59,7 +59,7 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
   if (user.is_admin !== 1) {
     return (
       <div>
-        <h1>💶 Import Odoo</h1>
+        <h1>🔄 Sync gestion commerciale</h1>
         <div className="placeholder">
           L&apos;import comptable des transactions Cardmarket est réservé aux administrateurs.
         </div>
@@ -139,7 +139,7 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
 
   return (
     <div>
-      <h1>💶 Import Odoo — transactions Cardmarket</h1>
+      <h1>🔄 Sync gestion commerciale — transactions Cardmarket → Odoo</h1>
       <p style={{ color: 'var(--text-dim)', maxWidth: 720, marginBottom: 16 }}>
         Une fois par mois : récupère le relevé Cardmarket (Transaction Summary), vérifie
         l&apos;aperçu, puis importe dans le journal 517. Ventes, achats, remboursements et

@@ -560,26 +560,18 @@ export function bornesDuMois(periode: string): [string, string] {
 }
 
 /**
- * Cherche l'export correspondant aux dates DEMANDÉES (jamais un nom calculé :
- * Cardmarket nomme avec les dates soumises), en écartant tout fichier
- * antérieur à notre demande (idMin) — sinon un export périmé du même mois
- * serait téléchargé pendant que la génération tourne encore.
+ * Repère NOTRE export parmi les téléchargements. Terrain (16/08/2026) : on ne
+ * peut PAS matcher le nom — Cardmarket renomme les dates soumises (mai
+ * 01→31 devient « …_2026-05-30 », février 01→28 devient « …_2026-03-01 »).
+ * Critère fiable : type « Bilan des transactions » + idRequest STRICTEMENT
+ * postérieur à la référence relevée AVANT notre demande + colonne Fin remplie.
  */
-export function trouverExport(
-  lignes: DownloadRow[],
-  debut: string,
-  fin: string,
-  ext: string,
-  idMin: number
-): DownloadRow | null {
+export function trouverNotreExport(lignes: DownloadRow[], reference: number): DownloadRow | null {
   for (const l of lignes) {
-    if (l.id <= idMin) continue
-    const n = l.nom.toLowerCase()
-    if (n.includes(debut) && n.includes(fin) && n.endsWith('.' + ext)) {
-      return l.fin ? l : null // colonne Fin vide = pas encore prêt
-    }
+    // lignes triées par id décroissant → premier PRÊT = le plus récent prêt
+    if (l.id > reference && /transaction/i.test(l.type) && l.fin) return l
   }
-  return null
+  return null // rien de prêt postérieur à notre demande : on continue d'attendre
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -648,20 +640,16 @@ export async function recupererExport(
   let ligne: DownloadRow | null = null
   while (Date.now() < limite) {
     await sleep(site.intervalle_s * 1000)
-    ligne = trouverExport(
-      lignesTelechargements(await get(site.page_telechargements)),
-      debut,
-      fin,
-      site.format.toLowerCase(),
-      reference
-    )
+    ligne = trouverNotreExport(lignesTelechargements(await get(site.page_telechargements)), reference)
     if (ligne) break
-    onProgress?.('…toujours en cours')
+    onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
   }
   if (!ligne) {
     throw new Anomalie(
-      `Le fichier de ${periode} n'est pas apparu dans Compte → Téléchargements après ` +
-        `${site.attente_max_s} s. Vérifie directement sur le site, puis réessaie ou télécharge-le à la main.`
+      `Aucun nouveau fichier n'est apparu dans Compte → Téléchargements après ` +
+        `${site.attente_max_s} s. Causes possibles : période trop ancienne ou sans transactions ` +
+        `(Cardmarket peut refuser sans message), ou site lent. Vérifie la page Téléchargements ` +
+        `sur le site — si le fichier y est, télécharge-le et utilise « 📄 Choisir le fichier ».`
     )
   }
 

@@ -14,7 +14,7 @@ import {
   lireExport,
   parseCsv,
   preparer,
-  trouverExport
+  trouverNotreExport
 } from '../src/main/cmtransactions'
 
 const H =
@@ -161,19 +161,17 @@ describe('page Téléchargements', () => {
     expect(rows[1].nom).toBe('Transaction Summary-2026-06-01_2026-07-01.csv')
   })
 
-  it('trouve par couple de dates soumis, pas par nom calculé', () => {
+  it('repère notre export par idRequest > référence, PAS par le nom (Cardmarket renomme les dates)', () => {
     const rows = lignesTelechargements(HTML)
-    const hit = trouverExport(rows, '2026-06-01', '2026-07-01', 'csv', 0)
-    expect(hit?.id).toBe(4212)
+    // référence relevée avant la demande = 4212 → seul 4213 peut être le nôtre,
+    // mais sa colonne Fin est vide : pas encore prêt
+    expect(trouverNotreExport(rows, 4212)).toBeNull()
+    // référence 4211 : 4212 (Fin remplie) est retenu quel que soit son nom
+    expect(trouverNotreExport(rows, 4211)?.id).toBe(4212)
   })
 
-  it('colonne Fin vide = pas encore prêt', () => {
+  it('rien de plus récent que la référence = null (fichiers périmés écartés)', () => {
     const rows = lignesTelechargements(HTML)
-    expect(trouverExport(rows, '2026-07-01', '2026-07-31', 'csv', 0)).toBeNull()
-  })
-
-  it('idMin écarte les fichiers antérieurs à notre demande', () => {
-    const rows = lignesTelechargements(HTML)
-    expect(trouverExport(rows, '2026-06-01', '2026-07-01', 'csv', 4212)).toBeNull()
+    expect(trouverNotreExport(rows, 4213)).toBeNull()
   })
 })

@@ -843,7 +843,7 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
   const CATS = [
     { id: 'general', label: '🧭 Général' },
     { id: 'import', label: '📥 Import & Cardmarket' },
-    { id: 'stamps', label: '🎟 Timbres' },
+    { id: 'stamps', label: '📮 Envois & timbres' },
     ...(user.is_admin === 1 ? [{ id: 'odoo', label: '🧾 Odoo' }] : []),
     { id: 'team', label: '👥 Équipe & journal' },
     { id: 'backup', label: '💾 Sauvegardes' },
@@ -917,8 +917,6 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
       </section>
 
       <PickingOptions user={user} />
-
-      <WeightOptions user={user} />
 
       <ChangelogSection />
       </>
@@ -1078,11 +1076,16 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
         <>
           <WatcherSection user={user} />
           <CmCredsSection user={user} />
-          <CmConfirmOptions user={user} />
         </>
       )}
 
-      {cat === 'stamps' && <StampsSection user={user} />}
+      {cat === 'stamps' && (
+        <>
+          <WeightOptions user={user} />
+          <CmConfirmOptions user={user} />
+          <StampsSection user={user} />
+        </>
+      )}
 
       {cat === 'odoo' && user.is_admin === 1 && <OdooSection user={user} />}
 

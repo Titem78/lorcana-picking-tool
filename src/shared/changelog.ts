@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.31.0',
+    title: 'Sync gestion co. fiabilisée + rangement',
+    items: [
+      'Récupération Cardmarket réparée : Cardmarket renomme les dates des fichiers générés (mai « 01→31 » devient « …05-30 ») — l’attente ne se fie plus au nom, elle repère le fichier apparu après notre demande. Fini le « toujours en cours » sans fin',
+      'Compte à rebours pendant l’attente, et message clair si Cardmarket ne génère rien (période trop ancienne ou vide)',
+      'L’onglet s’appelle maintenant « 🔄 Sync gestion co. »',
+      'Réglages rangés : « 📮 Envois & timbres » regroupe le grammage, la validation des envois Cardmarket et les timbres'
+    ]
+  },
+  {
     version: '2.30.1',
     title: 'Garde-fou : mois déjà saisi à la main',
     items: [
