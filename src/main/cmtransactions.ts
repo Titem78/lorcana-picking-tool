@@ -685,7 +685,7 @@ export async function recupererExport(
     if (ligne) {
       onProgress?.(`Un export identique existe déjà (${ligne.nom}) — téléchargement direct.`)
     } else {
-      const gen = await js<{ err?: string; ok?: boolean; status?: number }>(`(async () => {
+      const GEN_JS = `(async () => {
         const form = document.querySelector('form[action*="Reports_Asynchronous_ExportTransactions"]')
         if (!form) return { err: 'noform' }
         const fd = new FormData(form)
@@ -694,9 +694,24 @@ export async function recupererExport(
         fd.set('format', ${JSON.stringify(site.format)})
         const r = await fetch(form.action, { method: 'POST', body: fd, credentials: 'include' })
         return { ok: r.ok, status: r.status }
-      })()`)
+      })()`
+      let gen = await js<{ err?: string; ok?: boolean; status?: number }>(GEN_JS)
       if (gen.err === 'noform') {
-        throw new Anomalie('Formulaire d’export introuvable sur la page Transactions — envoie-moi un dump 🐞 de cette page.')
+        // Page peut-être pas entièrement rendue : une seconde chance
+        await sleep(2000)
+        gen = await js<{ err?: string; ok?: boolean; status?: number }>(GEN_JS)
+      }
+      if (gen.err === 'noform') {
+        try {
+          const html = await js<string>('document.documentElement.outerHTML')
+          writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), html, 'utf-8')
+        } catch {
+          /* diagnostic seulement */
+        }
+        throw new Anomalie(
+          'Formulaire d’export introuvable sur la page Transactions — la page vue par l’app ' +
+            'a été enregistrée dans cm-export-debug.html, envoie-le-moi.'
+        )
       }
       if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
 
@@ -731,40 +746,61 @@ export async function recupererExport(
     }
 
     onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)
-    // ⚠ Le téléchargement REDIRIGE vers Amazon S3 : un fetch DANS la page se
-    // heurte au CORS (« Failed to fetch », constaté le 17/08). On récupère le
-    // jeton dans la page, puis le process principal fait le POST et suit la
-    // redirection lui-même (lui n'est pas soumis au CORS).
-    const token = await js<string | null>(
-      `(document.querySelector('input[name="__cmtkn"]') || {}).value || null`
-    )
-    if (!token) throw new Anomalie('Jeton introuvable sur la page Téléchargements.')
+    // Téléchargement = soumission RÉELLE du formulaire de la ligne (le clic de
+    // l'utilisateur) : le navigateur suit lui-même la redirection Amazon, et
+    // on intercepte le téléchargement qu'il déclenche. (fetch in-page = CORS,
+    // ses.fetch = redirection refusée : constatés les 17/08.)
     const { session } = await import('electron')
-    const { UA } = await import('./cmshipping')
+    const { readFileSync, unlinkSync } = await import('fs')
     const ses = session.fromPartition('persist:cardmarket')
-    const dl = await ses.fetch(site.base + site.action_telecharger, {
-      method: 'POST',
-      credentials: 'include',
-      redirect: 'manual',
-      headers: {
-        'User-Agent': UA,
-        Referer: site.base + site.page_telechargements,
-        Origin: site.base,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({ __cmtkn: token, idRequest: String(ligne.id) }).toString()
+    const tmpPath = join(app.getPath('temp'), `cmtx-${Date.now()}.csv`)
+    const contenu = await new Promise<string>((resolve, reject) => {
+      const onDownload = (_e: unknown, item: Electron.DownloadItem): void => {
+        clearTimeout(timer)
+        item.setSavePath(tmpPath)
+        item.once('done', (_e2, state) => {
+          if (state === 'completed') {
+            try {
+              resolve(readFileSync(tmpPath, 'utf-8'))
+            } catch (err) {
+              reject(err)
+            } finally {
+              try {
+                unlinkSync(tmpPath)
+              } catch {
+                /* temporaire */
+              }
+            }
+          } else {
+            reject(new Anomalie(`Téléchargement interrompu (${state}).`))
+          }
+        })
+      }
+      const timer = setTimeout(() => {
+        ses.removeListener('will-download', onDownload)
+        reject(new Anomalie('Le téléchargement ne s’est pas déclenché après 60 s.'))
+      }, 60_000)
+      ses.once('will-download', onDownload)
+      js<string>(`(() => {
+        const inp = [...document.querySelectorAll('input[name="idRequest"]')]
+          .find((i) => i.value === ${JSON.stringify(String(ligne.id))})
+        if (!inp) return 'norow'
+        inp.closest('form').submit()
+        return 'ok'
+      })()`)
+        .then((r) => {
+          if (r === 'norow') {
+            clearTimeout(timer)
+            ses.removeListener('will-download', onDownload)
+            reject(new Anomalie('Ligne introuvable dans la page Téléchargements.'))
+          }
+        })
+        .catch((err) => {
+          clearTimeout(timer)
+          ses.removeListener('will-download', onDownload)
+          reject(err)
+        })
     })
-    let contenu: string
-    const location = dl.headers.get('location')
-    if (dl.status >= 300 && dl.status < 400 && location) {
-      const aws = await ses.fetch(location, { headers: { 'User-Agent': UA } })
-      if (!aws.ok) throw new Anomalie(`Téléchargement refusé par le stockage (code ${aws.status}).`)
-      contenu = await aws.text()
-    } else if (dl.ok) {
-      contenu = await dl.text()
-    } else {
-      throw new Anomalie(`Téléchargement refusé (code ${dl.status}).`)
-    }
     if (/<html/i.test(contenu.slice(0, 200))) {
       throw new Anomalie('Cardmarket a renvoyé une page au lieu du fichier — réessaie dans une minute.')
     }

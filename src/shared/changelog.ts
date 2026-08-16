@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.34.3',
+    title: 'Téléchargement = un vrai clic',
+    items: [
+      'Le fichier est maintenant récupéré en soumettant réellement le formulaire de la ligne (comme ton clic sur le nom bleu) et en interceptant le téléchargement du navigateur — fini les erreurs de redirection et de CORS',
+      'Si le formulaire d’export est introuvable, l’app réessaie après 2 s puis enregistre la page qu’elle a vue dans cm-export-debug.html'
+    ]
+  },
+  {
     version: '2.34.2',
     title: 'Dernier maillon : le téléchargement',
     items: [
