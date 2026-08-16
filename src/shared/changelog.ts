@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.34.2',
+    title: 'Dernier maillon : le téléchargement',
+    items: [
+      'Le téléchargement du fichier échouait (« Failed to fetch ») : la redirection vers le stockage Amazon est interdite à un fetch de page (CORS) — il passe maintenant par le canal principal de l’app qui la suit sans restriction',
+      'La chaîne complète est : page réelle pour générer et guetter, canal principal pour rapatrier le fichier'
+    ]
+  },
+  {
     version: '2.34.1',
     title: 'Le mystère résolu : Cardmarket ne régénère pas',
     items: [

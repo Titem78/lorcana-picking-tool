@@ -731,24 +731,40 @@ export async function recupererExport(
     }
 
     onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)
-    // Téléchargement DANS la page : le formulaire de la ligne est soumis en
-    // fetch (redirection AWS suivie par le navigateur lui-même)
-    const dl = await js<{ err?: string; b64?: string }>(`(async () => {
-      const inp = [...document.querySelectorAll('input[name="idRequest"]')]
-        .find((i) => i.value === ${JSON.stringify(String(ligne.id))})
-      if (!inp) return { err: 'norow' }
-      const form = inp.closest('form')
-      const r = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'include' })
-      if (!r.ok) return { err: 'http' + r.status }
-      const buf = new Uint8Array(await r.arrayBuffer())
-      let bin = ''
-      for (let i = 0; i < buf.length; i += 0x8000) {
-        bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)))
-      }
-      return { b64: btoa(bin) }
-    })()`)
-    if (!dl.b64) throw new Anomalie(`Téléchargement du fichier refusé (${dl.err ?? 'inconnu'}).`)
-    const contenu = Buffer.from(dl.b64, 'base64').toString('utf-8')
+    // ⚠ Le téléchargement REDIRIGE vers Amazon S3 : un fetch DANS la page se
+    // heurte au CORS (« Failed to fetch », constaté le 17/08). On récupère le
+    // jeton dans la page, puis le process principal fait le POST et suit la
+    // redirection lui-même (lui n'est pas soumis au CORS).
+    const token = await js<string | null>(
+      `(document.querySelector('input[name="__cmtkn"]') || {}).value || null`
+    )
+    if (!token) throw new Anomalie('Jeton introuvable sur la page Téléchargements.')
+    const { session } = await import('electron')
+    const { UA } = await import('./cmshipping')
+    const ses = session.fromPartition('persist:cardmarket')
+    const dl = await ses.fetch(site.base + site.action_telecharger, {
+      method: 'POST',
+      credentials: 'include',
+      redirect: 'manual',
+      headers: {
+        'User-Agent': UA,
+        Referer: site.base + site.page_telechargements,
+        Origin: site.base,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({ __cmtkn: token, idRequest: String(ligne.id) }).toString()
+    })
+    let contenu: string
+    const location = dl.headers.get('location')
+    if (dl.status >= 300 && dl.status < 400 && location) {
+      const aws = await ses.fetch(location, { headers: { 'User-Agent': UA } })
+      if (!aws.ok) throw new Anomalie(`Téléchargement refusé par le stockage (code ${aws.status}).`)
+      contenu = await aws.text()
+    } else if (dl.ok) {
+      contenu = await dl.text()
+    } else {
+      throw new Anomalie(`Téléchargement refusé (code ${dl.status}).`)
+    }
     if (/<html/i.test(contenu.slice(0, 200))) {
       throw new Anomalie('Cardmarket a renvoyé une page au lieu du fichier — réessaie dans une minute.')
     }
