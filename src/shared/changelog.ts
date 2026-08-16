@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.35.1',
+    title: 'La navigation manquante',
+    items: [
+      'Correction du « formulaire d’export introuvable » : depuis la v2.34.1, l’app cherchait le formulaire sur la page Téléchargements au lieu de naviguer d’abord vers la page Transactions — la navigation a été rétablie',
+      'La génération d’un export inédit devrait maintenant fonctionner de bout en bout'
+    ]
+  },
+  {
     version: '2.35.0',
     title: 'Test de génération à plage libre',
     items: [

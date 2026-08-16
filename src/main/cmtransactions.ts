@@ -710,6 +710,11 @@ export async function recupererExportRange(
     if (ligne) {
       onProgress?.(`Un export identique existe déjà (${ligne.nom}) — téléchargement direct.`)
     } else {
+      // ⚠ Le formulaire d'export vit sur la page TRANSACTIONS — cette
+      // navigation avait été perdue dans une restructuration (v2.34.1-3 :
+      // « formulaire introuvable » car on le cherchait sur Téléchargements)
+      onProgress?.(`Demande de génération ${debut} → ${fin}…`)
+      await charge(site.page_details)
       const GEN_JS = `(async () => {
         const form = document.querySelector('form[action*="Reports_Asynchronous_ExportTransactions"]')
         if (!form) return { err: 'noform' }
