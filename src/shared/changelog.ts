@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.32.2',
+    title: 'Téléchargement réparé + bulle autonome',
+    items: [
+      'Récupération Cardmarket : le téléchargement du fichier généré passe maintenant la redirection Amazon (net::ERR_FAILED corrigé) — la chaîne complète génération → aperçu → import est fonctionnelle',
+      'La bulle de connexion se met à jour toute seule : toutes les 5 min, au retour sur la fenêtre, et en quittant l’onglet Cardmarket après une connexion'
+    ]
+  },
+  {
     version: '2.32.1',
     title: 'Récupération Cardmarket : correctifs ciblés',
     items: [

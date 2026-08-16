@@ -31,9 +31,9 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 /**
- * Bulle verte/rouge : session Cardmarket connectée ou non. Vérifiée au
- * lancement puis toutes les 30 min (1 lecture de la page d'accueil CM),
- * et au clic sur la bulle.
+ * Bulle verte/rouge : session Cardmarket connectée ou non. Se met à jour
+ * TOUTE SEULE : lancement, toutes les 5 min, retour du focus sur la fenêtre,
+ * sortie de l'onglet Cardmarket (après une connexion), et clic sur la bulle.
  */
 function CmStatusDot(): React.JSX.Element {
   const [logged, setLogged] = useState<boolean | null>(null)
@@ -44,8 +44,15 @@ function CmStatusDot(): React.JSX.Element {
   }
   useEffect(() => {
     check()
-    const t = setInterval(check, 30 * 60 * 1000)
-    return () => clearInterval(t)
+    const t = setInterval(check, 5 * 60 * 1000)
+    const onFocus = (): void => check()
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('cm-recheck', onFocus)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('cm-recheck', onFocus)
+    }
   }, [])
 
   return (
@@ -140,7 +147,14 @@ export default function App(): React.JSX.Element {
           <button
             key={t.id}
             className={`nav-btn ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              // On quitte l'onglet Cardmarket (peut-être après s'être
+              // connecté) : la bulle de connexion se re-vérifie seule
+              if (tab === 'cardmarket' && t.id !== 'cardmarket') {
+                window.dispatchEvent(new CustomEvent('cm-recheck'))
+              }
+              setTab(t.id)
+            }}
           >
             {t.label}
           </button>

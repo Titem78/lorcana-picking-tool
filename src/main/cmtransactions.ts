@@ -703,18 +703,32 @@ export async function recupererExport(
   }
 
   onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)
+  // L'endpoint redirige vers Amazon S3 (« …FromAws ») : suivre la redirection
+  // automatiquement échouait (net::ERR_FAILED, constaté le 17/08) — on lit
+  // le Location nous-mêmes et on va chercher le fichier avec un GET propre.
   const dl = await ses.fetch(site.base + site.action_telecharger, {
     method: 'POST',
     credentials: 'include',
+    redirect: 'manual',
     headers: {
-      ...headers,
+      'User-Agent': UA,
+      Referer: site.base + site.page_telechargements,
       Origin: site.base,
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     body: new URLSearchParams({ __cmtkn: token, idRequest: String(ligne.id) }).toString()
   })
-  if (!dl.ok) throw new Anomalie(`Téléchargement refusé (code ${dl.status}).`)
-  const contenu = await dl.text()
+  let contenu: string
+  const location = dl.headers.get('location')
+  if (dl.status >= 300 && dl.status < 400 && location) {
+    const aws = await ses.fetch(location, { headers: { 'User-Agent': UA } })
+    if (!aws.ok) throw new Anomalie(`Téléchargement du fichier refusé par le stockage (code ${aws.status}).`)
+    contenu = await aws.text()
+  } else if (dl.ok) {
+    contenu = await dl.text()
+  } else {
+    throw new Anomalie(`Téléchargement refusé (code ${dl.status}).`)
+  }
   if (/<html/i.test(contenu.slice(0, 200))) {
     throw new Anomalie('Cardmarket a renvoyé une page au lieu du fichier — réessaie dans une minute.')
   }
