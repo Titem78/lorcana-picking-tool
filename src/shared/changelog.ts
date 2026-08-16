@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.32.1',
+    title: 'Récupération Cardmarket : correctifs ciblés',
+    items: [
+      'La demande d’export envoie maintenant la bonne page d’origine (Referer) — cause probable des demandes parties dans le vide',
+      'La lecture de la liste des téléchargements tolère les variations de structure de la page',
+      'En cas d’échec, la réponse de Cardmarket est enregistrée dans cm-export-debug.html pour diagnostic immédiat'
+    ]
+  },
+  {
     version: '2.32.0',
     title: 'Bulle de connexion + regard sur Odoo',
     items: [

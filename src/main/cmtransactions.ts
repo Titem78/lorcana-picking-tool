@@ -552,6 +552,25 @@ export function lignesTelechargements(html: string): DownloadRow[] {
       nom: unescapeHtml(m[5]).trim()
     })
   }
+  // Repli tolérant : si la structure exacte des <td> a changé, on repère au
+  // moins chaque bloc <tr> portant un idRequest — type = texte du bloc,
+  // « prêt » = deux horodatages présents (Début ET Fin remplis).
+  if (out.length === 0) {
+    for (const chunk of html.split(/<tr[\s>]/g).slice(1)) {
+      const id = chunk.match(/name="idRequest"\s+value="(\d+)"/)
+      if (!id) continue
+      const texte = unescapeHtml(chunk.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ')
+      const dates = texte.match(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}(:\d{2})?/g) ?? []
+      const nom = chunk.match(/<\/span>([^<]*)<\/button>/)
+      out.push({
+        id: parseInt(id[1], 10),
+        type: texte,
+        debut: dates[0] ?? '',
+        fin: dates.length >= 2 ? dates[1] : '',
+        nom: nom ? unescapeHtml(nom[1]).trim() : ''
+      })
+    }
+  }
   return out.sort((a, b) => b.id - a.id)
 }
 
@@ -621,8 +640,12 @@ export async function recupererExport(
     method: 'POST',
     credentials: 'include',
     headers: {
-      ...headers,
+      'User-Agent': UA,
+      // Referer = la page qui PORTE le formulaire (Cardmarket peut le vérifier
+      // en plus du jeton — leçon du 17/08 : la demande partait dans le vide)
+      Referer: site.base + site.page_details,
       Origin: site.base,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     body: new URLSearchParams({
@@ -633,6 +656,7 @@ export async function recupererExport(
       format: site.format
     }).toString()
   })
+  const genBody = await gen.text().catch(() => '')
   if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
 
   onProgress?.('Génération en cours (~30 s), attente du fichier…')
@@ -649,12 +673,20 @@ export async function recupererExport(
     // été refusée — inutile d'attendre 3 minutes.
     vuEnCours = vuEnCours || rows.some((l) => l.id > reference && /transaction/i.test(l.type))
     if (!vuEnCours && polls >= 3) {
+      // Capture de la réponse du POST pour diagnostic (à m'envoyer)
+      try {
+        const { app } = await import('electron')
+        const { writeFileSync } = await import('fs')
+        const { join } = await import('path')
+        writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), genBody, 'utf-8')
+      } catch {
+        /* diagnostic seulement */
+      }
       throw new Anomalie(
         `Cardmarket n'a pas accepté la demande d'export (aucun fichier en génération dans ` +
-          `Compte → Téléchargements). Le formulaire a peut-être changé — ouvre la page ` +
-          `Compte → Transactions → « Montrer toutes les transactions » dans l'onglet 🌐 ` +
-          `et envoie-moi un dump 🐞 pour que je recale les champs. En attendant : génère ` +
-          `l'export sur le site puis « 📄 Choisir le fichier ».`
+          `Compte → Téléchargements). Sa réponse a été enregistrée dans cm-export-debug.html ` +
+          `(dossier de l'app) — envoie-moi ce fichier. En attendant : génère l'export sur le ` +
+          `site puis « 📄 Choisir le fichier ».`
       )
     }
     ligne = trouverNotreExport(rows, reference)

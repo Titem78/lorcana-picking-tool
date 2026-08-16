@@ -174,4 +174,23 @@ describe('page Téléchargements', () => {
     const rows = lignesTelechargements(HTML)
     expect(trouverNotreExport(rows, 4213)).toBeNull()
   })
+
+  it('repli tolérant : structure différente mais idRequest présent', () => {
+    const AUTRE = `
+      <tr class="odd"><td><div>Bilan des transactions</div></td>
+      <td>16.08.2026 19:26:48</td><td>16.08.2026 19:26:49</td>
+      <td><form><input type="hidden" name="idRequest" value="5001">
+      <button><span class="ico"></span>TRANSACTION SUMMARY-2026-05-01_2026-05-30.CSV</button></form></td></tr>
+      <tr class="even"><td><div>Bilan des transactions</div></td>
+      <td>16.08.2026 19:30:00</td><td></td>
+      <td><form><input type="hidden" name="idRequest" value="5002">
+      <button><span class="ico"></span>EN COURS.CSV</button></form></td></tr>
+    `
+    const rows = lignesTelechargements(AUTRE)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].id).toBe(5002)
+    expect(rows[0].fin).toBe('') // un seul horodatage : pas prêt
+    expect(rows[1].fin).not.toBe('')
+    expect(trouverNotreExport(rows, 5000)?.id).toBe(5001)
+  })
 })
