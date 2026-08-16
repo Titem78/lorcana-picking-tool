@@ -30,6 +30,47 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
+/**
+ * Bulle verte/rouge : session Cardmarket connectée ou non. Vérifiée au
+ * lancement puis toutes les 30 min (1 lecture de la page d'accueil CM),
+ * et au clic sur la bulle.
+ */
+function CmStatusDot(): React.JSX.Element {
+  const [logged, setLogged] = useState<boolean | null>(null)
+
+  const check = (): void => {
+    setLogged(null)
+    window.api.cm.loggedIn().then(setLogged)
+  }
+  useEffect(() => {
+    check()
+    const t = setInterval(check, 30 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <span
+      onClick={check}
+      title={
+        logged === null
+          ? 'Vérification de la connexion Cardmarket…'
+          : logged
+            ? 'Connecté à Cardmarket ✔ (clic pour re-vérifier)'
+            : 'NON connecté à Cardmarket — ouvre l’onglet 🌐 et connecte-toi (clic pour re-vérifier)'
+      }
+      style={{
+        width: 11,
+        height: 11,
+        borderRadius: '50%',
+        display: 'inline-block',
+        cursor: 'pointer',
+        background: logged === null ? 'var(--text-dim)' : logged ? '#3fb950' : '#e05d5d',
+        boxShadow: logged ? '0 0 6px #3fb95088' : undefined
+      }}
+    />
+  )
+}
+
 export default function App(): React.JSX.Element {
   const [user, setUser] = useState<User | null>(null)
   const [tab, setTab] = useState<TabId>('orders')
@@ -91,7 +132,10 @@ export default function App(): React.JSX.Element {
   return (
     <div className="layout">
       <nav className="sidebar">
-        <div className="brand">Lorcana Picking</div>
+        <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          Lorcana Picking
+          <CmStatusDot />
+        </div>
         {TABS.map((t) => (
           <button
             key={t.id}

@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.32.0',
+    title: 'Bulle de connexion + regard sur Odoo',
+    items: [
+      'Bulle verte/rouge à côté de « Lorcana Picking » : connecté ou non à Cardmarket (clic pour re-vérifier)',
+      'Sync gestion co. : bouton « 📖 Voir le mois dans Odoo » — liste ce que le journal contient déjà sur la période, en distinguant lignes de l’outil et saisies manuelles',
+      'Récupération Cardmarket : si la demande d’export n’est pas acceptée, l’app le dit en ~15 s au lieu d’attendre 3 minutes'
+    ]
+  },
+  {
     version: '2.31.0',
     title: 'Sync gestion co. fiabilisée + rangement',
     items: [

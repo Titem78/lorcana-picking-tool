@@ -638,9 +638,26 @@ export async function recupererExport(
   onProgress?.('Génération en cours (~30 s), attente du fichier…')
   const limite = Date.now() + site.attente_max_s * 1000
   let ligne: DownloadRow | null = null
+  let polls = 0
+  let vuEnCours = false
   while (Date.now() < limite) {
     await sleep(site.intervalle_s * 1000)
-    ligne = trouverNotreExport(lignesTelechargements(await get(site.page_telechargements)), reference)
+    polls++
+    const rows = lignesTelechargements(await get(site.page_telechargements))
+    // La ligne apparaît dans la liste dès l'acceptation (colonne Fin vide le
+    // temps de la génération) : si rien n'apparaît après ~15 s, la demande a
+    // été refusée — inutile d'attendre 3 minutes.
+    vuEnCours = vuEnCours || rows.some((l) => l.id > reference && /transaction/i.test(l.type))
+    if (!vuEnCours && polls >= 3) {
+      throw new Anomalie(
+        `Cardmarket n'a pas accepté la demande d'export (aucun fichier en génération dans ` +
+          `Compte → Téléchargements). Le formulaire a peut-être changé — ouvre la page ` +
+          `Compte → Transactions → « Montrer toutes les transactions » dans l'onglet 🌐 ` +
+          `et envoie-moi un dump 🐞 pour que je recale les champs. En attendant : génère ` +
+          `l'export sur le site puis « 📄 Choisir le fichier ».`
+      )
+    }
+    ligne = trouverNotreExport(rows, reference)
     if (ligne) break
     onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
   }

@@ -93,6 +93,8 @@ const api = {
     send: (userId: number, orderId: number) => ipcRenderer.invoke('odoo:send', userId, orderId),
     searchInvoices: (query: string) => ipcRenderer.invoke('odoo:searchInvoices', query),
     searchJournals: (query: string) => ipcRenderer.invoke('odoo:searchJournals', query),
+    listStatementLines: (dateFrom: string, dateTo: string) =>
+      ipcRenderer.invoke('odoo:listStatementLines', dateFrom, dateTo),
     linkInvoice: (userId: number, orderId: number, moveId: number) =>
       ipcRenderer.invoke('odoo:linkInvoice', userId, orderId, moveId)
   },
@@ -140,6 +142,7 @@ const api = {
     autoConfirmEnabled: () => ipcRenderer.invoke('cm:autoConfirmEnabled'),
     shipmentStatus: (orderId: number) => ipcRenderer.invoke('cm:shipmentStatus', orderId),
     dashboard: () => ipcRenderer.invoke('cm:dashboard'),
+    loggedIn: () => ipcRenderer.invoke('cm:loggedIn'),
     saveCreds: (userId: number, username: string, password: string) =>
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),
     clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),

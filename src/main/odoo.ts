@@ -218,6 +218,30 @@ export async function statementLinesInPeriod(
   return { count: rows.length, total: sum(rows), manual: manual.length, manualTotal: sum(manual) }
 }
 
+/** Les lignes du journal sur une période — pour VOIR ce qu'Odoo contient déjà. */
+export async function listStatementLines(
+  dateFrom: string,
+  dateTo: string
+): Promise<{ date: string; payment_ref: string; amount: number; from_tool: boolean }[]> {
+  const cfg = getOdooConfig()
+  if (!cfg) throw new Error('Odoo n’est pas configuré (Réglages → Odoo)')
+  const uid = await authenticate(cfg)
+  const rows = (await execute(
+    cfg,
+    uid,
+    'account.bank.statement.line',
+    'search_read',
+    [[['journal_id', '=', cmtxJournalId()], ['date', '>=', dateFrom], ['date', '<=', dateTo]]],
+    { fields: ['date', 'payment_ref', 'amount', 'unique_import_id'], order: 'date asc, id asc' }
+  )) as { date: string; payment_ref: string; amount: number; unique_import_id: string | false }[]
+  return rows.map((r) => ({
+    date: r.date,
+    payment_ref: r.payment_ref,
+    amount: r.amount,
+    from_tool: !!r.unique_import_id && String(r.unique_import_id).startsWith('cardmarket:')
+  }))
+}
+
 export async function createStatementLines(
   lines: { date: string; payment_ref: string; ref: string; amount: number; unique_import_id: string }[]
 ): Promise<number[]> {

@@ -204,6 +204,21 @@ export async function confirmShipmentOnCm(
     : { ok: false, message: '⚠ Confirmation non vérifiée — contrôle la vente sur Cardmarket' }
 }
 
+/** Sommes-nous connectés à Cardmarket ? (bulle verte/rouge de la barre latérale) */
+export async function isLoggedIn(): Promise<boolean> {
+  try {
+    const ses = session.fromPartition('persist:cardmarket')
+    const r = await ses.fetch('https://www.cardmarket.com/fr/Lorcana', {
+      headers: { 'User-Agent': UA }
+    })
+    if (!r.ok) return false
+    const html = await r.text()
+    return /D[ÉE]CONNEXION|\/Logout/i.test(html)
+  } catch {
+    return false
+  }
+}
+
 /** L'option « valider les envois sur Cardmarket » est-elle activée ? (opt-in) */
 export function isAutoConfirmEnabled(): boolean {
   const r = getDb()

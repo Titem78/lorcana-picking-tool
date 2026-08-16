@@ -334,6 +334,13 @@ export function registerIpc(): void {
     return cmtx.importerDansOdoo(userId, analyse as import('./cmtransactions').AnalyseResult)
   })
   ipcMain.handle('odoo:searchJournals', (_e, query: string) => odoo.searchJournals(query ?? ''))
+  ipcMain.handle('odoo:listStatementLines', (_e, dateFrom: string, dateTo: string) =>
+    odoo.listStatementLines(dateFrom, dateTo)
+  )
+  ipcMain.handle('cm:loggedIn', async () => {
+    const { isLoggedIn } = await import('./cmshipping')
+    return isLoggedIn()
+  })
 
   ipcMain.handle('cm:dashboard', async () => {
     const { fetchCmDashboard } = await import('./cmdashboard')

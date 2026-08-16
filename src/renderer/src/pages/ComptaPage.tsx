@@ -47,6 +47,26 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
   const [analyse, setAnalyse] = useState<Analyse | null>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [odooLines, setOdooLines] = useState<
+    { date: string; payment_ref: string; amount: number; from_tool: boolean }[] | null
+  >(null)
+
+  const voirOdoo = (): void => {
+    if (odooLines) {
+      setOdooLines(null)
+      return
+    }
+    const [an, mois] = [periode.slice(0, 4), periode.slice(5, 7)]
+    const dernierJour = new Date(parseInt(an, 10), parseInt(mois, 10), 0).getDate()
+    setMsg(`Lecture du journal Odoo sur ${periode}…`)
+    window.api.odoo
+      .listStatementLines(`${periode}-01`, `${periode}-${String(dernierJour).padStart(2, '0')}`)
+      .then((rows: typeof odooLines) => {
+        setOdooLines(rows)
+        setMsg('')
+      })
+      .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
 
   useEffect(() => {
     window.api.settings.get('cmtx_journal_id').then((v: string | null) => {
@@ -173,7 +193,64 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
         <button disabled={busy || !journalId} onClick={pickFile}>
           📄 Choisir le fichier export…
         </button>
+        <button disabled={busy || !journalId} onClick={voirOdoo}>
+          {odooLines ? 'Masquer Odoo' : '📖 Voir le mois dans Odoo'}
+        </button>
       </div>
+
+      {odooLines && (
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: 14,
+            marginBottom: 16
+          }}
+        >
+          <div style={{ display: 'flex', gap: 14, alignItems: 'baseline', marginBottom: 8 }}>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>
+              Déjà dans Odoo — {periode} ({odooLines.length} ligne(s))
+            </h2>
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>
+              total {odooLines.reduce((s, l) => s + l.amount, 0).toFixed(2)} EUR ·{' '}
+              {odooLines.filter((l) => l.from_tool).length} via l&apos;outil ·{' '}
+              {odooLines.filter((l) => !l.from_tool).length} manuelle(s)
+            </span>
+          </div>
+          {odooLines.length === 0 ? (
+            <p style={{ color: 'var(--ok)' }}>Rien sur cette période — le mois est vierge, tu peux importer.</p>
+          ) : (
+            <div style={{ maxHeight: 260, overflow: 'auto' }}>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Libellé</th>
+                    <th style={{ textAlign: 'right' }}>Montant</th>
+                    <th>Origine</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {odooLines.map((l, i) => (
+                    <tr key={i}>
+                      <td>{l.date.split('-').reverse().join('/')}</td>
+                      <td>{l.payment_ref}</td>
+                      <td style={{ textAlign: 'right', color: l.amount < 0 ? 'var(--danger)' : 'var(--ok)' }}>
+                        {l.amount.toFixed(2)}
+                      </td>
+                      <td>
+                        <span className="badge" style={l.from_tool ? { borderColor: 'var(--ok)', color: 'var(--ok)' } : {}}>
+                          {l.from_tool ? 'outil' : '✍ manuelle'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <input
