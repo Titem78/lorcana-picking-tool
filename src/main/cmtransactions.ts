@@ -421,6 +421,17 @@ export async function analyser(
   const lignes = preparer(mvts, periode, cfg)
   const avertissements = controlePeriode(mvts, periode)
 
+  // Mois PAS ENCORE CLOS : la ligne de frais serait partielle, et l'import de
+  // fin de mois lèverait un écart — la compta s'importe mois terminé.
+  const moisCourant = new Date().toISOString().slice(0, 7)
+  if (periode >= moisCourant) {
+    avertissements.unshift(
+      `MOIS EN COURS : ${periode} n'est pas terminé — la ligne « Frais Cardmarket » serait ` +
+        `calculée sur un mois partiel et devrait être corrigée à la main ensuite. ` +
+        `Attends la fin du mois pour importer.`
+    )
+  }
+
   const db = getDb()
   const emp = empreinte(contenu)
   const vu = db
@@ -661,10 +672,27 @@ export async function testerGeneration(
   debut: string,
   fin: string,
   onProgress?: (msg: string) => void
-): Promise<{ nom: string; mouvements: number; repartition: Record<string, number> }> {
+): Promise<{
+  nom: string
+  mouvements: number
+  repartition: Record<string, number>
+  lignes: { date: string; type: string; tiers: string; ref: string; montant: number }[]
+}> {
   const { nom, contenu } = await recupererExportRange(debut, fin, onProgress)
   const { mvts } = lireExport(contenu, getCmTxConfig())
-  return { nom, mouvements: mvts.length, repartition: repartitionPeriodes(mvts) }
+  return {
+    nom,
+    mouvements: mvts.length,
+    repartition: repartitionPeriodes(mvts),
+    // Le contenu lu, pour VOIR ce que le fichier contient (plafonné à 200)
+    lignes: mvts.slice(0, 200).map((m) => ({
+      date: m.date,
+      type: m.type,
+      tiers: m.tiers,
+      ref: m.ref,
+      montant: m.montant
+    }))
+  }
 }
 
 export async function recupererExportRange(

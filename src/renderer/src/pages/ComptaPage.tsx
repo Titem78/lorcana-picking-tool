@@ -29,22 +29,30 @@ interface Analyse {
  */
 function TestGeneration({
   busy,
-  setBusy
+  setBusy,
+  runningRef,
+  clearMainMsg
 }: {
   busy: boolean
   setBusy: (b: boolean) => void
+  runningRef: React.MutableRefObject<boolean>
+  clearMainMsg: () => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [debut, setDebut] = useState('')
   const [fin, setFin] = useState('')
   const [result, setResult] = useState('')
-  const runningRef = useRef(false)
+  const [lignes, setLignes] = useState<
+    { date: string; type: string; tiers: string; ref: string; montant: number }[]
+  >([])
 
-  // Pendant le test, la progression s'affiche ICI (et plus seulement en haut)
+  // Pendant le test, la progression s'affiche ICI (le haut est réservé aux
+  // vrais imports — voir le filtre runningRef dans ComptaPage)
   useEffect(() => {
     window.api.cmtx.onProgress((m: string) => {
       if (runningRef.current) setResult(m)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const run = (): void => {
@@ -52,22 +60,32 @@ function TestGeneration({
     setBusy(true)
     runningRef.current = true
     setResult('Test en cours…')
+    setLignes([])
     window.api.cmtx
       .testGeneration(debut, fin)
-      .then((r: { nom: string; mouvements: number; repartition: Record<string, number> }) => {
-        setResult(
-          `✅ Chaîne complète OK : « ${r.nom} » généré et téléchargé — ${r.mouvements} mouvement(s) lu(s)` +
-            (Object.keys(r.repartition).length
-              ? ` (${Object.entries(r.repartition)
-                  .map(([p, n]) => `${p} : ${n}`)
-                  .join(', ')})`
-              : '')
-        )
-      })
+      .then(
+        (r: {
+          nom: string
+          mouvements: number
+          repartition: Record<string, number>
+          lignes: { date: string; type: string; tiers: string; ref: string; montant: number }[]
+        }) => {
+          setResult(
+            `✅ Chaîne complète OK : « ${r.nom} » généré et téléchargé — ${r.mouvements} mouvement(s) lu(s)` +
+              (Object.keys(r.repartition).length
+                ? ` (${Object.entries(r.repartition)
+                    .map(([p, n]) => `${p} : ${n}`)
+                    .join(', ')})`
+                : '')
+          )
+          setLignes(r.lignes)
+        }
+      )
       .catch((err: Error) => setResult(`❌ ${err.message.replace(/^.*Error: /, '')}`))
       .finally(() => {
         setBusy(false)
         runningRef.current = false
+        clearMainMsg()
       })
   }
 
@@ -107,6 +125,34 @@ function TestGeneration({
             <span style={{ width: '100%', color: result.startsWith('✅') ? 'var(--ok)' : 'var(--text-dim)' }}>
               {result}
             </span>
+          )}
+          {lignes.length > 0 && (
+            <div style={{ width: '100%', maxHeight: 240, overflow: 'auto' }}>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Contrepartie</th>
+                    <th>Référence</th>
+                    <th style={{ textAlign: 'right' }}>Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lignes.map((l, i) => (
+                    <tr key={i}>
+                      <td>{l.date.split('-').reverse().join('/')}</td>
+                      <td>{l.type}</td>
+                      <td>{l.tiers || '—'}</td>
+                      <td>{l.ref}</td>
+                      <td style={{ textAlign: 'right', color: l.montant < 0 ? 'var(--danger)' : 'var(--ok)' }}>
+                        {l.montant.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -161,12 +207,17 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
       })
   }, [odooOpen, periode, journalId])
 
+  const testRunningRef = useRef(false)
+
   useEffect(() => {
     window.api.settings.get('cmtx_journal_id').then((v: string | null) => {
       if (v) setJournalId(parseInt(v, 10))
     })
     window.api.settings.get('cmtx_journal_name').then((v: string | null) => setJournalName(v ?? ''))
-    window.api.cmtx.onProgress((m: string) => setMsg(m))
+    // La progression des TESTS s'affiche dans le panneau de test, pas ici
+    window.api.cmtx.onProgress((m: string) => {
+      if (!testRunningRef.current) setMsg(m)
+    })
   }, [])
 
   if (user.is_admin !== 1) {
@@ -417,7 +468,12 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
         </div>
       )}
 
-      <TestGeneration busy={busy} setBusy={setBusy} />
+      <TestGeneration
+        busy={busy}
+        setBusy={setBusy}
+        runningRef={testRunningRef}
+        clearMainMsg={() => setMsg('')}
+      />
 
       {analyse && (
         <div style={{ border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: 16 }}>

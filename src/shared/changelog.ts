@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.36.0',
+    title: 'Le test montre ce qu’il lit',
+    items: [
+      'Le test de génération affiche maintenant le contenu du fichier lu (date, type, contrepartie, montant) — plus besoin de le croire sur parole',
+      'La progression des tests reste dans le panneau de test, la barre du haut ne garde plus de message périmé',
+      'Nouveau garde-fou : importer un mois pas encore terminé affiche un avertissement (la ligne de frais serait partielle) — la compta s’importe mois clos'
+    ]
+  },
+  {
     version: '2.35.2',
     title: 'Pastille fiable + test lisible',
     items: [
