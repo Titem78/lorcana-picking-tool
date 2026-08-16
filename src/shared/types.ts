@@ -91,6 +91,7 @@ export interface Order {
   refund_amount: string | null // remboursement (ex. frais de port), « 3,44 EUR »
   refund_reason: string | null
   cm_tracked: number | null // suivi demandé par CM (1/0), lu sur la page de la vente
+  buyer_pro: number | null // acheteur badgé « Professionnel » sur CM (1/0, NULL = pas lu)
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null

@@ -772,6 +772,46 @@ function CmConfirmOptions({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/**
+ * Option : facturer les acheteurs PRO (badge « Professionnel » Cardmarket)
+ * sur leur propre fiche client Odoo, créée automatiquement si absente.
+ * Désactivée = comportement habituel (client Cardmarket générique).
+ */
+function OdooProOption({ user }: { user: User }): React.JSX.Element {
+  const [on, setOn] = useState(false)
+
+  useEffect(() => {
+    window.api.settings.get('odoo_pro_partners').then((v: string | null) => setOn(v === '1'))
+  }, [])
+
+  const toggle = (v: boolean): void => {
+    setOn(v)
+    window.api.settings.set(user.id, 'odoo_pro_partners', v ? '1' : '0')
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>🏢 Clients professionnels</h2>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => toggle(e.target.checked)}
+          style={{ width: 20, height: 20 }}
+        />
+        Facturer les acheteurs PRO sur leur propre fiche client Odoo
+      </label>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 6, maxWidth: 640 }}>
+        Quand l&apos;acheteur porte le badge « Professionnel » sur Cardmarket (🏢 PRO sur la
+        fiche de commande), sa fiche client est retrouvée ou créée dans Odoo (nom, adresse,
+        référence CM:pseudo) et la facture part sur elle — au lieu du client Cardmarket
+        habituel. Pense à compléter SIRET/TVA sur la fiche créée. Décoché : tout passe par le
+        client Cardmarket comme avant.
+      </p>
+    </section>
+  )
+}
+
 /** Calibrage du poids estimé des commandes (demande de Laure : le grammage). */
 function WeightOptions({ user }: { user: User }): React.JSX.Element {
   const [env, setEnv] = useState('')
@@ -1087,7 +1127,12 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
         </>
       )}
 
-      {cat === 'odoo' && user.is_admin === 1 && <OdooSection user={user} />}
+      {cat === 'odoo' && user.is_admin === 1 && (
+        <>
+          <OdooSection user={user} />
+          <OdooProOption user={user} />
+        </>
+      )}
 
       {cat === 'danger' && user.is_admin === 1 && <DangerZone user={user} />}
 

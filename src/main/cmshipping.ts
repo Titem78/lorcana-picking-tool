@@ -56,6 +56,18 @@ export async function fetchOrderShipping(saleId: string): Promise<CmShipping | n
   return parseShippingFromHtml(await res.text())
 }
 
+/**
+ * Acheteur professionnel ? Le badge « Professionnel »
+ * (fonticon-users-professional) figure dans le bloc acheteur SellerBuyerInfo
+ * de la page de la vente — pas celui de la barre du haut (notre compte).
+ */
+export function parseBuyerPro(html: string): boolean | null {
+  const i = html.indexOf('SellerBuyerInfo')
+  if (i < 0) return null
+  const bloc = html.slice(i, i + 4000)
+  return /fonticon-users-professional/.test(bloc)
+}
+
 /** La méthode stockée a-t-elle été polluée par l'ancienne extraction ? */
 function isPolluted(method: string | null): boolean {
   return /M[ée]thode|Num[ée]ro/i.test(method ?? '')
@@ -68,21 +80,32 @@ function isPolluted(method: string | null): boolean {
 export async function enrichShippingFromCm(orderId: number): Promise<boolean> {
   const db = getDb()
   const row = db
-    .prepare('SELECT sale_id, shipping_method, cm_tracked FROM orders WHERE id = ?')
+    .prepare('SELECT sale_id, shipping_method, cm_tracked, buyer_pro FROM orders WHERE id = ?')
     .get(orderId) as
-    | { sale_id: string; shipping_method: string | null; cm_tracked: number | null }
+    | { sale_id: string; shipping_method: string | null; cm_tracked: number | null; buyer_pro: number | null }
     | undefined
   if (!row) return false
   const complete =
     /max\.?\s*\d+\s*g/i.test(row.shipping_method ?? '') &&
     !isPolluted(row.shipping_method) &&
-    row.cm_tracked != null
+    row.cm_tracked != null &&
+    row.buyer_pro != null
   if (complete) return false
-  const s = await fetchOrderShipping(row.sale_id).catch(() => null)
-  if (!s) return false
-  db.prepare('UPDATE orders SET shipping_method = ?, cm_tracked = ? WHERE id = ?').run(
-    `${s.method} (max. ${s.max_g}g)`,
-    s.tracked == null ? null : s.tracked ? 1 : 0,
+  const html = await fetchOrderPage(row.sale_id).catch(() => null)
+  if (!html) return false
+  const s = parseShippingFromHtml(html)
+  const pro = parseBuyerPro(html)
+  if (!s && pro == null) return false
+  db.prepare(
+    `UPDATE orders SET
+       shipping_method = COALESCE(?, shipping_method),
+       cm_tracked = COALESCE(?, cm_tracked),
+       buyer_pro = COALESCE(?, buyer_pro)
+     WHERE id = ?`
+  ).run(
+    s ? `${s.method} (max. ${s.max_g}g)` : null,
+    s?.tracked == null ? null : s.tracked ? 1 : 0,
+    pro == null ? null : pro ? 1 : 0,
     orderId
   )
   return true
@@ -246,7 +269,8 @@ export async function backfillShipping(): Promise<number> {
        WHERE cm_fetch_attempts < 3
          AND ((status IN ('imported', 'picking', 'picked', 'prepared')
                AND imported_at >= datetime('now', 'localtime', '-30 days')
-               AND (shipping_method IS NULL OR shipping_method NOT LIKE '%max.%' OR cm_tracked IS NULL))
+               AND (shipping_method IS NULL OR shipping_method NOT LIKE '%max.%'
+                    OR cm_tracked IS NULL OR buyer_pro IS NULL))
               OR shipping_method LIKE '%Méthode%' OR shipping_method LIKE '%Numéro%')
        LIMIT 15`
     )

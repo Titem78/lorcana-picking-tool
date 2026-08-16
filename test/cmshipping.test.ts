@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ session: { fromPartition: () => ({}) } }))
 
-import { hasConfirmForm, parseCmToken, parseShippingFromHtml } from '../src/main/cmshipping'
+import { hasConfirmForm, parseBuyerPro, parseCmToken, parseShippingFromHtml } from '../src/main/cmshipping'
 
 // Formulaires RÉELS du dump cm-page-debug (vente #1293615602, 2026-08-12)
 const FORMS_REELS = `
@@ -54,6 +54,29 @@ describe('parseShippingFromHtml', () => {
 
   it('renvoie null si la page ne contient pas le bloc', () => {
     expect(parseShippingFromHtml('<html><body>rien ici</body></html>')).toBeNull()
+  })
+})
+
+describe('acheteur professionnel (badge du bloc acheteur, structure réelle)', () => {
+  // Extrait réel : le badge Professionnel dans SellerBuyerInfo (vente JadecardTCG)
+  const PRO = `<div id="SellerBuyerInfo" class="d-flex"><span class="seller-info">
+    <a href="/fr/Lorcana/Users/JadecardTCG">JadecardTCG</a>
+    <span class="fonticon-users-professional" aria-label="Professionnel"></span></span></div>`
+  const PARTICULIER = `<div id="SellerBuyerInfo" class="d-flex"><span class="seller-info">
+    <a href="/fr/Lorcana/Users/Azrael67">Azrael67</a></span></div>`
+  // Le badge de NOTRE compte (barre du haut) ne doit pas compter
+  const NAVBAR_SEULEMENT = `<div class="vacationStatus"><span class="fonticon-users-professional"></span></div>
+    <div id="SellerBuyerInfo"><a href="/fr/Lorcana/Users/Azrael67">Azrael67</a></div>`
+
+  it('détecte le badge pro dans le bloc acheteur', () => {
+    expect(parseBuyerPro(PRO)).toBe(true)
+  })
+  it('particulier = false, page sans bloc = null', () => {
+    expect(parseBuyerPro(PARTICULIER)).toBe(false)
+    expect(parseBuyerPro('<html>autre page</html>')).toBeNull()
+  })
+  it('ignore le badge pro de notre propre compte (barre du haut)', () => {
+    expect(parseBuyerPro(NAVBAR_SEULEMENT)).toBe(false)
   })
 })
 

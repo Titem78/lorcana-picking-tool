@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.37.0',
+    title: 'Clients professionnels',
+    items: [
+      'Les acheteurs badgés « Professionnel » sur Cardmarket sont détectés (badge 🏢 PRO sur la fiche de commande) — à l’import web ou via la lecture de la page de vente pour les imports PDF',
+      'Nouvelle option (Réglages → Odoo, désactivée par défaut) : facturer les PRO sur leur propre fiche client Odoo, créée automatiquement avec nom, adresse et référence CM:pseudo',
+      'Décochée : tout passe par le client Cardmarket habituel, comme avant'
+    ]
+  },
+  {
     version: '2.36.0',
     title: 'Le test montre ce qu’il lit',
     items: [

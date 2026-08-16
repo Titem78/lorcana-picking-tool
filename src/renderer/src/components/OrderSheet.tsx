@@ -273,6 +273,15 @@ export default function OrderSheet({
             <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 4 }}>Client</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b>{order.buyer_username}</b>
+              {order.buyer_pro === 1 && (
+                <span
+                  className="badge"
+                  title="Acheteur badgé « Professionnel » sur Cardmarket"
+                  style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700 }}
+                >
+                  🏢 PRO
+                </span>
+              )}
               {order.buyer_username && (
                 <button
                   title="Ouvre le profil Cardmarket du client dans une fenêtre séparée (connectée) — le bouton ✉ Message y est en haut"

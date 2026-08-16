@@ -210,5 +210,11 @@ export const MIGRATIONS: string[] = [
     importe_le TEXT,
     nb_lignes INTEGER
   );
+  `,
+
+  // 014 — acheteur professionnel (badge « Professionnel » sur la page de la
+  // vente) : 1 = pro, 0 = particulier, NULL = pas encore lu
+  `
+  ALTER TABLE orders ADD COLUMN buyer_pro INTEGER;
   `
 ]

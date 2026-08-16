@@ -545,8 +545,59 @@ export async function sendOrderToOdoo(
     // 1. Client : en mode « client unique », on utilise l'ID du client EXISTANT
     //    choisi dans les Réglages (aucune création, aucun doublon possible).
     //    En mode « par acheteur », on retrouve/crée « Cardmarket - pseudo ».
+    //    OPTION clients pro (odoo_pro_partners) : un acheteur badgé
+    //    « Professionnel » sur Cardmarket reçoit SA fiche client (créée si
+    //    absente, clé stable ref = CM:<pseudo>) et la facture part dessus.
+    const proOption =
+      (
+        db.prepare("SELECT value FROM settings WHERE key = 'odoo_pro_partners'").get() as
+          | { value: string }
+          | undefined
+      )?.value === '1'
     let partnerId: number
-    if (cfg.partnerMode === 'single') {
+    if (proOption && order.buyer_pro === 1) {
+      const ref = `CM:${order.buyer_username}`
+      const found = (await execute(cfg, uid, 'res.partner', 'search', [
+        [['ref', '=', ref]]
+      ])) as number[]
+      partnerId = found[0]
+      if (!partnerId) {
+        // Adresse de livraison Cardmarket : dernières lignes = « CP Ville » et pays
+        const lignes = (order.buyer_address ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+        let zip = ''
+        let city = ''
+        const rue: string[] = []
+        for (const l of lignes) {
+          const m = l.match(/^(\d{4,6})\s+(.+)$/)
+          if (m && !zip) {
+            zip = m[1]
+            city = m[2]
+          } else if (!/^france$/i.test(l)) {
+            rue.push(l)
+          }
+        }
+        partnerId = (await execute(cfg, uid, 'res.partner', 'create', [
+          {
+            name: order.buyer_name
+              ? `${order.buyer_username} (${order.buyer_name})`
+              : order.buyer_username,
+            ref,
+            is_company: true,
+            customer_rank: 1,
+            street: rue[0] ?? '',
+            street2: rue.slice(1).join(', ') || false,
+            zip: zip || false,
+            city: city || false,
+            comment: `Client PRO Cardmarket (pseudo : ${order.buyer_username}) — fiche créée par Lorcana Picking Tool. Compléter SIRET/TVA si besoin.`
+          }
+        ])) as number
+        logActivity(userId, 'odoo.pro_partner_created', {
+          orderId,
+          username: order.buyer_username,
+          partnerId
+        })
+      }
+    } else if (cfg.partnerMode === 'single') {
       if (!cfg.singlePartnerId) {
         throw new Error(
           'Choisis le client Odoo dans les Réglages (recherche puis sélection) avant d’envoyer'

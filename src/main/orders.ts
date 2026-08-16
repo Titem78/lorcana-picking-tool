@@ -66,13 +66,20 @@ export async function persistParsedOrder(
       const insertAll = db.transaction(() => {
         const info = db
           .prepare(
-            `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, seller,
+            `INSERT INTO orders (sale_id, buyer_pro, buyer_username, buyer_name, buyer_address, seller,
                article_count, item_value, shipping_cost, total, shipping_method, tracking_number,
                refund_amount, status, source_pdf, imported_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?)`
           )
           .run(
             parsed.sale_id,
+            // Badge pro connu seulement à l'import web ; les PDF passent par
+            // l'enrichissement en arrière-plan (page de la vente)
+            (parsed as { buyer_pro?: boolean }).buyer_pro === undefined
+              ? null
+              : (parsed as { buyer_pro?: boolean }).buyer_pro
+                ? 1
+                : 0,
             parsed.buyer_username,
             parsed.buyer_name,
             parsed.buyer_address,

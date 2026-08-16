@@ -391,9 +391,14 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         const userLink = (await wv.executeJavaScript(
           `[...document.querySelectorAll('a')].find((a) => /\\/Users\\//.test(a.getAttribute('href') || ''))?.textContent?.trim() || ''`
         )) as string
+        // Badge « Professionnel » du bloc acheteur (pas celui de notre compte)
+        const buyerPro = (await wv.executeJavaScript(
+          `!!document.querySelector('#SellerBuyerInfo .fonticon-users-professional')`
+        )) as boolean
 
         const results = (await window.api.importParsed(user.id, {
           sale_id: sale[1],
+          buyer_pro: buyerPro,
           buyer_username: userLink,
           buyer_name: addrLines[0] ?? '',
           buyer_address: addrLines.slice(1).join('\n'),
