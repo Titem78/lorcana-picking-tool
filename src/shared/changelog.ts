@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.35.2',
+    title: 'Pastille fiable + test lisible',
+    items: [
+      'La pastille de connexion ne repasse plus au rouge à tort (anti-cache sur la vérification) et devient verte toute seule dès que tu te connectes dans l’onglet Cardmarket',
+      'La progression du test de génération s’affiche dans le panneau de test'
+    ]
+  },
+  {
     version: '2.35.1',
     title: 'La navigation manquante',
     items: [

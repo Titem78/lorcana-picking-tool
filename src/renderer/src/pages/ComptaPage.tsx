@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@shared/types'
 import { confirmDialog } from '@/lib/dialogs'
 
@@ -38,10 +38,19 @@ function TestGeneration({
   const [debut, setDebut] = useState('')
   const [fin, setFin] = useState('')
   const [result, setResult] = useState('')
+  const runningRef = useRef(false)
+
+  // Pendant le test, la progression s'affiche ICI (et plus seulement en haut)
+  useEffect(() => {
+    window.api.cmtx.onProgress((m: string) => {
+      if (runningRef.current) setResult(m)
+    })
+  }, [])
 
   const run = (): void => {
     if (!debut || !fin) return
     setBusy(true)
+    runningRef.current = true
     setResult('Test en cours…')
     window.api.cmtx
       .testGeneration(debut, fin)
@@ -56,7 +65,10 @@ function TestGeneration({
         )
       })
       .catch((err: Error) => setResult(`❌ ${err.message.replace(/^.*Error: /, '')}`))
-      .finally(() => setBusy(false))
+      .finally(() => {
+        setBusy(false)
+        runningRef.current = false
+      })
   }
 
   return (

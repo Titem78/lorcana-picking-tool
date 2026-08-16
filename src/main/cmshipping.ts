@@ -208,8 +208,10 @@ export async function confirmShipmentOnCm(
 export async function isLoggedIn(): Promise<boolean> {
   try {
     const ses = session.fromPartition('persist:cardmarket')
-    const r = await ses.fetch('https://www.cardmarket.com/fr/Lorcana', {
-      headers: { 'User-Agent': UA }
+    // Anti-cache indispensable : une copie « déconnectée » de la page pouvait
+    // resservir et faire passer la bulle au rouge à tort
+    const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana?nc=${Date.now()}`, {
+      headers: { 'User-Agent': UA, 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
     })
     if (!r.ok) return false
     const html = await r.text()

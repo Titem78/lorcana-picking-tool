@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ImportResult, User } from '@shared/types'
 
 const sleep = (ms: number): Promise<void> => new Promise((res) => setTimeout(res, ms))
@@ -41,6 +41,25 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const cancelRef = useRef(false)
+
+  // Chaque navigation dans l'onglet (ex. juste après la connexion) déclenche
+  // une re-vérification de la bulle de connexion, avec un petit délai.
+  useEffect(() => {
+    const wv = webviewRef.current
+    if (!wv) return
+    let timer: number | undefined
+    const onNav = (): void => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => window.dispatchEvent(new CustomEvent('cm-recheck')), 2500)
+    }
+    wv.addEventListener('did-navigate', onNav)
+    wv.addEventListener('did-navigate-in-page', onNav)
+    return () => {
+      window.clearTimeout(timer)
+      wv.removeEventListener('did-navigate', onNav)
+      wv.removeEventListener('did-navigate-in-page', onNav)
+    }
+  }, [])
   const [stockProgress, setStockProgress] = useState<{
     label: string
     page: number
