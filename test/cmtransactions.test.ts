@@ -14,7 +14,8 @@ import {
   lireExport,
   parseCsv,
   preparer,
-  trouverNotreExport
+  trouverNotreExport,
+  trouverParDates
 } from '../src/main/cmtransactions'
 
 const H =
@@ -173,6 +174,16 @@ describe('page Téléchargements', () => {
   it('rien de plus récent que la référence = null (fichiers périmés écartés)', () => {
     const rows = lignesTelechargements(HTML)
     expect(trouverNotreExport(rows, 4213)).toBeNull()
+  })
+
+  it('export identique déjà généré : retrouvé par son couple de dates (Cardmarket ne le recrée pas)', () => {
+    const rows = lignesTelechargements(HTML)
+    // id 4212 = 2026-06-01_2026-07-01.csv, prêt → réutilisable directement
+    expect(trouverParDates(rows, '2026-06-01', '2026-07-01', 'csv')?.id).toBe(4212)
+    // 4213 porte les bonnes dates mais Fin vide → pas prêt
+    expect(trouverParDates(rows, '2026-07-01', '2026-07-31', 'csv')).toBeNull()
+    // mauvais couple de dates → rien
+    expect(trouverParDates(rows, '2026-01-01', '2026-01-31', 'csv')).toBeNull()
   })
 
   it('repli tolérant : structure différente mais idRequest présent', () => {

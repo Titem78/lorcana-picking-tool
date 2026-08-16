@@ -593,6 +593,25 @@ export function trouverNotreExport(lignes: DownloadRow[], reference: number): Do
   return null // rien de prêt postérieur à notre demande : on continue d'attendre
 }
 
+/**
+ * Export PRÊT portant exactement le couple de dates demandé. Indispensable :
+ * Cardmarket NE RECRÉE PAS un export identique (constaté le 17/08 — la
+ * demande de mai n'a créé aucune ligne car « …05-01_05-31.csv » existait
+ * déjà) — un mois clos déjà généré se télécharge donc directement.
+ */
+export function trouverParDates(
+  lignes: DownloadRow[],
+  debut: string,
+  fin: string,
+  ext: string
+): DownloadRow | null {
+  for (const l of lignes) {
+    const n = l.nom.toLowerCase()
+    if (n.includes(debut) && n.includes(fin) && n.endsWith('.' + ext) && l.fin) return l
+  }
+  return null
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 // Extraction des lignes de Téléchargements DANS la page (DOM réel, pas de
@@ -657,51 +676,58 @@ export async function recupererExport(
       throw new Anomalie('Session Cardmarket expirée — connecte-toi dans l’onglet 🌐 Cardmarket puis réessaie.')
     }
     // Référence AVANT la demande : tout fichier déjà présent sera ignoré
-    const avant = await js<DownloadRow[]>(ROWS_IN_PAGE)
+    const avant = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
     const reference = avant.reduce((mx, l) => Math.max(mx, l.id), 0)
 
-    onProgress?.(`Demande de génération ${debut} → ${fin}…`)
-    await charge(site.page_details)
-    const gen = await js<{ err?: string; ok?: boolean; status?: number }>(`(async () => {
-      const form = document.querySelector('form[action*="Reports_Asynchronous_ExportTransactions"]')
-      if (!form) return { err: 'noform' }
-      const fd = new FormData(form)
-      fd.set('startDate', ${JSON.stringify(debut)})
-      fd.set('endDate', ${JSON.stringify(fin)})
-      fd.set('format', ${JSON.stringify(site.format)})
-      const r = await fetch(form.action, { method: 'POST', body: fd, credentials: 'include' })
-      return { ok: r.ok, status: r.status }
-    })()`)
-    if (gen.err === 'noform') {
-      throw new Anomalie('Formulaire d’export introuvable sur la page Transactions — envoie-moi un dump 🐞 de cette page.')
-    }
-    if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
-
-    onProgress?.('Génération en cours (~30 s), attente du fichier…')
-    const limite = Date.now() + site.attente_max_s * 1000
-    let ligne: DownloadRow | null = null
-    while (Date.now() < limite) {
-      await sleep(site.intervalle_s * 1000)
-      await charge(site.page_telechargements)
-      const rows = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
-      ligne = trouverNotreExport(rows, reference)
-      if (ligne) break
-      onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
-    }
-    if (!ligne) {
-      // Diagnostic : la liste telle que la page la voit vraiment
-      try {
-        const html = await js<string>('document.documentElement.outerHTML')
-        writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), html, 'utf-8')
-      } catch {
-        /* diagnostic seulement */
+    // Export identique déjà généré (mois clos) : Cardmarket ne le recrée pas —
+    // on le télécharge directement, c'est instantané.
+    let ligne: DownloadRow | null = trouverParDates(avant, debut, fin, site.format.toLowerCase())
+    if (ligne) {
+      onProgress?.(`Un export identique existe déjà (${ligne.nom}) — téléchargement direct.`)
+    } else {
+      const gen = await js<{ err?: string; ok?: boolean; status?: number }>(`(async () => {
+        const form = document.querySelector('form[action*="Reports_Asynchronous_ExportTransactions"]')
+        if (!form) return { err: 'noform' }
+        const fd = new FormData(form)
+        fd.set('startDate', ${JSON.stringify(debut)})
+        fd.set('endDate', ${JSON.stringify(fin)})
+        fd.set('format', ${JSON.stringify(site.format)})
+        const r = await fetch(form.action, { method: 'POST', body: fd, credentials: 'include' })
+        return { ok: r.ok, status: r.status }
+      })()`)
+      if (gen.err === 'noform') {
+        throw new Anomalie('Formulaire d’export introuvable sur la page Transactions — envoie-moi un dump 🐞 de cette page.')
       }
-      throw new Anomalie(
-        `Aucun nouveau fichier n'est apparu dans Compte → Téléchargements après ` +
-          `${site.attente_max_s} s (la liste vue par l'app a été enregistrée dans ` +
-          `cm-export-debug.html — envoie-le-moi si le fichier existe pourtant sur le site). ` +
-          `En attendant : génère l'export sur le site puis « 📄 Choisir le fichier ».`
-      )
+      if (!gen.ok) throw new Anomalie(`Cardmarket a refusé la demande d'export (code ${gen.status}).`)
+
+      onProgress?.('Génération en cours (~30 s), attente du fichier…')
+      const limite = Date.now() + site.attente_max_s * 1000
+      while (Date.now() < limite) {
+        await sleep(site.intervalle_s * 1000)
+        await charge(site.page_telechargements)
+        const rows = (await js<DownloadRow[]>(ROWS_IN_PAGE)).sort((a, b) => b.id - a.id)
+        // Nouvelle ligne… ou export identique réutilisé par Cardmarket
+        ligne =
+          trouverNotreExport(rows, reference) ??
+          trouverParDates(rows, debut, fin, site.format.toLowerCase())
+        if (ligne) break
+        onProgress?.(`…génération en cours (${Math.max(0, Math.round((limite - Date.now()) / 1000))} s avant abandon)`)
+      }
+      if (!ligne) {
+        // Diagnostic : la liste telle que la page la voit vraiment
+        try {
+          const html = await js<string>('document.documentElement.outerHTML')
+          writeFileSync(join(app.getPath('userData'), 'cm-export-debug.html'), html, 'utf-8')
+        } catch {
+          /* diagnostic seulement */
+        }
+        throw new Anomalie(
+          `Aucun nouveau fichier n'est apparu dans Compte → Téléchargements après ` +
+            `${site.attente_max_s} s (la liste vue par l'app a été enregistrée dans ` +
+            `cm-export-debug.html — envoie-le-moi si le fichier existe pourtant sur le site). ` +
+            `En attendant : génère l'export sur le site puis « 📄 Choisir le fichier ».`
+        )
+      }
     }
 
     onProgress?.(`Fichier prêt : ${ligne.nom} — téléchargement…`)

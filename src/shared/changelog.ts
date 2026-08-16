@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.34.1',
+    title: 'Le mystère résolu : Cardmarket ne régénère pas',
+    items: [
+      'Trouvé grâce au diagnostic : quand un export identique existe déjà (même mois, même format), Cardmarket ne crée PAS de nouvelle ligne — l’app attendait donc pour rien',
+      'Maintenant : si l’export du mois existe déjà, il est téléchargé directement (instantané) ; sinon génération puis détection par nouveauté OU par le nom du mois',
+      'Bonus : retenter un mois déjà récupéré est désormais immédiat'
+    ]
+  },
+  {
     version: '2.34.0',
     title: 'Récupération pilotée comme un vrai navigateur',
     items: [
