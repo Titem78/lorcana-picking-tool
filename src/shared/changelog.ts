@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.38.0',
+    title: 'Trois retours du terrain',
+    items: [
+      'Picking : quand une carte est « Sans emplacement » parce que son encre n’a pas encore été récupérée, l’app l’explique et propose « 🔄 Compléter les infos » pour la ranger aussitôt',
+      'Odoo : bouton « 🚫 Ne pas facturer » dans la fiche (commande annulée…) — l’erreur de sync disparaît, la commande sort du décompte et de l’envoi en lot des manquantes (réversible avec ↩ Refacturer)',
+      'Cardmarket : le bouton 🔑 Connexion remplit les identifiants ET clique le bouton de connexion — plus rien à faire'
+    ]
+  },
+  {
     version: '2.37.1',
     title: 'Fraîcheur des exports garantie',
     items: [

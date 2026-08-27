@@ -686,11 +686,36 @@ export default function OrderSheet({
                 'pas encore envoyée'
               )}
             </span>
+            {order.odoo_no_invoice === 1 && (
+              <span className="badge" style={{ fontWeight: 700 }}>
+                🚫 ne pas facturer
+              </span>
+            )}
             <span style={{ flex: 1 }} />
             {order.odoo_move_id ? (
               <button onClick={openInOdoo}>↗ Ouvrir dans Odoo</button>
+            ) : order.odoo_no_invoice === 1 ? (
+              <button
+                title="Retire le marquage « ne pas facturer » : la commande redevient facturable"
+                onClick={() =>
+                  window.api.orders.setNoInvoice(user.id, order.id, false).then(reload)
+                }
+              >
+                ↩ Refacturer
+              </button>
             ) : (
-              <button onClick={sendOdoo}>📤 Envoyer vers Odoo</button>
+              <>
+                <button onClick={sendOdoo}>📤 Envoyer vers Odoo</button>
+                <button
+                  title="Commande annulée / à ne pas facturer : efface l'erreur de sync et la sort du décompte des manquantes"
+                  onClick={() => {
+                    if (confirmDialog(`Ne jamais facturer la commande #${order.sale_id} (ex. annulée) ?`))
+                      window.api.orders.setNoInvoice(user.id, order.id, true).then(reload)
+                  }}
+                >
+                  🚫 Ne pas facturer
+                </button>
+              </>
             )}
             {(order.odoo_error || !order.odoo_move_id) && (
               <button

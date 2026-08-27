@@ -538,6 +538,9 @@ export async function sendOrderToOdoo(
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as Order | undefined
   if (!order) throw new Error('Commande introuvable')
   if (order.odoo_move_id) return { move_id: order.odoo_move_id, already: true }
+  if (order.odoo_no_invoice === 1) {
+    throw new Error('Commande marquée « ne pas facturer » — retire le marquage dans la fiche pour envoyer')
+  }
 
   try {
     const uid = await authenticate(cfg)

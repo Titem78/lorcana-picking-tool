@@ -216,5 +216,11 @@ export const MIGRATIONS: string[] = [
   // vente) : 1 = pro, 0 = particulier, NULL = pas encore lu
   `
   ALTER TABLE orders ADD COLUMN buyer_pro INTEGER;
+  `,
+
+  // 015 — commandes à NE PAS facturer (ex. annulées côté Cardmarket) : sorties
+  // du décompte des « manquantes » et de l'envoi en lot, erreur de sync effacée
+  `
+  ALTER TABLE orders ADD COLUMN odoo_no_invoice INTEGER NOT NULL DEFAULT 0;
   `
 ]

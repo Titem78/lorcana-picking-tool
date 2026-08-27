@@ -92,6 +92,7 @@ export interface Order {
   refund_reason: string | null
   cm_tracked: number | null // suivi demandé par CM (1/0), lu sur la page de la vente
   buyer_pro: number | null // acheteur badgé « Professionnel » sur CM (1/0, NULL = pas lu)
+  odoo_no_invoice: number // 1 = à ne pas facturer (ex. commande annulée)
   // noms joints pour l'affichage (traçabilité)
   imported_by_name?: string | null
   prepared_by_name?: string | null

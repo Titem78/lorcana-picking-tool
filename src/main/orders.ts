@@ -326,6 +326,17 @@ export function setRefund(
   logActivity(userId, 'order.refund_set', { orderId, amount: clean, reason })
 }
 
+/**
+ * Marque une commande « à ne pas facturer » (ex. annulée sur Cardmarket) :
+ * l'erreur de sync disparaît et elle sort des « manquantes » à envoyer.
+ */
+export function setNoInvoice(userId: number, orderId: number, flag: boolean): void {
+  getDb()
+    .prepare('UPDATE orders SET odoo_no_invoice = ?, odoo_error = NULL WHERE id = ?')
+    .run(flag ? 1 : 0, orderId)
+  logActivity(userId, flag ? 'odoo.no_invoice_set' : 'odoo.no_invoice_cleared', { orderId })
+}
+
 export function setNotes(userId: number, orderId: number, notes: string): void {
   getDb().prepare('UPDATE orders SET notes = ? WHERE id = ?').run(notes || null, orderId)
   logActivity(userId, 'order.notes', { orderId })
@@ -450,8 +461,8 @@ export async function enrichOrderLines(orderId: number): Promise<number> {
   return done
 }
 
-/** Rattrapage au démarrage : commandes dont l'enrichissement a été interrompu. */
-export async function enrichPendingOrders(): Promise<void> {
+/** Rattrapage (démarrage ou bouton 🔄 du picking) : enrichissements interrompus. */
+export async function enrichPendingOrders(): Promise<number> {
   const rows = getDb()
     .prepare(
       `SELECT DISTINCT o.id FROM orders o JOIN order_lines l ON l.order_id = o.id
@@ -460,9 +471,11 @@ export async function enrichPendingOrders(): Promise<void> {
        LIMIT 30`
     )
     .all() as { id: number }[]
+  let done = 0
   for (const r of rows) {
-    await enrichOrderLines(r.id).catch(() => {})
+    done += await enrichOrderLines(r.id).catch(() => 0)
   }
+  return done
 }
 
 /**

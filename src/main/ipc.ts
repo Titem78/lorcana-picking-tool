@@ -270,6 +270,11 @@ export function registerIpc(): void {
     orders.applyCardImageUrls(orderId, urls)
   )
 
+  ipcMain.handle('orders:setNoInvoice', (_e, userId: number, orderId: number, flag: boolean) =>
+    orders.setNoInvoice(userId, orderId, flag)
+  )
+  ipcMain.handle('orders:enrichPending', () => orders.enrichPendingOrders())
+
   // --- Diagnostic : page Cardmarket non reconnue -----------------------------------
   ipcMain.handle('orders:saveCmDebug', async (_e, html: string, text: string) => {
     const { writeFileSync } = await import('fs')

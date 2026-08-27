@@ -279,11 +279,29 @@ export default function PickingPage({ user }: { user: User }): React.JSX.Element
                   margin: '0 2px 10px',
                   display: 'flex',
                   gap: 10,
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
                 }}
               >
                 Ces articles ne correspondent à aucune règle de rangement — tu peux quand même les
                 picker, ou d&apos;abord leur donner un emplacement.
+                {section.items.some((i) => !i.ink && /arte/i.test(i.section)) && (
+                  <>
+                    <span style={{ color: 'var(--accent)' }}>
+                      ⓘ Certaines cartes n&apos;ont pas encore leur encre (infos en cours de
+                      récupération) : les règles par encre ne peuvent pas encore les ranger.
+                    </span>
+                    <button
+                      onClick={() => {
+                        window.api.orders.enrichPending().then((n: number) => {
+                          if (n > 0) refresh()
+                        })
+                      }}
+                    >
+                      🔄 Compléter les infos
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() =>
                     window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'locations' }))

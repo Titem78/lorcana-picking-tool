@@ -48,6 +48,9 @@ const api = {
       ipcRenderer.invoke('orders:setRefund', userId, orderId, amount, reason),
     remove: (userId: number, orderId: number) => ipcRenderer.invoke('orders:delete', userId, orderId),
     refreshShipping: (orderId: number) => ipcRenderer.invoke('orders:refreshShipping', orderId),
+    setNoInvoice: (userId: number, orderId: number, flag: boolean) =>
+      ipcRenderer.invoke('orders:setNoInvoice', userId, orderId, flag),
+    enrichPending: () => ipcRenderer.invoke('orders:enrichPending'),
     stats: () => ipcRenderer.invoke('orders:stats')
   },
 

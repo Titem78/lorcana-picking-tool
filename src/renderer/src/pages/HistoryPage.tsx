@@ -28,8 +28,12 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
   // Pilotage Odoo : validées (n° comptable) / brouillons à valider / manquantes
   const odooPosted = orders.filter((o) => o.odoo_state === 'posted').length
   const odooDraft = orders.filter((o) => o.odoo_move_id && o.odoo_state !== 'posted').length
-  const odooErrors = orders.filter((o) => !o.odoo_move_id && o.odoo_error).length
-  const odooMissing = orders.filter((o) => !o.odoo_move_id)
+  const odooSkipped = orders.filter((o) => o.odoo_no_invoice === 1).length
+  const odooErrors = orders.filter(
+    (o) => !o.odoo_move_id && o.odoo_error && o.odoo_no_invoice !== 1
+  ).length
+  // « manquantes » = jamais les commandes marquées « ne pas facturer » (annulées)
+  const odooMissing = orders.filter((o) => !o.odoo_move_id && o.odoo_no_invoice !== 1)
 
   const syncOdoo = (): void => {
     setSending('Synchronisation avec Odoo…')
@@ -165,6 +169,11 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
           {odooMissing.length > 0 && (
             <span className="badge">− {odooMissing.length} non envoyée(s)</span>
           )}
+          {odooSkipped > 0 && (
+            <span className="badge" title="Commandes marquées « ne pas facturer » (ex. annulées) — via la fiche">
+              🚫 {odooSkipped} sans facture
+            </span>
+          )}
           <span style={{ flex: 1 }} />
           <button onClick={syncOdoo} title="Récupérer l'état et les numéros de factures depuis Odoo">
             🔄 Sync
@@ -226,7 +235,9 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
                         ? o.odoo_state === 'posted'
                           ? `Facture validée ${o.odoo_number ?? ''}`
                           : `Brouillon créé le ${o.odoo_sent_at?.slice(0, 16) ?? ''} — à valider dans Odoo`
-                        : (o.odoo_error ?? 'Pas encore envoyée vers Odoo')
+                        : o.odoo_no_invoice === 1
+                          ? 'Marquée « ne pas facturer » (ex. commande annulée)'
+                          : (o.odoo_error ?? 'Pas encore envoyée vers Odoo')
                     }
                   >
                     {o.odoo_state === 'posted' ? (
@@ -235,6 +246,8 @@ export default function HistoryPage({ user }: { user: User }): React.JSX.Element
                       </span>
                     ) : o.odoo_move_id ? (
                       <span style={{ color: 'var(--accent)' }}>📝 brouillon</span>
+                    ) : o.odoo_no_invoice === 1 ? (
+                      <span style={{ color: 'var(--text-dim)' }}>🚫</span>
                     ) : o.odoo_error ? (
                       <span style={{ color: 'var(--danger)' }}>⚠</span>
                     ) : (
