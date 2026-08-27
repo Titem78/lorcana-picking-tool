@@ -62,7 +62,10 @@ function fromApi(d: Record<string, unknown>): Omit<LorcastCard, 'image_file' | '
   return {
     name: (d.name as string) ?? '',
     version: (d.version as string) ?? null,
-    ink: (d.ink as string) ?? null,
+    // Cartes BI-ENCRE (chapitres récents) : Lorcast met ink=null et la liste
+    // dans « inks » — on retient la PREMIÈRE encre (convention de rangement
+    // stable ; sinon ces cartes restaient « Sans emplacement » à jamais)
+    ink: (d.ink as string) ?? (Array.isArray(d.inks) && d.inks.length ? String(d.inks[0]) : null),
     rarity: (d.rarity as string) ?? null,
     set_code: String(set.code ?? ''),
     set_name: (set.name as string) ?? null,

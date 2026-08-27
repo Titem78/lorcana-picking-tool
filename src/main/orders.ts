@@ -419,8 +419,10 @@ export async function enrichOrderLines(orderId: number): Promise<number> {
   const db = getDb()
   const lines = db
     .prepare(
+      // ink SEUL comme critère : une carte bi-encre pouvait avoir rareté et
+      // nom Lorcast remplis mais ink NULL — jamais retentée, donc jamais rangée
       `SELECT id, name, number, set_code, language, section FROM order_lines
-       WHERE order_id = ? AND ink IS NULL AND rarity IS NULL AND lorcast_name IS NULL`
+       WHERE order_id = ? AND ink IS NULL AND section LIKE '%arte%'`
     )
     .all(orderId) as Pick<OrderLine, 'id' | 'name' | 'number' | 'set_code' | 'language' | 'section'>[]
   let done = 0
@@ -466,7 +468,7 @@ export async function enrichPendingOrders(): Promise<number> {
   const rows = getDb()
     .prepare(
       `SELECT DISTINCT o.id FROM orders o JOIN order_lines l ON l.order_id = o.id
-       WHERE l.ink IS NULL AND l.rarity IS NULL AND l.lorcast_name IS NULL
+       WHERE l.ink IS NULL
          AND l.section LIKE '%arte%' AND l.number IS NOT NULL AND l.number != ''
        LIMIT 30`
     )

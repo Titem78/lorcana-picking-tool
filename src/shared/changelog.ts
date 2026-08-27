@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.38.1',
+    title: 'Les cartes bi-encre enfin rangées',
+    items: [
+      'Cause trouvée : les cartes BI-ENCRE (chapitres récents) n’avaient jamais d’encre dans l’app — elles restaient « Sans emplacement » pour toujours. Elles portent maintenant leur première encre (ex. Ambre pour une Ambre/Saphir) et se rangent normalement',
+      '« 🔄 Compléter les infos » rattrape aussi les cartes qui avaient déjà leur rareté mais pas leur encre (le cas des vieilles commandes)'
+    ]
+  },
+  {
     version: '2.38.0',
     title: 'Trois retours du terrain',
     items: [
