@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.0',
+    title: 'Signaler un problème en un clic',
+    items: [
+      'Réglages → Général → 🐛 Signaler un problème : décris le souci, clique, et un e-mail pré-rempli s’ouvre (version, utilisateur, dernières actions du journal) vers l’adresse de support — reste à cliquer Envoyer',
+      'Bouton « 📁 Ouvrir le dossier des journaux » pour joindre les fichiers de diagnostic si besoin',
+      'L’adresse de support se renseigne une seule fois dans le même écran'
+    ]
+  },
+  {
     version: '2.38.3',
     title: 'Promos DIS aussi + rappel emplacement',
     items: [

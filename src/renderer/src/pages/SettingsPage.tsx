@@ -698,6 +698,71 @@ function DangerZone({ user }: { user: User }): React.JSX.Element {
   )
 }
 
+/**
+ * Signalement de bug : ouvre un e-mail pré-rempli (version, utilisateur,
+ * description, dernières actions du journal) vers l'adresse de support —
+ * aucun mot de passe mail dans l'app, c'est le client mail qui envoie.
+ */
+function BugReportSection({ user }: { user: User }): React.JSX.Element {
+  const [email, setEmail] = useState('')
+  const [description, setDescription] = useState('')
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    window.api.settings.get('support_email').then((v: string | null) => setEmail(v ?? ''))
+  }, [])
+
+  const send = (): void => {
+    window.api
+      .bugReport(user.id, description)
+      .then(() => {
+        setMsg('✅ E-mail préparé dans ta messagerie — joins les fichiers utiles si demandé, puis Envoyer')
+        setDescription('')
+      })
+      .catch((err: Error) => setMsg(`❌ ${err.message.replace(/^.*Error: /, '')}`))
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <h2 style={{ fontSize: '1.05rem', marginBottom: 10 }}>🐛 Signaler un problème</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 640 }}>
+        <label style={{ color: 'var(--text-dim)', fontSize: '0.9rem', display: 'flex', gap: 8, alignItems: 'center' }}>
+          Envoyer à
+          <input
+            placeholder="adresse e-mail de support (à renseigner une fois)"
+            value={email}
+            style={{ flex: 1 }}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              window.api.settings.set(user.id, 'support_email', e.target.value.trim())
+            }}
+          />
+        </label>
+        <textarea
+          rows={3}
+          placeholder="Décris ce qui s'est passé : où tu étais, ce que tu as cliqué, ce qui s'est affiché…"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="primary" disabled={!email.trim() || !description.trim()} onClick={send}>
+            ✉ Préparer l&apos;e-mail
+          </button>
+          <button
+            title="Ouvre le dossier contenant main.log, cm-page-debug… à joindre à l'e-mail si besoin"
+            onClick={() => window.api.openUserData()}
+          >
+            📁 Ouvrir le dossier des journaux
+          </button>
+          <span style={{ color: msg.startsWith('✅') ? 'var(--ok)' : 'var(--danger)', fontSize: '0.85rem' }}>
+            {msg}
+          </span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 /** Options du Picking (demande de Laure : ne pas voir « disparaître » les commandes finies). */
 function PickingOptions({ user }: { user: User }): React.JSX.Element {
   const [keepDone, setKeepDone] = useState(false)
@@ -957,6 +1022,8 @@ export default function SettingsPage({ user }: { user: User }): React.JSX.Elemen
       </section>
 
       <PickingOptions user={user} />
+
+      <BugReportSection user={user} />
 
       <ChangelogSection />
       </>

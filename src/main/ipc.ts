@@ -356,6 +356,42 @@ export function registerIpc(): void {
     return fetchCmDashboard()
   })
 
+  // --- Signalement de bug : e-mail pré-rempli avec le diagnostic ---------------------
+  // Pas de SMTP ni de mot de passe : on ouvre le client mail de l'utilisateur
+  // avec tout le contexte déjà écrit — il ne reste qu'à cliquer Envoyer.
+  ipcMain.handle('app:bugReport', async (_e, userId: number, description: string) => {
+    const to = (
+      getDb().prepare("SELECT value FROM settings WHERE key = 'support_email'").get() as
+        | { value: string }
+        | undefined
+    )?.value
+    if (!to) throw new Error('Renseigne d’abord l’adresse e-mail de support (Réglages → Général)')
+    const user = getDb().prepare('SELECT name FROM users WHERE id = ?').get(userId) as
+      | { name: string }
+      | undefined
+    const derniers = (
+      getDb()
+        .prepare('SELECT created_at, action, details FROM activity_log ORDER BY id DESC LIMIT 8')
+        .all() as { created_at: string; action: string; details: string | null }[]
+    )
+      .map((l) => `${l.created_at} ${l.action} ${l.details ?? ''}`.slice(0, 150))
+      .join('\n')
+    const body =
+      `Problème signalé par ${user?.name ?? '?'} le ${new Date().toLocaleString('fr-FR')}\n` +
+      `Version : ${app.getVersion()}\n\n` +
+      `Description :\n${description.trim() || '(non renseignée)'}\n\n` +
+      `Dernières actions du journal :\n${derniers}\n\n` +
+      `Fichiers utiles à joindre (bouton « Ouvrir le dossier ») :\n` +
+      `main.log, updater.log, cm-page-debug.html/.txt, cm-export-debug.html`
+    logActivity(userId, 'bug.reported', { chars: description.length })
+    await shell.openExternal(
+      `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(
+        `[Lorcana Picking ${app.getVersion()}] Signalement de ${user?.name ?? '?'}`
+      )}&body=${encodeURIComponent(body)}`
+    )
+  })
+  ipcMain.handle('app:openUserData', () => shell.openPath(app.getPath('userData')))
+
   // --- Réglages génériques (table settings, clé/valeur) -----------------------------
   ipcMain.handle('settings:get', (_e, key: string) => {
     const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as

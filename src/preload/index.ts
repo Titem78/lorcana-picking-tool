@@ -4,6 +4,9 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 // Chaque méthode correspond à une route déclarée dans src/main/ipc.ts.
 const api = {
   appInfo: () => ipcRenderer.invoke('app:info'),
+  bugReport: (userId: number, description: string) =>
+    ipcRenderer.invoke('app:bugReport', userId, description),
+  openUserData: () => ipcRenderer.invoke('app:openUserData'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
 
   users: {
