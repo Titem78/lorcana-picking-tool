@@ -15,6 +15,18 @@ describe('parseCardText — cartes promo (bug des 105/108)', () => {
     expect(c!.is_foil).toBe(true)
   })
 
+  it('accepte les codes promo tout en lettres (DIS = Discover Promo)', () => {
+    const c = parseCardText('1 Stitch - Découvreur 5 FR NM DIS P 0,50 EUR', 'Lorcana Cartes')
+    expect(c).not.toBeNull()
+    expect(c!.set_code).toBe('')
+    expect(c!.color_code).toBe('DIS')
+  })
+
+  it('ne confond jamais un état ou une langue avec un code de set', () => {
+    // « NM » en position de set = ligne malformée → rejetée, pas importée de travers
+    expect(parseCardText('1 Carte bizarre 5 FR NM NM P 0,50 EUR', 'Lorcana Cartes')).toBeNull()
+  })
+
   it('les lignes classiques restent inchangées', () => {
     const c = parseCardText('3 La Reine - Déguisement sournois 90 FR NM 12WIL L Booster to sleeve 1,50 EUR', 'Lorcana Cartes')
     expect(c!.set_code).toBe('12')

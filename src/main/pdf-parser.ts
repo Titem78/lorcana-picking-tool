@@ -54,10 +54,18 @@ interface Tok {
 
 const FOIL_RE = /\b(foil|holo|cold\s*foil)\b/i
 const SET_COLOR_RE = /^(\d+)([A-Z]{3})$/
-// Cartes PROMO : code de set « PR2 », « PR3 » (lettres puis chiffre) — pas de
-// chapitre ; convention du projet : set_code vide, le code promo en color_code
-// (visuel retrouvé par NOM via LorCards, comme les autres promos)
-const PROMO_SET_RE = /^PR?\d$/
+// Cartes PROMO : code de set « PR2 », « PR3 » (lettres+chiffre) ou tout en
+// lettres comme « DIS » (Discover Promo) — pas de chapitre ; convention du
+// projet : set_code vide, le code promo en color_code (visuel par NOM).
+const PROMO_SET_RE = /^(?:PR?\d|[A-Z]{2,5})$/
+// Jamais un code de set : états et langues qui pourraient traîner en fin de ligne
+const PAS_UN_SET = new Set([
+  'NM', 'MT', 'M', 'EX', 'GD', 'LP', 'PL', 'PO',
+  'FR', 'EN', 'DE', 'ES', 'IT', 'ZH', 'JA', 'PT', 'RU', 'KO'
+])
+function estCodePromo(tok: string): boolean {
+  return PROMO_SET_RE.test(tok) && !PAS_UN_SET.has(tok)
+}
 const PRICE_RE = /^[\d.,]+\s*EUR$/
 
 export async function parseCardmarketPdf(path: string): Promise<ParsedOrder> {
@@ -238,9 +246,9 @@ function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
   if (!name || middle.length === 0) return null
   const dernier = middle[middle.length - 1]
   const setColor = dernier.match(SET_COLOR_RE)
-  // Promos (PR2, PR3…) : lettres puis chiffre — les 3 promos de la vente
-  // #1297835152 étaient silencieusement abandonnées (105/108)
-  if (!setColor && !PROMO_SET_RE.test(dernier)) return null
+  // Promos (PR2, PR3, DIS…) — les 3 promos de la vente #1297835152 étaient
+  // silencieusement abandonnées (105/108)
+  if (!setColor && !estCodePromo(dernier)) return null
 
   return buildCard({
     quantity: parseInt(qtyTok.str, 10),
@@ -263,9 +271,10 @@ function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
  */
 export function parseCardText(joined: string, section: string): ParsedCardLine | null {
   const m = joined.match(
-    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(?:(\d+)([A-Z]{3})|(PR?\d))\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
+    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(?:(\d+)([A-Z]{3})|(PR?\d|[A-Z]{2,5}))\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
   )
   if (!m) return null
+  if (m[8] && !estCodePromo(m[8])) return null
   return buildCard({
     quantity: parseInt(m[1], 10),
     name: m[2],

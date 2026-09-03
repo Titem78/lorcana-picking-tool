@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.38.3',
+    title: 'Promos DIS aussi + rappel emplacement',
+    items: [
+      'Les codes promo tout en lettres (« DIS » = Discover Promo…) sont maintenant acceptés à l’import PDF, comme PR2/PR3',
+      'Rappel : pour ranger toutes les promos, crée un emplacement avec une règle « Rareté = Promo » (Emplacements → Règles) — elles y iront quel que soit leur chapitre ou leur encre'
+    ]
+  },
+  {
     version: '2.38.2',
     title: 'Les promos ne sont plus perdues à l’import',
     items: [
