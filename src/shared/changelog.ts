@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.38.2',
+    title: 'Les promos ne sont plus perdues à l’import',
+    items: [
+      'Cause du « 108 annoncés / 105 importés » de Laure : les cartes PROMO (codes PR2, PR3…) étaient silencieusement abandonnées par le lecteur de PDF — corrigé, vérifié sur le PDF réel : 108/108',
+      'Les promos s’importent sans chapitre (comme les autres promos), avec visuel retrouvé par leur nom'
+    ]
+  },
+  {
     version: '2.38.1',
     title: 'Les cartes bi-encre enfin rangées',
     items: [

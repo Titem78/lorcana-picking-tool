@@ -54,6 +54,10 @@ interface Tok {
 
 const FOIL_RE = /\b(foil|holo|cold\s*foil)\b/i
 const SET_COLOR_RE = /^(\d+)([A-Z]{3})$/
+// Cartes PROMO : code de set « PR2 », « PR3 » (lettres puis chiffre) — pas de
+// chapitre ; convention du projet : set_code vide, le code promo en color_code
+// (visuel retrouvé par NOM via LorCards, comme les autres promos)
+const PROMO_SET_RE = /^PR?\d$/
 const PRICE_RE = /^[\d.,]+\s*EUR$/
 
 export async function parseCardmarketPdf(path: string): Promise<ParsedOrder> {
@@ -232,17 +236,20 @@ function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
     .join(' ')
 
   if (!name || middle.length === 0) return null
-  const setColor = middle[middle.length - 1].match(SET_COLOR_RE)
-  if (!setColor) return null
+  const dernier = middle[middle.length - 1]
+  const setColor = dernier.match(SET_COLOR_RE)
+  // Promos (PR2, PR3…) : lettres puis chiffre — les 3 promos de la vente
+  // #1297835152 étaient silencieusement abandonnées (105/108)
+  if (!setColor && !PROMO_SET_RE.test(dernier)) return null
 
   return buildCard({
     quantity: parseInt(qtyTok.str, 10),
     name,
     number,
-    language: middle[0] === middle[middle.length - 1] ? '' : middle[0],
+    language: middle[0] === dernier ? '' : middle[0],
     condition: middle.slice(1, -1).join(' '),
-    set_code: setColor[1],
-    color_code: setColor[2],
+    set_code: setColor ? setColor[1] : '',
+    color_code: setColor ? setColor[2] : dernier,
     rarity_code: rarity,
     comment,
     price: priceTok.str,
@@ -254,9 +261,9 @@ function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
  * Analyse de repli sur le texte reconstitué, si la mise en page bouge :
  *   « 3 La Reine - Déguisement sournois 90 FR NM 12WIL L Booster to sleeve 1,50 EUR »
  */
-function parseCardText(joined: string, section: string): ParsedCardLine | null {
+export function parseCardText(joined: string, section: string): ParsedCardLine | null {
   const m = joined.match(
-    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(\d+)([A-Z]{3})\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
+    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(?:(\d+)([A-Z]{3})|(PR?\d))\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
   )
   if (!m) return null
   return buildCard({
@@ -265,11 +272,12 @@ function parseCardText(joined: string, section: string): ParsedCardLine | null {
     number: m[3],
     language: m[4],
     condition: m[5],
-    set_code: m[6],
-    color_code: m[7],
-    rarity_code: m[8],
-    comment: m[9],
-    price: m[10],
+    // Promo (m[8] : PR2, PR3…) : pas de chapitre, code promo en color_code
+    set_code: m[6] ?? '',
+    color_code: m[7] ?? m[8],
+    rarity_code: m[9],
+    comment: m[10],
+    price: m[11],
     section
   })
 }

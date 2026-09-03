@@ -1,6 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync } from 'fs'
-import { parseCardmarketPdf } from '../src/main/pdf-parser'
+import { parseCardmarketPdf, parseCardText } from '../src/main/pdf-parser'
+
+// PDF réel non versionné : vente #1297835152 (108 articles dont 3 promos PR2/PR3)
+const SAMPLE_PROMOS = 'D:\\telechargement\\Vente_#1297835152.pdf'
+
+describe('parseCardText — cartes promo (bug des 105/108)', () => {
+  it('accepte les codes de set promo PR2/PR3 (lettres puis chiffre)', () => {
+    const c = parseCardText('1 Aladdin - Protecteur vigilant 29 FR NM PR2 P Foil 1,00 EUR', 'Lorcana Cartes')
+    expect(c).not.toBeNull()
+    expect(c!.set_code).toBe('')
+    expect(c!.color_code).toBe('PR2')
+    expect(c!.number).toBe('29')
+    expect(c!.is_foil).toBe(true)
+  })
+
+  it('les lignes classiques restent inchangées', () => {
+    const c = parseCardText('3 La Reine - Déguisement sournois 90 FR NM 12WIL L Booster to sleeve 1,50 EUR', 'Lorcana Cartes')
+    expect(c!.set_code).toBe('12')
+    expect(c!.color_code).toBe('WIL')
+    expect(c!.rarity_code).toBe('L')
+  })
+})
+
+describe.skipIf(!existsSync(SAMPLE_PROMOS))('parseCardmarketPdf — Vente #1297835152 (promos)', () => {
+  it('importe les 108 articles annoncés, promos comprises', async () => {
+    const p = await parseCardmarketPdf(SAMPLE_PROMOS)
+    expect(p.article_count).toBe(108)
+    expect(p.cards.reduce((s, c) => s + c.quantity, 0)).toBe(108)
+    expect(p.cards.filter((c) => /^PR\d$/.test(c.color_code)).length).toBe(3)
+  })
+})
 import { parseChaptersInput, compactIntRanges } from '../src/shared/rules'
 
 // PDF réel non versionné (données personnelles) : le test se saute s'il est absent.
