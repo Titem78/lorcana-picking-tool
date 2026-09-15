@@ -266,10 +266,12 @@ function SeriesGenerator({
   const rangeText = chaptersText.trim() ? ` ${chaptersText.trim().replace(/\s+/g, '')}` : ''
   const foilCrit = foil === 'foil' ? true : foil === 'nonfoil' ? false : null
   // Critères communs : tout ce qui est coché s'applique à chaque box créée
-  // (rareté vide / langue vide = « peu importe »).
+  // (rareté vide / langue vide = « peu importe »). TOUT coché = « peu
+  // importe » aussi : on n'enregistre pas de filtre, sinon les cartes sans
+  // encre connue (promos) ne matcheraient jamais.
   const baseCriteria = (cs: string[], rs: string[]): RuleCriteria => ({
-    ...(cs.length ? { colors: cs } : {}),
-    ...(rs.length ? { rarities: rs } : {}),
+    ...(cs.length && cs.length < INK_COLORS.length ? { colors: cs } : {}),
+    ...(rs.length && rs.length < RARITIES.length ? { rarities: rs } : {}),
     ...(languages.length ? { languages } : {}),
     ...(chapters.length ? { chapters } : {}),
     ...(foilCrit != null ? { foil: foilCrit } : {})

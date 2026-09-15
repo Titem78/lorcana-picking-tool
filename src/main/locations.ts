@@ -1,4 +1,5 @@
 import { getDb, logActivity } from './db'
+import { INK_COLORS, RARITIES } from '@shared/constants'
 import type { CardFacts, LocationRule, RuleCriteria, StorageLocation } from '@shared/types'
 
 // Moteur de rangement (hérité de la V1) :
@@ -116,9 +117,26 @@ export function setRules(userId: number, locationId: number, criteriaList: RuleC
 
 // --- Moteur d'affectation -----------------------------------------------------
 
+// « Tout coché » = pas de filtre : une règle listant les 6 encres (ou les 8
+// raretés) doit aussi accepter une carte dont la valeur est vide ou hors
+// liste — cas des PROMOS sans encre connue, sinon jamais rangées.
+function toutCoche(list: string[], all: readonly string[]): boolean {
+  return all.every((v) => list.includes(v))
+}
+
 export function ruleMatches(criteria: RuleCriteria, card: CardFacts): boolean {
-  if (criteria.colors?.length && !criteria.colors.includes(card.color)) return false
-  if (criteria.rarities?.length && !criteria.rarities.includes(card.rarity)) return false
+  if (
+    criteria.colors?.length &&
+    !toutCoche(criteria.colors, INK_COLORS) &&
+    !criteria.colors.includes(card.color)
+  )
+    return false
+  if (
+    criteria.rarities?.length &&
+    !toutCoche(criteria.rarities, RARITIES) &&
+    !criteria.rarities.includes(card.rarity)
+  )
+    return false
   if (criteria.chapters?.length && !criteria.chapters.includes(card.chapter)) return false
   if (criteria.foil != null && card.is_foil !== criteria.foil) return false
   if (criteria.languages?.length && !criteria.languages.includes(card.language)) return false

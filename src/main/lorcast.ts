@@ -75,6 +75,15 @@ function fromApi(d: Record<string, unknown>): Omit<LorcastCard, 'image_file' | '
   }
 }
 
+async function fetchCardRaw(setCode: string, number: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`${API_BASE}/cards/${setCode}/${number}`, {
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+    signal: AbortSignal.timeout(15_000)
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
 /** Carte par chapitre + numéro de collection, avec image téléchargée en cache. */
 export async function getCard(setCode: string, number: string): Promise<LorcastCard | null> {
   const key = `${setCode}/${number}`
@@ -85,17 +94,32 @@ export async function getCard(setCode: string, number: string): Promise<LorcastC
     const lastMiss = missCache.get(key)
     if (lastMiss && Date.now() - lastMiss < MISS_TTL_MS) return null
     try {
-      const res = await fetch(`${API_BASE}/cards/${setCode}/${number}`, {
-        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        signal: AbortSignal.timeout(15_000)
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      raw = (await res.json()) as Record<string, unknown>
+      raw = await fetchCardRaw(setCode, number)
       cache[key] = raw
       saveCache()
     } catch {
       missCache.set(key, Date.now())
       return null
+    }
+  } else if (!fromApi(raw).ink) {
+    // Entrée SANS ENCRE mise en cache à vie (données de spoiler incomplètes à
+    // la sortie d'un chapitre) : la carte restait « Sans emplacement » pour
+    // toujours. On retente l'API (au plus 1×/heure) et on remplace l'entrée
+    // dès que l'encre est disponible ; échec = on garde l'ancienne.
+    const refreshKey = `refresh:${key}`
+    const lastTry = missCache.get(refreshKey)
+    if (!lastTry || Date.now() - lastTry >= MISS_TTL_MS) {
+      missCache.set(refreshKey, Date.now())
+      try {
+        const fresh = await fetchCardRaw(setCode, number)
+        if (fromApi(fresh).ink) {
+          raw = fresh
+          cache[key] = fresh
+          saveCache()
+        }
+      } catch {
+        /* réseau : on garde l'entrée existante */
+      }
     }
   }
 

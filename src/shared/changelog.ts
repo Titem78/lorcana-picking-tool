@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.1',
+    title: 'Les promos trouvent enfin leur boîte',
+    items: [
+      'Une règle avec TOUTES les couleurs cochées (ou toutes les raretés) vaut « peu importe » : la boîte Promo accueille maintenant les promos même sans encre connue — plus de « Sans emplacement » injustifié',
+      'Les cartes promo récupèrent désormais leur encre, leur rareté et leur visuel officiel via Lorcana (PR2, PR3, DIS, D23…)',
+      'Carte restée sans encre alors que la base Lorcana la connaît (données incomplètes à la sortie d’un chapitre) : l’app re-vérifie et se corrige toute seule — le cas Meilin Lee chapitre 13',
+      'L’import PDF accepte aussi les codes promo type D23 ou C2'
+    ]
+  },
+  {
     version: '2.39.0',
     title: 'Signaler un problème en un clic',
     items: [

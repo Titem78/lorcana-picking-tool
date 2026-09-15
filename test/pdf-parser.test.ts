@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync } from 'fs'
-import { parseCardmarketPdf, parseCardText } from '../src/main/pdf-parser'
+import { parseCardmarketPdf, parseCardText, lorcastSetForLine } from '../src/main/pdf-parser'
 
 // PDF réel non versionné : vente #1297835152 (108 articles dont 3 promos PR2/PR3)
 const SAMPLE_PROMOS = 'D:\\telechargement\\Vente_#1297835152.pdf'
@@ -32,6 +32,28 @@ describe('parseCardText — cartes promo (bug des 105/108)', () => {
     expect(c!.set_code).toBe('12')
     expect(c!.color_code).toBe('WIL')
     expect(c!.rarity_code).toBe('L')
+  })
+})
+
+describe('lorcastSetForLine — set Lorcast interrogeable (promos comprises)', () => {
+  it('un chapitre normal passe tel quel', () => {
+    expect(lorcastSetForLine('12', 'WIL')).toBe('12')
+    expect(lorcastSetForLine('13', 'ATT')).toBe('13')
+  })
+
+  it('convertit les codes promo Cardmarket vers Lorcast (PR2 → P2)', () => {
+    expect(lorcastSetForLine('', 'PR2')).toBe('P2')
+    expect(lorcastSetForLine('', 'PR3')).toBe('P3')
+    // Ces codes portent le même nom des deux côtés
+    expect(lorcastSetForLine('', 'DIS')).toBe('DIS')
+    expect(lorcastSetForLine('', 'D23')).toBe('D23')
+  })
+
+  it("refuse ce qui n'est pas un code de set (pas de requête à l'aveugle)", () => {
+    expect(lorcastSetForLine('', 'NM')).toBe('')
+    expect(lorcastSetForLine('', 'FR')).toBe('')
+    expect(lorcastSetForLine('', '')).toBe('')
+    expect(lorcastSetForLine(null, null)).toBe('')
   })
 })
 

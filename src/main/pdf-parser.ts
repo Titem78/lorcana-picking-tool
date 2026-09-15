@@ -57,7 +57,9 @@ const SET_COLOR_RE = /^(\d+)([A-Z]{3})$/
 // Cartes PROMO : code de set « PR2 », « PR3 » (lettres+chiffre) ou tout en
 // lettres comme « DIS » (Discover Promo) — pas de chapitre ; convention du
 // projet : set_code vide, le code promo en color_code (visuel par NOM).
-const PROMO_SET_RE = /^(?:PR?\d|[A-Z]{2,5})$/
+// 2 à 5 caractères, commence par une lettre, majuscules/chiffres : couvre
+// PR2, PR3, DIS mais aussi D23, C2, CC1… (D23 aurait été rejeté sinon)
+const PROMO_SET_RE = /^[A-Z][A-Z0-9]{1,4}$/
 // Jamais un code de set : états et langues qui pourraient traîner en fin de ligne
 const PAS_UN_SET = new Set([
   'NM', 'MT', 'M', 'EX', 'GD', 'LP', 'PL', 'PO',
@@ -65,6 +67,19 @@ const PAS_UN_SET = new Set([
 ])
 function estCodePromo(tok: string): boolean {
   return PROMO_SET_RE.test(tok) && !PAS_UN_SET.has(tok)
+}
+
+/**
+ * Set Lorcast interrogeable pour une ligne : le chapitre s'il existe, sinon le
+ * code promo Cardmarket converti (PR2 → P2, PR3 → P3 ; DIS, D23, C2…
+ * portent le même code des deux côtés). Vide = pas de lookup possible.
+ */
+export function lorcastSetForLine(setCode: string | null, colorCode: string | null): string {
+  if (setCode) return setCode
+  const code = (colorCode ?? '').toUpperCase()
+  if (!estCodePromo(code)) return ''
+  const m = code.match(/^PR(\d)$/)
+  return m ? `P${m[1]}` : code
 }
 const PRICE_RE = /^[\d.,]+\s*EUR$/
 
@@ -271,7 +286,7 @@ function parseCardRow(row: Tok[], section: string): ParsedCardLine | null {
  */
 export function parseCardText(joined: string, section: string): ParsedCardLine | null {
   const m = joined.match(
-    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(?:(\d+)([A-Z]{3})|(PR?\d|[A-Z]{2,5}))\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
+    /^(\d+)\s+(.+?)\s+(\d+)\s+([A-Z]{2})\s+(NM|MT|M|EX|GD|LP|PL|PO)\s+(?:(\d+)([A-Z]{3})|([A-Z][A-Z0-9]{1,4}))\s+(\S+)\s*(.*?)\s*([\d.,]+\s*EUR)$/
   )
   if (!m) return null
   if (m[8] && !estCodePromo(m[8])) return null

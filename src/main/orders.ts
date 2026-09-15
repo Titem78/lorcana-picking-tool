@@ -1,5 +1,5 @@
 import { getDb, logActivity } from './db'
-import { parseCardmarketPdf, canonicalRarity } from './pdf-parser'
+import { parseCardmarketPdf, canonicalRarity, lorcastSetForLine } from './pdf-parser'
 import { getCard, getFrenchImage } from './lorcast'
 import type { ImportResult, Order, OrderLine, OrderStatus } from '@shared/types'
 
@@ -421,15 +421,21 @@ export async function enrichOrderLines(orderId: number): Promise<number> {
     .prepare(
       // ink SEUL comme critère : une carte bi-encre pouvait avoir rareté et
       // nom Lorcast remplis mais ink NULL — jamais retentée, donc jamais rangée
-      `SELECT id, name, number, set_code, language, section FROM order_lines
+      `SELECT id, name, number, set_code, color_code, language, section FROM order_lines
        WHERE order_id = ? AND ink IS NULL AND section LIKE '%arte%'`
     )
-    .all(orderId) as Pick<OrderLine, 'id' | 'name' | 'number' | 'set_code' | 'language' | 'section'>[]
+    .all(orderId) as Pick<
+    OrderLine,
+    'id' | 'name' | 'number' | 'set_code' | 'color_code' | 'language' | 'section'
+  >[]
   let done = 0
   for (const line of lines) {
     // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
-    const isCard = /cartes/i.test(line.section ?? '') && line.number
-    const card = isCard ? await getCard(line.set_code ?? '', line.number ?? '').catch(() => null) : null
+    // Les PROMOS (set_code vide) sont interrogées via leur set Lorcast
+    // (PR2 → P2…) : elles récupèrent ainsi encre, rareté et visuel.
+    const setForApi = lorcastSetForLine(line.set_code ?? '', line.color_code ?? '')
+    const isCard = /cartes/i.test(line.section ?? '') && line.number && setForApi
+    const card = isCard ? await getCard(setForApi, line.number ?? '').catch(() => null) : null
     const frImage = /^FR/i.test(line.language ?? '')
       ? await getFrenchImage(line.set_code ?? '', line.number ?? '', line.name).catch(() => null)
       : null
@@ -488,7 +494,7 @@ export async function repairNumbersInNames(): Promise<number> {
   const db = getDb()
   const rows = db
     .prepare(
-      `SELECT id, name, set_code, language, ink, rarity, image_file, lorcast_name
+      `SELECT id, name, set_code, color_code, language, ink, rarity, image_file, lorcast_name
        FROM order_lines
        WHERE (number IS NULL OR number = '') AND section LIKE '%arte%'`
     )
@@ -496,6 +502,7 @@ export async function repairNumbersInNames(): Promise<number> {
     id: number
     name: string
     set_code: string
+    color_code: string | null
     language: string | null
     ink: string | null
     rarity: string | null
@@ -508,7 +515,8 @@ export async function repairNumbersInNames(): Promise<number> {
     if (!m || parseInt(m[2], 10) < 1) continue
     const name = m[1]
     const number = m[2]
-    const card = await getCard(r.set_code, number).catch(() => null)
+    const setForApi = lorcastSetForLine(r.set_code, r.color_code)
+    const card = setForApi ? await getCard(setForApi, number).catch(() => null) : null
     const frImage = /^FR/i.test(r.language ?? '')
       ? await getFrenchImage(r.set_code, number, name).catch(() => null)
       : null
