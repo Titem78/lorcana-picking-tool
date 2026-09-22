@@ -233,6 +233,16 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
   // toute tranche encore plafonnée est re-découpée (rareté → foil → langue →
   // état). ~2 requêtes/s maximum, pause sur 429, bouton Stop à tout moment.
   const STOCK_BASE = '/fr/Lorcana/Stock/Offers/Singles'
+  // Progression aussi diffusée à l'onglet 📦 Stock (balayage silencieux :
+  // l'onglet Cardmarket reste vivant caché, on peut travailler ailleurs)
+  const publishProgress = (p: { label: string; page: number; den: number | null; items: number } | null): void => {
+    setStockProgress(p)
+    window.dispatchEvent(new CustomEvent('inventory-progress', { detail: p }))
+  }
+  const finInventaire = (m: string): void => {
+    setMsg(m)
+    window.dispatchEvent(new CustomEvent('inventory-done', { detail: m }))
+  }
   const importFullInventory = async (): Promise<void> => {
     const wv = webviewRef.current
     if (!wv) return
@@ -244,7 +254,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     try {
       const mark = (await window.api.stock.sweepMark()) as string
       setMsg('')
-      setStockProgress({ label: 'Lecture des filtres…', page: 0, den: null, items: 0 })
+      publishProgress({ label: 'Lecture des filtres…', page: 0, den: null, items: 0 })
       const first = await fetchStockPage(wv, STOCK_BASE + '?sortBy=name_asc')
       const expansions = first.expansions ?? []
       if (first.status !== 200 || expansions.length === 0) {
@@ -281,7 +291,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
             await window.api.stock.upsert(user.id, valid)
             items += valid.length
           }
-          setStockProgress({
+          publishProgress({
             label: `${label} — ${p.meta?.label || 'page ' + site} — ${items} article(s)`,
             page: exIdx,
             den: expansions.length,
@@ -311,12 +321,12 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       }
 
       if (cancelRef.current) {
-        setMsg(`✋ Arrêté — ${items} article(s) importés/actualisés (inventaire partiel conservé, rien n'est retiré).`)
+        finInventaire(`✋ Arrêté — ${items} article(s) importés/actualisés (inventaire partiel conservé, rien n'est retiré).`)
       } else {
         const purged = (await window.api.stock.purgeOlder(user.id, mark)) as { removed: number }
         // Inventaire à une date : chaque balayage complet est figé en instantané
         await window.api.stock.snapshotTake(user.id, 'Inventaire général', 'sweep')
-        setMsg(
+        finInventaire(
           `✅ Inventaire général terminé : ${items} article(s) sur ${pages} page(s), ` +
             `${purged.removed} article(s) disparu(s) retiré(s) du miroir. ` +
             `📸 Instantané daté enregistré — tout est dans l'onglet 📦 Stock.` +
@@ -324,12 +334,21 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         )
       }
     } catch (err) {
-      setMsg(`❌ ${String((err as Error).message ?? err)}`)
+      finInventaire(`❌ ${String((err as Error).message ?? err)}`)
     } finally {
       setBusy(false)
-      setStockProgress(null)
+      publishProgress(null)
     }
   }
+
+  // Stop demandé depuis l'onglet 📦 Stock (balayage silencieux)
+  useEffect(() => {
+    const stop = (): void => {
+      cancelRef.current = true
+    }
+    window.addEventListener('inventory-stop', stop)
+    return () => window.removeEventListener('inventory-stop', stop)
+  }, [])
 
   // Lancement demandé depuis l'onglet 📦 Stock : on attend que le webview soit
   // prêt (page chargée) puis on démarre le balayage tout seul.

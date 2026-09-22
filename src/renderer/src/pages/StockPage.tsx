@@ -167,6 +167,32 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'cardmarket' }))
   }
 
+  // Balayage silencieux : l'onglet Cardmarket (vivant en arrière-plan) diffuse
+  // sa progression — on l'affiche ici avec le bouton Stop, et on rafraîchit à
+  // la fin. On peut donc lancer l'inventaire puis travailler ailleurs.
+  const [invProgress, setInvProgress] = useState<{
+    label: string
+    page: number
+    den: number | null
+    items: number
+  } | null>(null)
+  const [invMsg, setInvMsg] = useState('')
+  useEffect(() => {
+    const onProgress = (e: Event): void =>
+      setInvProgress((e as CustomEvent).detail as typeof invProgress)
+    const onDone = (e: Event): void => {
+      setInvMsg(String((e as CustomEvent).detail ?? ''))
+      refresh()
+    }
+    window.addEventListener('inventory-progress', onProgress)
+    window.addEventListener('inventory-done', onDone)
+    return () => {
+      window.removeEventListener('inventory-progress', onProgress)
+      window.removeEventListener('inventory-done', onDone)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const vide = totals.items === 0 && !q && !fSet && !fLang && !fFoil && !fCond
 
   return (
@@ -240,6 +266,38 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
         ))}
       </div>
 
+      {invProgress && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 12px',
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            marginBottom: 12,
+            fontSize: '0.88rem'
+          }}
+        >
+          <div style={{ flex: 1, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                borderRadius: 4,
+                background: 'var(--accent, #3b82f6)',
+                transition: 'width .4s',
+                width: `${invProgress.den ? Math.min(100, Math.round((invProgress.page / invProgress.den) * 100)) : 100}%`
+              }}
+            />
+          </div>
+          <span style={{ whiteSpace: 'nowrap' }}>📥 {invProgress.label}</span>
+          <button onClick={() => window.dispatchEvent(new CustomEvent('inventory-stop'))}>✋ Stop</button>
+        </div>
+      )}
+      {invMsg && !invProgress && (
+        <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>{invMsg}</p>
+      )}
       {exportMsg && (
         <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: 10 }}>{exportMsg}</p>
       )}

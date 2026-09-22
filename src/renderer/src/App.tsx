@@ -83,6 +83,12 @@ export default function App(): React.JSX.Element {
   const [tab, setTab] = useState<TabId>('orders')
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   const [whatsNew, setWhatsNew] = useState<string | null>(null)
+  // L'onglet Cardmarket n'est monté qu'à la première visite (rien au
+  // lancement), puis reste vivant caché — voir le rendu plus bas.
+  const [cmMounted, setCmMounted] = useState(false)
+  useEffect(() => {
+    if (tab === 'cardmarket') setCmMounted(true)
+  }, [tab])
 
   // Récap « Quoi de neuf » à la première ouverture après une mise à jour
   useEffect(() => {
@@ -168,7 +174,14 @@ export default function App(): React.JSX.Element {
       </nav>
       <main className="content">
         {tab === 'dashboard' && <DashboardPage user={user} />}
-        {tab === 'cardmarket' && <CardmarketPage user={user} />}
+        {/* Onglet Cardmarket : monté à la première visite puis GARDÉ VIVANT en
+            arrière-plan (caché) — la page ne recharge plus à chaque retour et
+            l'inventaire général continue en silence sur un autre onglet. */}
+        {cmMounted && (
+          <div style={{ display: tab === 'cardmarket' ? 'block' : 'none', height: '100%' }}>
+            <CardmarketPage user={user} />
+          </div>
+        )}
         {tab === 'picking' && <PickingPage user={user} />}
         {tab === 'prep' && <PrepPage user={user} />}
         {tab === 'orders' && <OrdersPage user={user} />}

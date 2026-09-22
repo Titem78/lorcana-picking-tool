@@ -402,6 +402,7 @@ export async function backfillFrenchImages(): Promise<number> {
     name: string
   }[]
   let updated = 0
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
   for (const l of lines) {
     const fr = await getFrenchImage(l.set_code, l.number, l.name, l.color_code)
     if (fr) {
@@ -411,6 +412,11 @@ export async function backfillFrenchImages(): Promise<number> {
         l.id
       )
       updated++
+      // Rythme DOUX : ce rattrapage peut porter sur des centaines de visuels
+      // (bascule vers les images officielles) — sans pause, la rafale réseau
+      // ralentissait le chargement de l'onglet Cardmarket au démarrage.
+      await sleep(250)
+      if (updated % 20 === 0) await sleep(2000)
     }
   }
   return updated

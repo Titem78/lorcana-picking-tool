@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.41.2',
+    title: 'Inventaire silencieux + démarrage plus fluide',
+    items: [
+      'L’inventaire général tourne maintenant EN SILENCE : une fois lancé, on peut travailler dans n’importe quel onglet — la progression et le bouton Stop s’affichent dans 📦 Stock (avant, quitter l’onglet Cardmarket arrêtait le balayage)',
+      'L’onglet 🌐 Cardmarket reste vivant en arrière-plan après sa première ouverture : plus de rechargement de la page à chaque retour dessus',
+      'Démarrage plus fluide : la bascule des visuels vers les images officielles se fait désormais en douceur (pauses entre chaque téléchargement) — c’est elle qui ralentissait le chargement de la page Cardmarket après la mise à jour'
+    ]
+  },
+  {
     version: '2.41.0',
     title: 'Le Stock devient un vrai module de gestion',
     items: [
