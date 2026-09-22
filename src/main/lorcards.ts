@@ -173,6 +173,24 @@ async function downloadToAsync(url: string, local: string): Promise<boolean> {
 }
 
 /**
+ * Retrouve le chapitre + numéro d'une carte par son NOM FR, via les URLs
+ * NON-promo de l'index (elles portent set/num). Sert à récupérer l'ENCRE des
+ * promos Cardmarket dont le code ne correspond à aucun set Lorcast (DIS,
+ * D23… ont leur propre numérotation) : une réimpression promo garde
+ * toujours l'encre de la carte d'origine, quel que soit le chapitre trouvé.
+ */
+export function findSetNumByName(name: string): { set: string; num: string } | null {
+  const slug = slugify(name)
+  if (slug.length < 8) return null
+  for (const u of loadIndex().urls ?? []) {
+    if (!u.includes(slug)) continue
+    const sn = u.match(SETNUM_RE)
+    if (sn) return { set: String(parseInt(sn[2], 10)), num: String(parseInt(sn[1], 10)) }
+  }
+  return null
+}
+
+/**
  * Recherche par NOM (promos et cartes sans chapitre/numéro standard) :
  * le nom FR est slugifié et comparé aux URLs de l'index ; les URLs « promo »
  * sont préférées quand la carte n'a pas de chapitre.

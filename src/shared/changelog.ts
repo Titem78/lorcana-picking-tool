@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.2',
+    title: 'Promos DIS : encre retrouvée par le nom',
+    items: [
+      'Les promos DIS (et D23…) ont une numérotation Cardmarket qui ne correspond à aucune base officielle : leur encre est maintenant retrouvée par le NOM de la carte (une réimpression promo garde l’encre de la carte d’origine)',
+      'Sécurité : plus aucun risque d’associer les infos d’une mauvaise carte à une promo — le lookup direct est réservé aux codes PR2/PR3 dont la numérotation est vérifiée',
+      'La rareté de ces promos reste « Promo » : la boîte à règle « Rareté = Promo » continue de toutes les accueillir'
+    ]
+  },
+  {
     version: '2.39.1',
     title: 'Les promos trouvent enfin leur boîte',
     items: [

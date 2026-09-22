@@ -433,20 +433,35 @@ export async function enrichOrderLines(orderId: number): Promise<number> {
     // Lorcast ne connaît que les cartes : pas de lookup pour les dés/scellés.
     // Les PROMOS (set_code vide) sont interrogées via leur set Lorcast
     // (PR2 → P2…) : elles récupèrent ainsi encre, rareté et visuel.
+    const estCarte = /cartes/i.test(line.section ?? '') && line.number
     const setForApi = lorcastSetForLine(line.set_code ?? '', line.color_code ?? '')
-    const isCard = /cartes/i.test(line.section ?? '') && line.number && setForApi
-    const card = isCard ? await getCard(setForApi, line.number ?? '').catch(() => null) : null
+    const card =
+      estCarte && setForApi ? await getCard(setForApi, line.number ?? '').catch(() => null) : null
+    // Promo sans set Lorcast (DIS, D23… : numérotation Cardmarket propre) :
+    // on retrouve l'ENCRE par le nom FR — la réimpression promo garde l'encre
+    // de la carte d'origine. La rareté reste celle du PDF (« P » → Promo),
+    // pour que les règles « Rareté = Promo » continuent de la ranger.
+    let inkParNom: string | null = null
+    if (estCarte && !card && !line.set_code) {
+      try {
+        const { findSetNumByName } = await import('./lorcards')
+        const sn = findSetNumByName(line.name)
+        if (sn) inkParNom = (await getCard(sn.set, sn.num).catch(() => null))?.ink ?? null
+      } catch {
+        /* index LorCards pas encore construit : repris au prochain passage */
+      }
+    }
     const frImage = /^FR/i.test(line.language ?? '')
       ? await getFrenchImage(line.set_code ?? '', line.number ?? '', line.name).catch(() => null)
       : null
-    if (!card && !frImage) continue
+    if (!card && !frImage && !inkParNom) continue
     db.prepare(
       `UPDATE order_lines SET ink = COALESCE(ink, ?), rarity = COALESCE(rarity, ?),
          image_file = COALESCE(?, image_file), image_large_file = COALESCE(?, image_large_file),
          lorcast_name = COALESCE(lorcast_name, ?)
        WHERE id = ?`
     ).run(
-      card?.ink ?? null,
+      card?.ink ?? inkParNom,
       card?.rarity ?? null,
       frImage ?? card?.image_file ?? null,
       frImage ?? card?.image_large_file ?? null,

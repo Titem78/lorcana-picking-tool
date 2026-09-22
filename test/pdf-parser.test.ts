@@ -44,14 +44,15 @@ describe('lorcastSetForLine — set Lorcast interrogeable (promos comprises)', (
   it('convertit les codes promo Cardmarket vers Lorcast (PR2 → P2)', () => {
     expect(lorcastSetForLine('', 'PR2')).toBe('P2')
     expect(lorcastSetForLine('', 'PR3')).toBe('P3')
-    // Ces codes portent le même nom des deux côtés
-    expect(lorcastSetForLine('', 'DIS')).toBe('DIS')
-    expect(lorcastSetForLine('', 'D23')).toBe('D23')
   })
 
-  it("refuse ce qui n'est pas un code de set (pas de requête à l'aveugle)", () => {
+  it('refuse les codes promo à numérotation Cardmarket propre (DIS, D23…)', () => {
+    // Le « DIS » Cardmarket ≠ le set « DIS » Lorcast (vérifié : Buzz
+    // « Assure la couverture » = DIS/8 côté CM mais PD1/5 côté Lorcast) —
+    // un lookup direct enrichirait la mauvaise carte. Encre par NOM à la place.
+    expect(lorcastSetForLine('', 'DIS')).toBe('')
+    expect(lorcastSetForLine('', 'D23')).toBe('')
     expect(lorcastSetForLine('', 'NM')).toBe('')
-    expect(lorcastSetForLine('', 'FR')).toBe('')
     expect(lorcastSetForLine('', '')).toBe('')
     expect(lorcastSetForLine(null, null)).toBe('')
   })

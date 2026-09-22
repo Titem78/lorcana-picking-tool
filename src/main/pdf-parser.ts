@@ -70,16 +70,17 @@ function estCodePromo(tok: string): boolean {
 }
 
 /**
- * Set Lorcast interrogeable pour une ligne : le chapitre s'il existe, sinon le
- * code promo Cardmarket converti (PR2 → P2, PR3 → P3 ; DIS, D23, C2…
- * portent le même code des deux côtés). Vide = pas de lookup possible.
+ * Set Lorcast interrogeable pour une ligne : le chapitre s'il existe, sinon
+ * UNIQUEMENT les codes promo PR2 → P2, PR3 → P3 (numérotation vérifiée
+ * identique des deux côtés). Les autres codes promo (DIS, D23…) ne
+ * correspondent PAS aux sets Lorcast du même nom — le « DIS » Cardmarket
+ * n'a ni le contenu ni la numérotation du « DIS » Lorcast : un lookup
+ * direct enrichirait la MAUVAISE carte. Pour eux : recherche par nom FR.
  */
 export function lorcastSetForLine(setCode: string | null, colorCode: string | null): string {
   if (setCode) return setCode
-  const code = (colorCode ?? '').toUpperCase()
-  if (!estCodePromo(code)) return ''
-  const m = code.match(/^PR(\d)$/)
-  return m ? `P${m[1]}` : code
+  const m = (colorCode ?? '').toUpperCase().match(/^PR(\d)$/)
+  return m ? `P${m[1]}` : ''
 }
 const PRICE_RE = /^[\d.,]+\s*EUR$/
 
