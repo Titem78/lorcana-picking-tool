@@ -185,7 +185,9 @@ describe.skipIf(!existsSync(STAMP_SHEET))('parseSheet — planche de timbres', (
 })
 
 describe('slugify (recherche LorCards par nom)', () => {
-  it('normalise les noms FR comme les URLs LorCards', async () => {
+  // L'import du module (chaîne electron) peut dépasser 5 s sur la CI chargée
+  // (échec du build v2.41.0) : marge large, le test lui-même est instantané.
+  it('normalise les noms FR comme les URLs LorCards', { timeout: 30_000 }, async () => {
     const { slugify } = await import('../src/main/lorcards')
     expect(slugify('La Fée Clochette - Collectionneuse de flocons de neige (V.1)')).toBe(
       'la-fee-clochette-collectionneuse-de-flocons-de-neige'
