@@ -1,6 +1,6 @@
 {
   "name": "lorcana-picking-tool",
-  "version": "2.39.6",
+  "version": "2.40.0",
   "description": "Assistant de préparation de commandes Cardmarket pour cartes Lorcana",
   "main": "out/main/index.js",
   "author": "Titem78",
