@@ -176,8 +176,16 @@ export async function getFrenchImage(
   const set = setCode.replace(/\D/g, '')
   const num = number.replace(/\D/g, '')
   if (!set || !num) {
-    // Promo / carte sans chapitre standard : recherche par nom dans LorCards,
-    // avec le code promo Cardmarket pour ne JAMAIS afficher une autre version
+    // Promo / carte sans chapitre standard : d'abord l'image OFFICIELLE
+    // (LorcanaJSON — set promo + numéro exacts), sinon LorCards par nom,
+    // toujours avec le code promo pour ne JAMAIS afficher une autre version
+    try {
+      const { getOfficialFrImage } = await import('./lorcanajson')
+      const off = await getOfficialFrImage('', number, promoCode, join(cacheDir(), 'images'))
+      if (off) return off
+    } catch {
+      /* source suivante */
+    }
     if (name) {
       try {
         const { getLorcardsFrImageByName } = await import('./lorcards')
@@ -191,6 +199,15 @@ export async function getFrenchImage(
   const fname = `${set}_${number}_fr.webp`.replace(/[^\w.-]/g, '_')
   const local = join(cacheDir(), 'images', fname)
   if (existsSync(local) && statSync(local).size > 0) return fname
+
+  // Source 1 : image OFFICIELLE de l'app (LorcanaJSON) — même nom de cache
+  try {
+    const { getOfficialFrImage } = await import('./lorcanajson')
+    const off = await getOfficialFrImage(set, number, null, join(cacheDir(), 'images'))
+    if (off) return off
+  } catch {
+    /* source suivante */
+  }
   // échec récent mémorisé pour ne pas marteler le CDN
   const key = `fr:${set}/${num}`
   const lastMiss = missCache.get(key)

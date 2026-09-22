@@ -34,6 +34,7 @@ writeFileSync(
 mkdirSync(join(userData, 'cache', 'images'), { recursive: true })
 
 import { findSetNumByName, getLorcardsFrImageByName } from '../src/main/lorcards'
+import { getOfficialFrImage } from '../src/main/lorcanajson'
 
 describe('findSetNumByName — encre des promos DIS/D23 par le nom FR', () => {
   it("retrouve le chapitre et numéro d'origine depuis le nom du PDF", () => {
@@ -81,5 +82,24 @@ describe('getLorcardsFrImageByName — jamais le visuel d’une AUTRE version pr
     expect(await getLorcardsFrImageByName('Buzz l’Éclair - Assure la couverture', images)).toBe(
       'name_buzz-leclair-assure-la-couverture_pd15_fr.webp'
     )
+  })
+})
+
+describe('getOfficialFrImage — visuels officiels LorcanaJSON', () => {
+  const images = join(userData, 'cache', 'images')
+  writeFileSync(join(images, 'promo_P3_6_fr.webp'), 'x')
+  writeFileSync(join(images, '5_48_fr.webp'), 'x')
+
+  it('promo Cardmarket PR3 n°6 → set promo officiel P3/6 (cache)', async () => {
+    expect(await getOfficialFrImage('', '6', 'PR3', images)).toBe('promo_P3_6_fr.webp')
+  })
+
+  it('carte de chapitre : même nom de cache que la chaîne FR existante', async () => {
+    expect(await getOfficialFrImage('5', '48', null, images)).toBe('5_48_fr.webp')
+  })
+
+  it('promo sans code, ou numéro invalide → null (pas de réseau en test)', async () => {
+    expect(await getOfficialFrImage('', '6', null, images)).toBeNull()
+    expect(await getOfficialFrImage('', 'abc', 'PR3', images)).toBeNull()
   })
 })

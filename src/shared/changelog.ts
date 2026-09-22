@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.40.0',
+    title: 'Visuels officiels Ravensburger en français',
+    items: [
+      'Nouvelle source n°1 des visuels : les images OFFICIELLES de l’app Disney Lorcana (via LorcanaJSON) — haute qualité, en français, tous les chapitres ET les promos avec leur set exact (P1 à P4, PD1…)',
+      'Les promos PR2/PR3 affichent donc maintenant leur vrai visuel français officiel ; Dreamborn et LorCards restent en repli, et la photo d’annonce Cardmarket (pastille EN) en dernier recours',
+      'Les visuels de moindre qualité déjà en place sont remplacés automatiquement au fil des rattrapages'
+    ]
+  },
+  {
     version: '2.39.6',
     title: 'Visuel d’annonce : pastille EN pour éviter tout doute',
     items: [
