@@ -81,22 +81,48 @@ export default function CardThumb({
   }
 
   const zoomFile = line.image_large_file ?? line.image_file
+  // Visuel repris de l'ANNONCE Cardmarket (photo produit, toujours en
+  // anglais) alors que la carte vendue est FR : on le signale pour que le
+  // scan anglais ne fasse pas douter de la langue — remplacé automatiquement
+  // par le scan français dès sa publication.
+  const annonceEn =
+    line.image_file.startsWith('cm_') && (line.language ?? '').toUpperCase().startsWith('FR')
 
   return (
     <>
-      <img
-        src={`appcache://images/${line.image_file}`}
-        alt={line.name}
-        onMouseEnter={enter}
-        onMouseLeave={leave}
-        onContextMenu={context}
-        title={line.name}
-        style={{
-          width: size,
-          borderRadius: 4,
-          flexShrink: 0
-        }}
-      />
+      <span style={{ position: 'relative', flexShrink: 0, display: 'inline-flex' }}>
+        <img
+          src={`appcache://images/${line.image_file}`}
+          alt={line.name}
+          onMouseEnter={enter}
+          onMouseLeave={leave}
+          onContextMenu={context}
+          title={annonceEn ? `${line.name} — visuel de l'annonce (anglais), carte vendue FR` : line.name}
+          style={{
+            width: size,
+            borderRadius: 4
+          }}
+        />
+        {annonceEn && (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: 2,
+              right: 2,
+              background: '#58a6d3',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: Math.max(9, Math.round(size / 6)),
+              lineHeight: 1.3,
+              padding: '0 3px',
+              borderRadius: 3,
+              pointerEvents: 'none'
+            }}
+          >
+            EN
+          </span>
+        )}
+      </span>
       {zoom && (
         <div
           style={{
@@ -160,6 +186,12 @@ export default function CardThumb({
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700, fontSize: '1rem' }}
               >
                 ✨ FOIL
+              </span>
+            )}
+            {annonceEn && (
+              <span style={{ color: 'var(--text-dim)' }}>
+                ⚠ visuel de l’annonce (anglais) — la carte vendue est bien FR ; le scan
+                français le remplacera dès sa publication
               </span>
             )}
           </div>

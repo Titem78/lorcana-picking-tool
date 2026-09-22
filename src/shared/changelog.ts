@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.6',
+    title: 'Visuel d’annonce : pastille EN pour éviter tout doute',
+    items: [
+      'Le visuel repris d’une annonce Cardmarket est la photo produit, TOUJOURS en anglais et en petite résolution — même quand la carte vendue est française : une pastille EN sur la vignette et une note dans le zoom le signalent clairement, la langue vendue reste celle du badge FR',
+      'Ces visuels d’annonce sont remplacés automatiquement par le scan français dès sa publication (vérification au démarrage et toutes les heures)',
+      'Rappel : après une mise à jour, les nouveautés s’activent au redémarrage SUIVANT (l’app télécharge la mise à jour pendant qu’elle tourne et l’installe à la fermeture) — pas besoin de supprimer/réimporter une commande'
+    ]
+  },
+  {
     version: '2.39.5',
     title: 'Les promos récupèrent le visuel exact de l’annonce',
     items: [
