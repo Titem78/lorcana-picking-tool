@@ -127,11 +127,13 @@ export async function persistParsedOrder(
         return orderId
       })
       const orderId = insertAll()
-      // Visuels + encre/rareté canoniques : en tâche de fond, jamais bloquant
-      enrichOrderLines(orderId).catch(() => {})
-      // Grammage Cardmarket (« max. NNg ») absent du PDF : récupéré depuis la
-      // page de la vente EN ARRIÈRE-PLAN (jamais dans le chemin d'import).
-      import('./cmshipping')
+      // Visuels + encre/rareté canoniques : en tâche de fond, jamais bloquant.
+      // Le grammage Cardmarket (« max. NNg ») vient ENSUITE de la page de la
+      // vente — après les scans FR, pour ne télécharger sur Cardmarket que
+      // les visuels encore manquants (promos non scannées ailleurs).
+      enrichOrderLines(orderId)
+        .catch(() => {})
+        .then(() => import('./cmshipping'))
         .then((m) => m.enrichShippingFromCm(orderId))
         .catch(() => {})
       // Miroir de stock : décrémente les articles vendus (meilleure estimation)

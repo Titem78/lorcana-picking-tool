@@ -74,6 +74,23 @@ function isPolluted(method: string | null): boolean {
 }
 
 /**
+ * Visuels EXACTS des annonces, extraits du HTML de la page de vente : une
+ * entrée par ligne d'article (tr[data-article-id]), dans l'ordre de la page
+ * (= l'ordre du PDF), null quand la ligne n'a pas d'image. L'URL est dans le
+ * tooltip (data-bs-title="<img src=&quot;…&quot;>"), donc HTML-échappée.
+ * C'est la SEULE source fiable pour les promos dont la version n'est pas
+ * encore scannée ailleurs (DIS…) — l'annonce Cardmarket montre la vraie carte.
+ */
+export function parseArticleImages(html: string): (string | null)[] {
+  const out: (string | null)[] = []
+  for (const m of html.matchAll(/<tr[^>]*\bdata-article-id\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const src = m[1].match(/src=(?:&quot;|["'])(https?:[^"'&\s\\]+)/i)
+    out.push(src ? src[1] : null)
+  }
+  return out
+}
+
+/**
  * Complète orders.shipping_method (« <méthode> (max. NNg) ») et cm_tracked.
  * Silencieux : hors-ligne, non connecté ou page inaccessible → on réessaiera.
  */
@@ -85,17 +102,44 @@ export async function enrichShippingFromCm(orderId: number): Promise<boolean> {
     | { sale_id: string; shipping_method: string | null; cm_tracked: number | null; buyer_pro: number | null }
     | undefined
   if (!row) return false
+  // Lignes encore sans visuel (promos non scannées ailleurs) : la page de la
+  // vente porte les images EXACTES des annonces — on profite du même fetch.
+  const sansVisuel = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM order_lines
+         WHERE order_id = ? AND image_file IS NULL AND section LIKE '%arte%'`
+      )
+      .get(orderId) as { n: number }
+  ).n
   const complete =
     /max\.?\s*\d+\s*g/i.test(row.shipping_method ?? '') &&
     !isPolluted(row.shipping_method) &&
     row.cm_tracked != null &&
     row.buyer_pro != null
-  if (complete) return false
+  if (complete && sansVisuel === 0) return false
   const html = await fetchOrderPage(row.sale_id).catch(() => null)
   if (!html) return false
   const s = parseShippingFromHtml(html)
   const pro = parseBuyerPro(html)
-  if (!s && pro == null) return false
+  let images = 0
+  if (sansVisuel > 0) {
+    try {
+      const urls = parseArticleImages(html)
+      // On ne télécharge que pour les lignes SANS visuel (même ordre que la page)
+      const lignes = db
+        .prepare('SELECT image_file FROM order_lines WHERE order_id = ? ORDER BY id')
+        .all(orderId) as { image_file: string | null }[]
+      const masquees = urls.map((u, i) => (lignes[i]?.image_file ? null : u))
+      if (masquees.some(Boolean)) {
+        const { applyCardImageUrls } = await import('./orders')
+        images = await applyCardImageUrls(orderId, masquees)
+      }
+    } catch {
+      /* visuels facultatifs : le rattrapage retentera */
+    }
+  }
+  if (!s && pro == null) return images > 0
   db.prepare(
     `UPDATE orders SET
        shipping_method = COALESCE(?, shipping_method),
@@ -265,12 +309,17 @@ export async function backfillShipping(): Promise<number> {
   const db = getDb()
   const rows = db
     .prepare(
-      `SELECT id FROM orders
+      `SELECT id FROM orders o
        WHERE cm_fetch_attempts < 3
          AND ((status IN ('imported', 'picking', 'picked', 'prepared')
                AND imported_at >= datetime('now', 'localtime', '-30 days')
                AND (shipping_method IS NULL OR shipping_method NOT LIKE '%max.%'
-                    OR cm_tracked IS NULL OR buyer_pro IS NULL))
+                    OR cm_tracked IS NULL OR buyer_pro IS NULL
+                    -- lignes sans visuel (promos non scannées) : la page de la
+                    -- vente porte les images exactes des annonces
+                    OR EXISTS (SELECT 1 FROM order_lines l
+                               WHERE l.order_id = o.id AND l.image_file IS NULL
+                                 AND l.section LIKE '%arte%')))
               OR shipping_method LIKE '%Méthode%' OR shipping_method LIKE '%Numéro%')
        LIMIT 15`
     )

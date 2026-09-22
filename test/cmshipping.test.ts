@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ session: { fromPartition: () => ({}) } }))
 
-import { hasConfirmForm, parseBuyerPro, parseCmToken, parseShippingFromHtml } from '../src/main/cmshipping'
+import {
+  hasConfirmForm,
+  parseArticleImages,
+  parseBuyerPro,
+  parseCmToken,
+  parseShippingFromHtml
+} from '../src/main/cmshipping'
 
 // Formulaires RÉELS du dump cm-page-debug (vente #1293615602, 2026-08-12)
 const FORMS_REELS = `
@@ -94,5 +100,30 @@ describe('validation d’envoi (formulaires réels du dump)', () => {
   it('ne détecte plus le formulaire une fois la commande envoyée', () => {
     expect(hasConfirmForm('<div>Envoyée: 12.08.2026</div>')).toBe(false)
     expect(parseCmToken('<div>pas de formulaire</div>')).toBeNull()
+  })
+})
+
+describe('parseArticleImages — visuels exacts des annonces (promos DIS…)', () => {
+  const PAGE_ARTICLES = `
+    <table><tbody>
+    <tr data-article-id="111" data-name="Mickey Mouse - Champion Ambre">
+      <td><span data-bs-title="<img src=&quot;https://product-images.s3.cardmarket.com/1629/DIS/764268/764268.jpg&quot; class=&quot;w-100&quot;>">Mickey</span></td>
+    </tr>
+    <tr data-article-id="222" data-name="Article sans visuel"><td>rien</td></tr>
+    <tr data-article-id="333" data-name="Elsa - Le cinquième esprit">
+      <td><span data-bs-original-title="<img src='https://product-images.s3.cardmarket.com/1629/DIS/764301/764301.jpg'>">Elsa</span></td>
+    </tr>
+    </tbody></table>`
+
+  it('extrait les URLs dans l’ordre des lignes, null si absente', () => {
+    expect(parseArticleImages(PAGE_ARTICLES)).toEqual([
+      'https://product-images.s3.cardmarket.com/1629/DIS/764268/764268.jpg',
+      null,
+      'https://product-images.s3.cardmarket.com/1629/DIS/764301/764301.jpg'
+    ])
+  })
+
+  it('page sans tableau d’articles → liste vide', () => {
+    expect(parseArticleImages('<div>rien</div>')).toEqual([])
   })
 })

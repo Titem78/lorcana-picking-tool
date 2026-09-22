@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.5',
+    title: 'Les promos récupèrent le visuel exact de l’annonce',
+    items: [
+      'Les lignes sans visuel (promos DIS non scannées ailleurs) récupèrent maintenant l’image EXACTE de l’annonce depuis la page de la vente Cardmarket — la même que celle vue par l’acheteur, donc toujours la bonne version',
+      'Aucune requête supplémentaire : l’app profite de la lecture déjà faite pour le grammage, et le rattrapage au démarrage reprend les commandes existantes (dont celles importées par PDF)',
+      'C’est pourquoi un import via l’onglet Cardmarket avait déjà les visuels et un import PDF non : les deux chemins sont maintenant équivalents'
+    ]
+  },
+  {
     version: '2.39.4',
     title: 'Visuels promo manquants : surveillance automatique',
     items: [
