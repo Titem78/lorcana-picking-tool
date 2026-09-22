@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.4',
+    title: 'Visuels promo manquants : surveillance automatique',
+    items: [
+      'Un visuel promo sans emplacement de scan (version trop récente, ex. les promos DIS) n’est pas un bug : l’app préfère AUCUN visuel à celui d’une autre version — et surveille désormais LorCards toute seule (au plus 1×/heure) pour poser le bon visuel dès sa publication',
+      'En attendant, la version se lit sur le badge ★ PROMO · DIS et un visuel peut être associé à la main (clic 📷)'
+    ]
+  },
+  {
     version: '2.39.3',
     title: 'Sécurité : plus jamais le visuel d’une autre version promo',
     items: [

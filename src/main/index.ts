@@ -146,6 +146,15 @@ app.whenReady().then(() => {
     } catch {
       /* base occupée : retenté au prochain démarrage */
     }
+    // Visuel promo introuvable → l'index se rafraîchit tout seul (1×/h max) :
+    // dès qu'il a du neuf, on repose les visuels manquants.
+    import('./lorcards')
+      .then((m) =>
+        m.setOnFreshIndex(() => {
+          backfillFrenchImages().catch(() => {})
+        })
+      )
+      .catch(() => {})
     repairNumbersInNames()
       .catch(() => {})
       .then(() => enrichPendingOrders().catch(() => {}))

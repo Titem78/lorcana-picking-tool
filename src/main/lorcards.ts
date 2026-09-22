@@ -197,6 +197,27 @@ export function findSetNumByName(name: string): { set: string; num: string } | n
 // numérique à cette position, elles ne matchent pas.
 const PROMO_URL_RE = /lorcanacards-(\d+)-([a-z][a-z0-9]*)-fr-/
 
+// Visuel promo introuvable = souvent une carte trop récente pour l'index :
+// on relance un rafraîchissement de la tête de liste (au plus 1×/heure),
+// puis le rattrapage (onFreshIndex) pose les visuels dès qu'ils existent.
+let lastMissRefresh = 0
+let onFreshIndex: (() => void) | null = null
+export function setOnFreshIndex(cb: () => void): void {
+  onFreshIndex = cb
+}
+function refreshAfterMiss(): void {
+  if (process.env.VITEST || crawling) return
+  if (Date.now() - lastMissRefresh < 3600_000) return
+  lastMissRefresh = Date.now()
+  crawling = crawl(1, 12, true).then(() => {
+    const idx = loadIndex()
+    idx.refreshAt = new Date().toISOString()
+    saveIndex()
+    crawling = null
+    onFreshIndex?.()
+  })
+}
+
 /** Code promo Cardmarket → slug de set LorCards : PR3 → p3, DIS → dis… */
 function slugCodePromo(code: string): string {
   const c = code.toLowerCase()
@@ -226,7 +247,10 @@ export async function getLorcardsFrImageByName(
   if (slug.length < 8) return null
   const urls = loadIndex().urls ?? []
   const matches = urls.filter((u) => u.includes(slug))
-  if (matches.length === 0) return null
+  if (matches.length === 0) {
+    refreshAfterMiss()
+    return null
+  }
 
   const promos = matches
     .map((u) => ({ u, m: u.match(PROMO_URL_RE) }))
@@ -238,7 +262,12 @@ export async function getLorcardsFrImageByName(
     const wanted = slugCodePromo(promoCode)
     const duSet = promos.filter((p) => p.set === wanted)
     choix = duSet.find((p) => p.num === String(parseInt(number ?? '', 10))) ?? duSet[0]
-    if (!choix) return null // version pas encore scannée : pas de visuel trompeur
+    if (!choix) {
+      // version pas encore scannée : pas de visuel trompeur, mais on va voir
+      // si LorCards a du neuf
+      refreshAfterMiss()
+      return null
+    }
   } else {
     const sets = new Set(promos.map((p) => p.set))
     if (sets.size > 1) return null // plusieurs versions promo : ambigu
