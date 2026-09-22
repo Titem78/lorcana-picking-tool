@@ -388,14 +388,20 @@ export async function backfillFrenchImages(): Promise<number> {
   const db = getDb()
   const lines = db
     .prepare(
-      `SELECT id, set_code, number, name FROM order_lines
+      `SELECT id, set_code, color_code, number, name FROM order_lines
        WHERE language LIKE 'FR%' AND section LIKE '%arte%'
          AND (image_file IS NULL OR image_file NOT LIKE '%_fr.webp')`
     )
-    .all() as { id: number; set_code: string; number: string; name: string }[]
+    .all() as {
+    id: number
+    set_code: string
+    color_code: string | null
+    number: string
+    name: string
+  }[]
   let updated = 0
   for (const l of lines) {
-    const fr = await getFrenchImage(l.set_code, l.number, l.name)
+    const fr = await getFrenchImage(l.set_code, l.number, l.name, l.color_code)
     if (fr) {
       db.prepare('UPDATE order_lines SET image_file = ?, image_large_file = ? WHERE id = ?').run(
         fr,
@@ -406,6 +412,32 @@ export async function backfillFrenchImages(): Promise<number> {
     }
   }
   return updated
+}
+
+/**
+ * Réparation UNE SEULE FOIS : avant la v2.39.3, le visuel « par nom » d'une
+ * promo pouvait être celui d'une AUTRE version promo du même nom (« Elsa -
+ * Le cinquième esprit » existe en P3 n°6 ET en DIS n°7 — picker sur ce
+ * visuel = mauvaise carte physique). On efface ces visuels ; le rattrapage
+ * les re-choisit avec la nouvelle règle : même set promo, sinon aucun visuel.
+ */
+export function repairPromoNameImages(): number {
+  const db = getDb()
+  const done = db
+    .prepare("SELECT value FROM settings WHERE key = 'repair_promo_img_2393'")
+    .get() as { value: string } | undefined
+  if (done) return 0
+  const info = db
+    .prepare(
+      `UPDATE order_lines SET image_file = NULL, image_large_file = NULL
+       WHERE (set_code IS NULL OR set_code = '')
+         AND (image_file LIKE 'name@_%' ESCAPE '@' OR image_large_file LIKE 'name@_%' ESCAPE '@')`
+    )
+    .run()
+  db.prepare(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('repair_promo_img_2393', '1')"
+  ).run()
+  return info.changes
 }
 
 /**
@@ -452,7 +484,12 @@ export async function enrichOrderLines(orderId: number): Promise<number> {
       }
     }
     const frImage = /^FR/i.test(line.language ?? '')
-      ? await getFrenchImage(line.set_code ?? '', line.number ?? '', line.name).catch(() => null)
+      ? await getFrenchImage(
+          line.set_code ?? '',
+          line.number ?? '',
+          line.name,
+          line.color_code
+        ).catch(() => null)
       : null
     if (!card && !frImage && !inkParNom) continue
     db.prepare(
@@ -533,7 +570,7 @@ export async function repairNumbersInNames(): Promise<number> {
     const setForApi = lorcastSetForLine(r.set_code, r.color_code)
     const card = setForApi ? await getCard(setForApi, number).catch(() => null) : null
     const frImage = /^FR/i.test(r.language ?? '')
-      ? await getFrenchImage(r.set_code, number, name).catch(() => null)
+      ? await getFrenchImage(r.set_code, number, name, r.color_code).catch(() => null)
       : null
     db.prepare(
       `UPDATE order_lines SET name = ?, number = ?,

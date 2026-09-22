@@ -170,16 +170,18 @@ export function imagesDir(): string {
 export async function getFrenchImage(
   setCode: string,
   number: string,
-  name?: string
+  name?: string,
+  promoCode?: string | null
 ): Promise<string | null> {
   const set = setCode.replace(/\D/g, '')
   const num = number.replace(/\D/g, '')
   if (!set || !num) {
-    // Promo / carte sans chapitre standard : recherche par nom dans LorCards
+    // Promo / carte sans chapitre standard : recherche par nom dans LorCards,
+    // avec le code promo Cardmarket pour ne JAMAIS afficher une autre version
     if (name) {
       try {
         const { getLorcardsFrImageByName } = await import('./lorcards')
-        return await getLorcardsFrImageByName(name, join(cacheDir(), 'images'))
+        return await getLorcardsFrImageByName(name, join(cacheDir(), 'images'), promoCode, number)
       } catch {
         return null
       }

@@ -78,6 +78,8 @@ async function fetchPage(page: number): Promise<number> {
 export function slugify(name: string): string {
   return name
     .replace(/\(V\.\d+\)/gi, '')
+    // LorCards supprime les apostrophes SANS tiret : « l'Éclair » → leclair
+    .replace(/['’]/g, '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -190,22 +192,62 @@ export function findSetNumByName(name: string): { set: string; num: string } | n
   return null
 }
 
+// URLs promo LorCards : « lorcanacards-<num>-<setpromo>-fr-… » où <setpromo>
+// est un code lettres (p3, p4, pd1, dis…) — les URLs standard ont un TOTAL
+// numérique à cette position, elles ne matchent pas.
+const PROMO_URL_RE = /lorcanacards-(\d+)-([a-z][a-z0-9]*)-fr-/
+
+/** Code promo Cardmarket → slug de set LorCards : PR3 → p3, DIS → dis… */
+function slugCodePromo(code: string): string {
+  const c = code.toLowerCase()
+  const m = c.match(/^pr(\d)$/)
+  return m ? `p${m[1]}` : c
+}
+
 /**
  * Recherche par NOM (promos et cartes sans chapitre/numéro standard) :
- * le nom FR est slugifié et comparé aux URLs de l'index ; les URLs « promo »
- * sont préférées quand la carte n'a pas de chapitre.
+ * le nom FR est slugifié et comparé aux URLs de l'index.
+ *
+ * ⚠ Une même carte peut exister en PLUSIEURS versions promo (ex. « Elsa -
+ * Le cinquième esprit » en P3 n°6 ET en DIS n°7) : afficher le visuel d'une
+ * autre version ferait picker la mauvaise carte physique (grosses différences
+ * de valeur). Règle : si le code promo Cardmarket est connu, seule une URL du
+ * MÊME set est acceptée ; sans code, on n'accepte que si toutes les versions
+ * promo trouvées sont dans le même set. Ambigu ou set absent → AUCUN visuel
+ * (l'utilisateur peut en associer un via 📷), jamais un visuel douteux.
  */
 export async function getLorcardsFrImageByName(
   name: string,
-  imagesDir: string
+  imagesDir: string,
+  promoCode?: string | null,
+  number?: string | null
 ): Promise<string | null> {
   const slug = slugify(name)
   if (slug.length < 8) return null
   const urls = loadIndex().urls ?? []
   const matches = urls.filter((u) => u.includes(slug))
   if (matches.length === 0) return null
-  const url = matches.find((u) => u.includes('-promo')) ?? matches[0]
-  const fname = `name_${slug.slice(0, 60)}_fr.webp`
+
+  const promos = matches
+    .map((u) => ({ u, m: u.match(PROMO_URL_RE) }))
+    .filter((x): x is { u: string; m: RegExpMatchArray } => !!x.m)
+    .map((x) => ({ url: x.u, num: String(parseInt(x.m[1], 10)), set: x.m[2] }))
+
+  let choix: { url: string; num: string; set: string } | undefined
+  if (promoCode) {
+    const wanted = slugCodePromo(promoCode)
+    const duSet = promos.filter((p) => p.set === wanted)
+    choix = duSet.find((p) => p.num === String(parseInt(number ?? '', 10))) ?? duSet[0]
+    if (!choix) return null // version pas encore scannée : pas de visuel trompeur
+  } else {
+    const sets = new Set(promos.map((p) => p.set))
+    if (sets.size > 1) return null // plusieurs versions promo : ambigu
+    choix = promos[0]
+  }
+
+  const url = choix?.url ?? matches[0]
+  const marque = choix ? `_${choix.set}${choix.num}` : ''
+  const fname = `name_${slug.slice(0, 60)}${marque}_fr.webp`
   const local = join(imagesDir, fname)
   if (existsSync(local) && statSync(local).size > 0) return fname
   return (await downloadToAsync(url, local)) ? fname : null

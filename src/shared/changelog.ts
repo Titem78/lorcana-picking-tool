@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.39.3',
+    title: 'Sécurité : plus jamais le visuel d’une autre version promo',
+    items: [
+      'Une même carte peut exister en PLUSIEURS versions promo (ex. Elsa « Le cinquième esprit » en P3 n°6 ET en DIS n°7) : le visuel affiché est maintenant garanti être celui du BON set promo — sinon aucun visuel, jamais un visuel trompeur qui ferait picker la mauvaise carte',
+      'Badge ★ PROMO (avec le code du set : DIS, PR3…) à côté du badge FOIL, dans le picking et la fiche de vente — la version se voit d’un coup d’œil',
+      'Les visuels promo déjà enregistrés sont re-vérifiés une fois automatiquement au démarrage',
+      'Les noms avec apostrophe (Buzz l’Éclair…) retrouvent enfin leur scan français'
+    ]
+  },
+  {
     version: '2.39.2',
     title: 'Promos DIS : encre retrouvée par le nom',
     items: [

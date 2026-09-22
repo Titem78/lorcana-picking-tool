@@ -190,7 +190,12 @@ describe('slugify (recherche LorCards par nom)', () => {
     expect(slugify('La Fée Clochette - Collectionneuse de flocons de neige (V.1)')).toBe(
       'la-fee-clochette-collectionneuse-de-flocons-de-neige'
     )
-    expect(slugify("Raiponce - S'échappe de la tour")).toBe('raiponce-s-echappe-de-la-tour')
+    // Apostrophe SUPPRIMÉE sans tiret — URL réelle vérifiée :
+    // …-15-p4-fr-13-promo-set-13-raiponce-sechappe-de-la-tour.webp
+    expect(slugify("Raiponce - S'échappe de la tour")).toBe('raiponce-sechappe-de-la-tour')
+    expect(slugify('Buzz l’Éclair - Assure la couverture')).toBe(
+      'buzz-leclair-assure-la-couverture'
+    )
   })
 })
 

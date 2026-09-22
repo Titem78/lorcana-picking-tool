@@ -434,6 +434,15 @@ function PickingRow({
                 ✨ FOIL
               </span>
             )}
+            {item.rarity === 'Promo' && (
+              <span
+                className="badge"
+                style={{ borderColor: '#d36bd3', color: '#d36bd3', fontWeight: 700 }}
+              >
+                ★ PROMO
+                {!item.set_code && item.color_code ? ` · ${item.color_code}` : ''}
+              </span>
+            )}
             {item.language && (
               <span
                 className="badge"
@@ -471,7 +480,9 @@ function PickingRow({
               )}
             </span>
             {item.ink && <span style={{ color: hex }}>⬤ {INK_LABELS_FR[item.ink] ?? item.ink}</span>}
-            {item.rarity && <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>}
+            {item.rarity && item.rarity !== 'Promo' && (
+              <span>{RARITY_LABELS_FR[item.rarity] ?? item.rarity}</span>
+            )}
           </div>
           {!multi && (
             <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 4 }}>

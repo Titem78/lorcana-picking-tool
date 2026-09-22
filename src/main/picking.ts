@@ -96,6 +96,7 @@ export function buildPickingList(): PickingList {
         lorcast_name: line.lorcast_name,
         number: line.number,
         set_code: line.set_code,
+        color_code: line.color_code,
         ink: line.ink ?? line.color_label ?? '',
         rarity: line.rarity ?? canonicalRarity(line.rarity_code ?? ''),
         is_foil: line.is_foil === 1,

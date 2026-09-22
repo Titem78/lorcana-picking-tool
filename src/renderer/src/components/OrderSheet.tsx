@@ -401,6 +401,15 @@ export default function OrderSheet({
                     ✨ FOIL
                   </span>
                 )}{' '}
+                {(l.rarity === 'Promo' || (!l.rarity && l.rarity_code === 'P')) && (
+                  <span
+                    className="badge"
+                    style={{ borderColor: '#d36bd3', color: '#d36bd3', fontWeight: 700 }}
+                  >
+                    ★ PROMO
+                    {!l.set_code && l.color_code ? ` · ${l.color_code}` : ''}
+                  </span>
+                )}{' '}
                 {l.language && (
                   <span
                     className="badge"

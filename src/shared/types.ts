@@ -151,6 +151,8 @@ export interface PickingItem {
   lorcast_name: string | null
   number: string | null
   set_code: string | null
+  /** code promo Cardmarket (PR2, DIS…) quand set_code est vide */
+  color_code: string | null
   ink: string
   rarity: string
   is_foil: boolean

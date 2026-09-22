@@ -21,12 +21,19 @@ writeFileSync(
       'https://static.lorcards.fr/cards/fr/lorcanacards-48-204-fr-5-elsa-le-cinquieme-esprit.webp',
       // URL promo : pas de set/numéro exploitable
       'https://static.lorcards.fr/cards/fr/lorcanacards-promo-fr-mickey-mouse-le-vrai-heros.webp',
-      'https://static.lorcards.fr/cards/fr/lorcanacards-23-224-fr-10-mickey-mouse-champion-ambre.webp'
+      'https://static.lorcards.fr/cards/fr/lorcanacards-23-224-fr-10-mickey-mouse-champion-ambre.webp',
+      // DEUX versions promo du même nom (cas réel signalé par l'utilisateur) :
+      'https://static.lorcards.fr/cards/fr/p3/image-cartes-a-collectionner-lorcana-disney-game-tcg-lorcanacards-6-p3-fr-13-promo-set-13-elsa-le-cinquieme-esprit.webp',
+      'https://static.lorcards.fr/cards/fr/dis/image-cartes-a-collectionner-lorcana-disney-game-tcg-lorcanacards-7-dis-fr-13-promo-set-13-elsa-le-cinquieme-esprit.webp',
+      // Une seule version promo :
+      'https://static.lorcards.fr/cards/fr/pd1/image-cartes-a-collectionner-lorcana-disney-game-tcg-lorcanacards-5-pd1-fr-13-promo-set-13-buzz-leclair-assure-la-couverture.webp'
     ]
   })
 )
 
-import { findSetNumByName } from '../src/main/lorcards'
+mkdirSync(join(userData, 'cache', 'images'), { recursive: true })
+
+import { findSetNumByName, getLorcardsFrImageByName } from '../src/main/lorcards'
 
 describe('findSetNumByName — encre des promos DIS/D23 par le nom FR', () => {
   it("retrouve le chapitre et numéro d'origine depuis le nom du PDF", () => {
@@ -41,5 +48,38 @@ describe('findSetNumByName — encre des promos DIS/D23 par le nom FR', () => {
 
   it('refuse les noms trop courts (matchs ambigus)', () => {
     expect(findSetNumByName('Elsa')).toBeNull()
+  })
+})
+
+describe('getLorcardsFrImageByName — jamais le visuel d’une AUTRE version promo', () => {
+  const images = join(userData, 'cache', 'images')
+  // Visuels « déjà téléchargés » : la fonction rend le nom sans réseau
+  writeFileSync(join(images, 'name_elsa-le-cinquieme-esprit_dis7_fr.webp'), 'x')
+  writeFileSync(join(images, 'name_elsa-le-cinquieme-esprit_p36_fr.webp'), 'x')
+  writeFileSync(join(images, 'name_buzz-leclair-assure-la-couverture_pd15_fr.webp'), 'x')
+
+  it('choisit la version du MÊME set promo que Cardmarket', async () => {
+    expect(await getLorcardsFrImageByName('Elsa - Le cinquième esprit', images, 'DIS', '7')).toBe(
+      'name_elsa-le-cinquieme-esprit_dis7_fr.webp'
+    )
+    expect(await getLorcardsFrImageByName('Elsa - Le cinquième esprit', images, 'PR3', '6')).toBe(
+      'name_elsa-le-cinquieme-esprit_p36_fr.webp'
+    )
+  })
+
+  it('set promo introuvable → AUCUN visuel plutôt qu’un visuel trompeur', async () => {
+    expect(
+      await getLorcardsFrImageByName('Elsa - Le cinquième esprit', images, 'D23', '9')
+    ).toBeNull()
+  })
+
+  it('sans code : refuse si plusieurs versions promo existent', async () => {
+    expect(await getLorcardsFrImageByName('Elsa - Le cinquième esprit', images)).toBeNull()
+  })
+
+  it('sans code : accepte si une seule version promo existe', async () => {
+    expect(await getLorcardsFrImageByName('Buzz l’Éclair - Assure la couverture', images)).toBe(
+      'name_buzz-leclair-assure-la-couverture_pd15_fr.webp'
+    )
   })
 })
