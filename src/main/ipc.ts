@@ -431,7 +431,23 @@ export function registerIpc(): void {
   ipcMain.handle('stock:upsert', (_e, userId: number, rows: stock.StockRowInput[]) =>
     stock.upsertStock(userId, rows)
   )
-  ipcMain.handle('stock:list', (_e, search: string) => stock.listStock(search ?? ''))
+  ipcMain.handle('stock:list', (_e, filters: string | stock.StockFilters) =>
+    stock.listStock(filters ?? '')
+  )
+  ipcMain.handle('stock:snapshotTake', (_e, userId: number, label: string, kind: 'sweep' | 'manual') =>
+    stock.takeSnapshot(userId, label ?? '', kind === 'sweep' ? 'sweep' : 'manual')
+  )
+  ipcMain.handle('stock:snapshots', () => stock.listSnapshots())
+  ipcMain.handle('stock:snapshotDelete', (_e, userId: number, id: number) =>
+    stock.deleteSnapshot(userId, id)
+  )
+  ipcMain.handle('stock:compare', (_e, fromId: number, toId: number | null) =>
+    stock.compareSnapshots(fromId, toId ?? null)
+  )
+  ipcMain.handle('stock:sales', (_e, days: number) => stock.salesStats(days ?? 30))
+  ipcMain.handle('stock:restock', (_e, days: number, minSold: number) =>
+    stock.restockSuggestions(days ?? 30, minSold ?? 1)
+  )
   ipcMain.handle('stock:clear', (_e, userId: number) => stock.clearStock(userId))
   ipcMain.handle('stock:sweepMark', () => stock.sweepMark())
   ipcMain.handle('stock:purgeOlder', (_e, userId: number, mark: string) =>

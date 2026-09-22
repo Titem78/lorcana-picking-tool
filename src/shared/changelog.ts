@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.41.0',
+    title: 'Le Stock devient un vrai module de gestion',
+    items: [
+      'L’onglet 📦 Stock est réorganisé en 4 sections : 📋 Stock (filtres chapitre/langue/foil/état + tri), 🏆 Ventes, 📸 Inventaires, 💡 À racheter',
+      '📥 Inventaire général : le bouton quitte la barre Cardmarket (interface allégée) et se lance depuis le Stock — chaque balayage complet fige automatiquement un INSTANTANÉ daté',
+      '📸 Inventaires : fige un instantané à tout moment et compare deux dates (ou une date avec le stock actuel) — ce qui est sorti, entré, et en quelle quantité',
+      '🏆 Ventes : top des cartes vendues sur 7/30/90/365 jours, avec rareté, nombre de commandes, chiffre d’affaires et stock restant',
+      '💡 À racheter : les cartes vendues dont le stock est épuisé (🔴 rupture) ou insuffisant (🟠 faible) — les meilleures candidates au réassort',
+      'Rien ne change au reste : les ventes importées continuent de décrémenter le miroir automatiquement'
+    ]
+  },
+  {
     version: '2.40.1',
     title: 'Grand audit des visuels : zéro ambiguïté tolérée',
     items: [

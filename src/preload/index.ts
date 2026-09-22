@@ -117,11 +117,20 @@ const api = {
 
   stock: {
     upsert: (userId: number, rows: unknown[]) => ipcRenderer.invoke('stock:upsert', userId, rows),
-    list: (search: string) => ipcRenderer.invoke('stock:list', search),
+    list: (filters: string | Record<string, string>) => ipcRenderer.invoke('stock:list', filters),
     clear: (userId: number) => ipcRenderer.invoke('stock:clear', userId),
     sweepMark: () => ipcRenderer.invoke('stock:sweepMark'),
     purgeOlder: (userId: number, mark: string) => ipcRenderer.invoke('stock:purgeOlder', userId, mark),
-    exportCsv: () => ipcRenderer.invoke('stock:exportCsv')
+    exportCsv: () => ipcRenderer.invoke('stock:exportCsv'),
+    snapshotTake: (userId: number, label: string, kind: string) =>
+      ipcRenderer.invoke('stock:snapshotTake', userId, label, kind),
+    snapshots: () => ipcRenderer.invoke('stock:snapshots'),
+    snapshotDelete: (userId: number, id: number) =>
+      ipcRenderer.invoke('stock:snapshotDelete', userId, id),
+    compare: (fromId: number, toId: number | null) =>
+      ipcRenderer.invoke('stock:compare', fromId, toId),
+    sales: (days: number) => ipcRenderer.invoke('stock:sales', days),
+    restock: (days: number, minSold: number) => ipcRenderer.invoke('stock:restock', days, minSold)
   },
 
   cmtx: {

@@ -14,6 +14,7 @@ const WebView = 'webview' as unknown as React.FC<{
 
 interface WebviewEl extends HTMLElement {
   getURL: () => string
+  isLoading: () => boolean
   goBack: () => void
   goForward: () => void
   reload: () => void
@@ -313,9 +314,12 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         setMsg(`✋ Arrêté — ${items} article(s) importés/actualisés (inventaire partiel conservé, rien n'est retiré).`)
       } else {
         const purged = (await window.api.stock.purgeOlder(user.id, mark)) as { removed: number }
+        // Inventaire à une date : chaque balayage complet est figé en instantané
+        await window.api.stock.snapshotTake(user.id, 'Inventaire général', 'sweep')
         setMsg(
           `✅ Inventaire général terminé : ${items} article(s) sur ${pages} page(s), ` +
-            `${purged.removed} article(s) disparu(s) retiré(s) du miroir (onglet 📦 Stock).` +
+            `${purged.removed} article(s) disparu(s) retiré(s) du miroir. ` +
+            `📸 Instantané daté enregistré — tout est dans l'onglet 📦 Stock.` +
             (warnings.length ? ` ⚠ Tranches incomplètes : ${warnings.join(' ; ')}` : '')
         )
       }
@@ -326,6 +330,26 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       setStockProgress(null)
     }
   }
+
+  // Lancement demandé depuis l'onglet 📦 Stock : on attend que le webview soit
+  // prêt (page chargée) puis on démarre le balayage tout seul.
+  useEffect(() => {
+    if (sessionStorage.getItem('startInventory') !== '1') return
+    const timer = window.setInterval(() => {
+      const wv = webviewRef.current
+      if (!wv) return
+      try {
+        if (!wv.getURL() || wv.isLoading()) return
+      } catch {
+        return
+      }
+      window.clearInterval(timer)
+      sessionStorage.removeItem('startInventory')
+      importFullInventory()
+    }, 1200)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const importCurrent = async (): Promise<void> => {
     const wv = webviewRef.current
@@ -480,13 +504,6 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>
-        <button
-          disabled={busy}
-          onClick={importFullInventory}
-          title="Balaye TOUT ton stock Cardmarket (extension par extension, en lecture seule, ~2 requêtes/s) et met à jour le miroir local — onglet 📦 Stock. Bouton Stop à tout moment."
-        >
-          📦 Inventaire général
-        </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande
         </button>

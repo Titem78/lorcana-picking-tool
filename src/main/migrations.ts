@@ -222,5 +222,35 @@ export const MIGRATIONS: string[] = [
   // du décompte des « manquantes » et de l'envoi en lot, erreur de sync effacée
   `
   ALTER TABLE orders ADD COLUMN odoo_no_invoice INTEGER NOT NULL DEFAULT 0;
+  `,
+
+  // 016 — module stock : INSTANTANÉS datés du miroir (inventaire à une date,
+  // comparatifs avant/après, base des recommandations de réassort)
+  `
+  CREATE TABLE stock_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    taken_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    label TEXT,
+    kind TEXT NOT NULL DEFAULT 'manual',
+    items INTEGER NOT NULL DEFAULT 0,
+    copies INTEGER NOT NULL DEFAULT 0,
+    value_cents INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE stock_snapshot_items (
+    snapshot_id INTEGER NOT NULL REFERENCES stock_snapshots(id) ON DELETE CASCADE,
+    cm_article_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    number TEXT,
+    set_code TEXT,
+    color_code TEXT,
+    language TEXT,
+    condition TEXT,
+    is_foil INTEGER NOT NULL DEFAULT 0,
+    comment TEXT,
+    price TEXT,
+    quantity INTEGER NOT NULL,
+    PRIMARY KEY (snapshot_id, cm_article_id)
+  );
+  CREATE INDEX idx_snapshot_items_name ON stock_snapshot_items(snapshot_id, name);
   `
 ]
