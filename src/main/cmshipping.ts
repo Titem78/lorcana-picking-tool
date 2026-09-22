@@ -73,21 +73,66 @@ function isPolluted(method: string | null): boolean {
   return /M[ée]thode|Num[ée]ro/i.test(method ?? '')
 }
 
+/** Ligne d'article de la page de vente : nom + numéro + URL du visuel. */
+export interface ArticleRow {
+  name: string
+  number: string
+  url: string | null
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /**
- * Visuels EXACTS des annonces, extraits du HTML de la page de vente : une
- * entrée par ligne d'article (tr[data-article-id]), dans l'ordre de la page
- * (= l'ordre du PDF), null quand la ligne n'a pas d'image. L'URL est dans le
- * tooltip (data-bs-title="<img src=&quot;…&quot;>"), donc HTML-échappée.
- * C'est la SEULE source fiable pour les promos dont la version n'est pas
- * encore scannée ailleurs (DIS…) — l'annonce Cardmarket montre la vraie carte.
+ * Lignes d'articles de la page de vente (tr[data-article-id]) : nom, numéro
+ * et URL du visuel de l'annonce (tooltip data-bs-title, HTML-échappé).
+ * C'est la SEULE source de visuel pour les promos absentes de toutes les
+ * bases (DIS…) — l'annonce Cardmarket montre la vraie carte vendue.
  */
-export function parseArticleImages(html: string): (string | null)[] {
-  const out: (string | null)[] = []
-  for (const m of html.matchAll(/<tr[^>]*\bdata-article-id\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const src = m[1].match(/src=(?:&quot;|["'])(https?:[^"'&\s\\]+)/i)
-    out.push(src ? src[1] : null)
+export function parseArticleRows(html: string): ArticleRow[] {
+  const out: ArticleRow[] = []
+  for (const m of html.matchAll(/<tr([^>]*\bdata-article-id\b[^>]*)>([\s\S]*?)<\/tr>/gi)) {
+    const attrs = m[1]
+    const src = m[2].match(/src=(?:&quot;|["'])(https?:[^"'&\s\\]+)/i)
+    out.push({
+      name: decodeEntities(attrs.match(/\bdata-name="([^"]*)"/i)?.[1] ?? ''),
+      number: attrs.match(/\bdata-number="([^"]*)"/i)?.[1] ?? '',
+      url: src ? src[1] : null
+    })
   }
   return out
+}
+
+/**
+ * Associe à chaque ligne de commande l'URL du visuel de son annonce, par
+ * NOM (+ numéro quand les deux existent) — JAMAIS par position : l'ordre de
+ * la page n'est pas garanti identique à celui du PDF, et une image posée sur
+ * la mauvaise ligne ferait picker la mauvaise carte. Ambigu → null.
+ */
+export function matchArticleImages(
+  rows: ArticleRow[],
+  lines: { name: string; number: string | null }[]
+): (string | null)[] {
+  return lines.map((line) => {
+    const nom = line.name.replace(/\s+/g, ' ').trim()
+    const candidats = rows.filter(
+      (r) =>
+        r.url &&
+        r.name === nom &&
+        (!line.number || !r.number || r.number === line.number)
+    )
+    if (candidats.length === 0) return null
+    const url = candidats[0].url
+    // plusieurs lignes du même produit (états différents) partagent l'URL ;
+    // des URLs différentes pour le même nom = ambigu, on s'abstient
+    return candidats.every((c) => c.url === url) ? url : null
+  })
 }
 
 /**
@@ -125,15 +170,18 @@ export async function enrichShippingFromCm(orderId: number): Promise<boolean> {
   let images = 0
   if (sansVisuel > 0) {
     try {
-      const urls = parseArticleImages(html)
-      // On ne télécharge que pour les lignes SANS visuel (même ordre que la page)
+      const rows = parseArticleRows(html)
       const lignes = db
-        .prepare('SELECT image_file FROM order_lines WHERE order_id = ? ORDER BY id')
-        .all(orderId) as { image_file: string | null }[]
-      const masquees = urls.map((u, i) => (lignes[i]?.image_file ? null : u))
-      if (masquees.some(Boolean)) {
+        .prepare('SELECT name, number, image_file FROM order_lines WHERE order_id = ? ORDER BY id')
+        .all(orderId) as { name: string; number: string | null; image_file: string | null }[]
+      // Appariement par NOM + numéro (jamais par position), et téléchargement
+      // pour les seules lignes SANS visuel
+      const urls = matchArticleImages(rows, lignes).map((u, i) =>
+        lignes[i]?.image_file ? null : u
+      )
+      if (urls.some(Boolean)) {
         const { applyCardImageUrls } = await import('./orders')
-        images = await applyCardImageUrls(orderId, masquees)
+        images = await applyCardImageUrls(orderId, urls)
       }
     } catch {
       /* visuels facultatifs : le rattrapage retentera */

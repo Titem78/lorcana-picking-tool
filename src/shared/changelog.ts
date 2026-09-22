@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.40.1',
+    title: 'Grand audit des visuels : zéro ambiguïté tolérée',
+    items: [
+      'Le bandeau sur les photos d’annonce dit désormais « FR indispo » (au lieu de « EN » qui pouvait faire douter de la langue de la carte) — la carte vendue est bien FR, seul le visuel français manque',
+      'Photo d’annonce : appariement par NOM + numéro de la carte, plus jamais par position — un ordre de page différent du PDF ne peut plus poser une image sur la mauvaise ligne',
+      'Scans LorCards : deux variantes (V.1/V.2) d’un même set partagent le même nom d’URL — le numéro exact est maintenant exigé, sinon aucun visuel',
+      'Règle générale confirmée partout : au moindre doute, AUCUN visuel plutôt qu’un visuel possiblement faux'
+    ]
+  },
+  {
     version: '2.40.0',
     title: 'Visuels officiels Ravensburger en français',
     items: [

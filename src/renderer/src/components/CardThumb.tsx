@@ -97,7 +97,11 @@ export default function CardThumb({
           onMouseEnter={enter}
           onMouseLeave={leave}
           onContextMenu={context}
-          title={annonceEn ? `${line.name} — visuel de l'annonce (anglais), carte vendue FR` : line.name}
+          title={
+            annonceEn
+              ? `${line.name} — visuel FR indisponible : photo de l'annonce Cardmarket (anglaise), la carte vendue est bien FR`
+              : line.name
+          }
           style={{
             width: size,
             borderRadius: 4
@@ -107,19 +111,21 @@ export default function CardThumb({
           <span
             style={{
               position: 'absolute',
-              bottom: 2,
-              right: 2,
-              background: '#58a6d3',
-              color: '#fff',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'rgba(20,20,20,0.82)',
+              color: '#ffce55',
               fontWeight: 700,
-              fontSize: Math.max(9, Math.round(size / 6)),
-              lineHeight: 1.3,
-              padding: '0 3px',
-              borderRadius: 3,
-              pointerEvents: 'none'
+              fontSize: Math.max(8, Math.round(size / 8)),
+              lineHeight: 1.5,
+              textAlign: 'center',
+              borderRadius: '0 0 4px 4px',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap'
             }}
           >
-            EN
+            FR indispo
           </span>
         )}
       </span>
@@ -190,8 +196,9 @@ export default function CardThumb({
             )}
             {annonceEn && (
               <span style={{ color: 'var(--text-dim)' }}>
-                ⚠ visuel de l’annonce (anglais) — la carte vendue est bien FR ; le scan
-                français le remplacera dès sa publication
+                ⚠ visuel FR indisponible — photo de l’annonce Cardmarket (anglaise). La
+                carte vendue est bien FR ; le scan français la remplacera dès sa
+                publication
               </span>
             )}
           </div>

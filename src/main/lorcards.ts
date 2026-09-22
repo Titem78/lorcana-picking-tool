@@ -261,7 +261,12 @@ export async function getLorcardsFrImageByName(
   if (promoCode) {
     const wanted = slugCodePromo(promoCode)
     const duSet = promos.filter((p) => p.set === wanted)
-    choix = duSet.find((p) => p.num === String(parseInt(number ?? '', 10))) ?? duSet[0]
+    // Numéro EXACT, sinon accepté seulement si le set n'a qu'une version de
+    // ce nom (deux variantes V.1/V.2 partagent le même slug — cas réel :
+    // Raiponce P4 n°15 ET n°16) : jamais « le premier venu ».
+    choix =
+      duSet.find((p) => p.num === String(parseInt(number ?? '', 10))) ??
+      (duSet.length === 1 ? duSet[0] : undefined)
     if (!choix) {
       // version pas encore scannée : pas de visuel trompeur, mais on va voir
       // si LorCards a du neuf
@@ -269,14 +274,14 @@ export async function getLorcardsFrImageByName(
       return null
     }
   } else {
-    const sets = new Set(promos.map((p) => p.set))
-    if (sets.size > 1) return null // plusieurs versions promo : ambigu
+    // Sans code promo : accepté SEULEMENT s'il n'existe qu'une seule version
+    // promo de ce nom, tous sets confondus (sinon ambigu → rien)
+    if (promos.length !== 1) return null
     choix = promos[0]
   }
 
-  const url = choix?.url ?? matches[0]
-  const marque = choix ? `_${choix.set}${choix.num}` : ''
-  const fname = `name_${slug.slice(0, 60)}${marque}_fr.webp`
+  const url = choix.url
+  const fname = `name_${slug.slice(0, 60)}_${choix.set}${choix.num}_fr.webp`
   const local = join(imagesDir, fname)
   if (existsSync(local) && statSync(local).size > 0) return fname
   return (await downloadToAsync(url, local)) ? fname : null

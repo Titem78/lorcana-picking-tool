@@ -4,7 +4,8 @@ vi.mock('electron', () => ({ session: { fromPartition: () => ({}) } }))
 
 import {
   hasConfirmForm,
-  parseArticleImages,
+  matchArticleImages,
+  parseArticleRows,
   parseBuyerPro,
   parseCmToken,
   parseShippingFromHtml
@@ -103,27 +104,63 @@ describe('validation d’envoi (formulaires réels du dump)', () => {
   })
 })
 
-describe('parseArticleImages — visuels exacts des annonces (promos DIS…)', () => {
+describe('visuels exacts des annonces (promos DIS…) — appariement par NOM', () => {
+  const MICKEY = 'https://product-images.s3.cardmarket.com/1629/DIS/764268/764268.jpg'
+  const ELSA = 'https://product-images.s3.cardmarket.com/1629/DIS/764301/764301.jpg'
   const PAGE_ARTICLES = `
     <table><tbody>
-    <tr data-article-id="111" data-name="Mickey Mouse - Champion Ambre">
-      <td><span data-bs-title="<img src=&quot;https://product-images.s3.cardmarket.com/1629/DIS/764268/764268.jpg&quot; class=&quot;w-100&quot;>">Mickey</span></td>
+    <tr data-article-id="111" data-name="Mickey Mouse - Champion Ambre" data-number="6">
+      <td><span data-bs-title="<img src=&quot;${MICKEY}&quot; class=&quot;w-100&quot;>">Mickey</span></td>
     </tr>
-    <tr data-article-id="222" data-name="Article sans visuel"><td>rien</td></tr>
-    <tr data-article-id="333" data-name="Elsa - Le cinquième esprit">
-      <td><span data-bs-original-title="<img src='https://product-images.s3.cardmarket.com/1629/DIS/764301/764301.jpg'>">Elsa</span></td>
+    <tr data-article-id="222" data-name="Article sans visuel" data-number=""><td>rien</td></tr>
+    <tr data-article-id="333" data-name="Elsa - Le cinqui&#039;me esprit" data-number="7">
+      <td><span data-bs-original-title="<img src='${ELSA}'>">Elsa</span></td>
     </tr>
     </tbody></table>`
 
-  it('extrait les URLs dans l’ordre des lignes, null si absente', () => {
-    expect(parseArticleImages(PAGE_ARTICLES)).toEqual([
-      'https://product-images.s3.cardmarket.com/1629/DIS/764268/764268.jpg',
-      null,
-      'https://product-images.s3.cardmarket.com/1629/DIS/764301/764301.jpg'
-    ])
+  it('extrait nom, numéro et URL de chaque ligne (entités décodées)', () => {
+    const rows = parseArticleRows(PAGE_ARTICLES)
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toEqual({ name: 'Mickey Mouse - Champion Ambre', number: '6', url: MICKEY })
+    expect(rows[1].url).toBeNull()
+    expect(rows[2].name).toBe("Elsa - Le cinqui'me esprit")
+  })
+
+  it("apparie par NOM même si l'ordre de la page diffère du PDF", () => {
+    const rows = parseArticleRows(PAGE_ARTICLES)
+    // Lignes du PDF dans l'ordre INVERSE de la page
+    const lignes = [
+      { name: "Elsa - Le cinqui'me esprit", number: '7' },
+      { name: 'Article sans visuel', number: null },
+      { name: 'Mickey Mouse - Champion Ambre', number: '6' }
+    ]
+    expect(matchArticleImages(rows, lignes)).toEqual([ELSA, null, MICKEY])
+  })
+
+  it('nom introuvable ou numéro différent → null (jamais un visuel douteux)', () => {
+    const rows = parseArticleRows(PAGE_ARTICLES)
+    expect(matchArticleImages(rows, [{ name: 'Autre Carte', number: '1' }])).toEqual([null])
+    expect(
+      matchArticleImages(rows, [{ name: 'Mickey Mouse - Champion Ambre', number: '99' }])
+    ).toEqual([null])
+  })
+
+  it('deux versions du même nom avec visuels différents → ambigu → null', () => {
+    const rows = [
+      { name: 'Elsa - Le cinquième esprit', number: '', url: 'https://a.jpg' },
+      { name: 'Elsa - Le cinquième esprit', number: '', url: 'https://b.jpg' }
+    ]
+    expect(matchArticleImages(rows, [{ name: 'Elsa - Le cinquième esprit', number: null }])).toEqual(
+      [null]
+    )
+    // même produit en plusieurs états : même URL → accepté
+    const memes = rows.map((r) => ({ ...r, url: 'https://a.jpg' }))
+    expect(matchArticleImages(memes, [{ name: 'Elsa - Le cinquième esprit', number: null }])).toEqual(
+      ['https://a.jpg']
+    )
   })
 
   it('page sans tableau d’articles → liste vide', () => {
-    expect(parseArticleImages('<div>rien</div>')).toEqual([])
+    expect(parseArticleRows('<div>rien</div>')).toEqual([])
   })
 })
