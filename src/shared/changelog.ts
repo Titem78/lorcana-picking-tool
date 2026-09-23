@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.42.2',
+    title: 'Progression visible partout, navigation, mise à jour discrète',
+    items: [
+      'Inventaire silencieux : une mini-barre de progression s’affiche dans la BARRE LATÉRALE (visible depuis n’importe quel onglet, % + articles) — clique dessus pour ouvrir le détail dans Stock',
+      '2e fenêtre Cardmarket : barre de navigation ← → ⟳ (plus Alt+←/→ et les boutons latéraux de la souris)',
+      '« Redémarrer maintenant » installe la mise à jour EN SILENCE puis relance l’app — plus de fenêtre d’installateur Windows au redémarrage',
+      'Réglages de vocabulaire : la différence 📥 Inventaire général (recompte le vrai stock Cardmarket) / 📸 Instantané (photo locale sans requête) est expliquée dans la section Inventaires'
+    ]
+  },
+  {
     version: '2.42.1',
     title: 'Promo et version classique ne se mélangent plus dans le Stock',
     items: [

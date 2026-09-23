@@ -83,6 +83,20 @@ export default function App(): React.JSX.Element {
   const [tab, setTab] = useState<TabId>('orders')
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   const [whatsNew, setWhatsNew] = useState<string | null>(null)
+  // Inventaire général en cours : progression GLOBALE (visible de partout)
+  const [invProg, setInvProg] = useState<{
+    label: string
+    page: number
+    den: number | null
+    items: number
+  } | null>(null)
+  useEffect(() => {
+    const onProgress = (e: Event): void =>
+      setInvProg((e as CustomEvent).detail as typeof invProg)
+    window.addEventListener('inventory-progress', onProgress)
+    return () => window.removeEventListener('inventory-progress', onProgress)
+  }, [])
+
   // Mise à jour téléchargée, en attente d'installation (bandeau + pastille)
   const [updateReady, setUpdateReady] = useState<string | null>(null)
   const [updateBannerHidden, setUpdateBannerHidden] = useState(false)
@@ -174,6 +188,30 @@ export default function App(): React.JSX.Element {
           </button>
         ))}
         <div className="spacer" />
+        {/* Inventaire général en cours : mini-barre cliquable (→ 📦 Stock) */}
+        {invProg && (
+          <div
+            onClick={() => setTab('stock')}
+            title={`${invProg.label} — clique pour voir le détail dans Stock`}
+            style={{ padding: '6px 14px', cursor: 'pointer' }}
+          >
+            <div style={{ fontSize: '0.75rem', color: 'var(--accent, #3b82f6)', marginBottom: 4 }}>
+              📥 Inventaire… {invProg.den ? `${Math.min(100, Math.round((invProg.page / invProg.den) * 100))} %` : ''}{' '}
+              · {invProg.items} art.
+            </div>
+            <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: 3,
+                  background: 'var(--accent, #3b82f6)',
+                  transition: 'width .4s',
+                  width: `${invProg.den ? Math.min(100, Math.round((invProg.page / invProg.den) * 100)) : 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
         {/* Version courante + pastille orange quand une mise à jour attend */}
         <div
           style={{

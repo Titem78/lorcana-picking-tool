@@ -414,17 +414,63 @@ export function registerIpc(): void {
   ipcMain.handle('cm:openWindow', (_e, url?: string) => {
     const win = new BrowserWindow({
       width: 1100,
-      height: 780,
+      height: 820,
       autoHideMenuBar: true,
       title: 'Cardmarket — fenêtre séparée',
       webPreferences: {
-        partition: 'persist:cardmarket',
+        // Page hôte locale avec barre ← → ⟳ ; le site vit dans un <webview>
+        // qui porte la session persist:cardmarket (même connexion que l'onglet)
+        webviewTag: true,
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: true
+        sandbox: false
       }
     })
-    win.loadURL(url && /^https:\/\/(www\.)?cardmarket\.com\//.test(url) ? url : 'https://www.cardmarket.com/fr/Lorcana')
+    const cible = (
+      url && /^https:\/\/(www\.)?cardmarket\.com\//.test(url)
+        ? url
+        : 'https://www.cardmarket.com/fr/Lorcana'
+    ).replace(/"/g, '%22')
+    const page = `<!doctype html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;height:100%;display:flex;flex-direction:column;background:#1b1b1f;font-family:system-ui}
+      #bar{display:flex;gap:6px;align-items:center;padding:6px 10px;background:#26262b;border-bottom:1px solid #3a3a42}
+      #bar button{background:#333;color:#eee;border:1px solid #4a4a52;border-radius:6px;padding:4px 12px;font-size:15px;cursor:pointer}
+      #bar button:hover{background:#44444c}
+      #url{flex:1;color:#9a9aa5;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      webview{flex:1}
+    </style></head><body>
+      <div id="bar">
+        <button id="back" title="Page précédente (Alt+←)">←</button>
+        <button id="fwd" title="Page suivante (Alt+→)">→</button>
+        <button id="rld" title="Recharger">⟳</button>
+        <span id="url"></span>
+      </div>
+      <webview id="wv" src="${cible}" partition="persist:cardmarket" allowpopups></webview>
+      <script>
+        const wv = document.getElementById('wv')
+        document.getElementById('back').onclick = () => wv.goBack()
+        document.getElementById('fwd').onclick = () => wv.goForward()
+        document.getElementById('rld').onclick = () => wv.reload()
+        const maj = () => { document.getElementById('url').textContent = wv.getURL() }
+        wv.addEventListener('did-navigate', maj)
+        wv.addEventListener('did-navigate-in-page', maj)
+        window.addEventListener('keydown', (e) => {
+          if (e.altKey && e.key === 'ArrowLeft') wv.goBack()
+          if (e.altKey && e.key === 'ArrowRight') wv.goForward()
+        })
+      </script>
+    </body></html>`
+    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page))
+    // Boutons précédent/suivant de la souris
+    win.on('app-command', (_ev, cmd) => {
+      const js =
+        cmd === 'browser-backward'
+          ? "document.getElementById('wv').goBack()"
+          : cmd === 'browser-forward'
+            ? "document.getElementById('wv').goForward()"
+            : null
+      if (js) win.webContents.executeJavaScript(js).catch(() => {})
+    })
   })
 
   // --- Inventaire (miroir du stock Cardmarket) --------------------------------------

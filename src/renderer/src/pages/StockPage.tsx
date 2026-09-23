@@ -270,7 +270,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           📥 Inventaire général
         </button>
         <button
-          title="Fige l'état actuel du miroir en instantané daté (comparable ensuite)"
+          title="Prend une PHOTO datée du stock tel qu'il est maintenant, sans rien lire sur Cardmarket (0 requête) — un point de repère pour comparer ensuite. L'Inventaire général, lui, RECOMPTE le vrai stock sur Cardmarket puis prend sa photo tout seul."
           onClick={() => {
             window.api.stock
               .snapshotTake(user.id, 'Instantané manuel', 'manual')
@@ -663,9 +663,11 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       {section === 'inventaires' && (
         <>
           <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>
-            Chaque inventaire général fige un instantané daté ; le bouton 📸 en fige un à tout
-            moment. Compare deux dates (ou une date avec le stock actuel) pour voir ce qui est
-            sorti et entré.
+            <b>📥 Inventaire général</b> = recompter le vrai stock sur Cardmarket (balayage, puis
+            photo automatique). <b>📸 Instantané</b> = photo du stock tel que l&apos;app le
+            connaît, sans toucher Cardmarket — un point de repère (avant un salon, un gros
+            achat…). Compare ensuite deux dates, ou une date avec le stock actuel, pour voir ce
+            qui est sorti et entré.
           </p>
           <table className="data" style={{ marginBottom: 18 }}>
             <thead>

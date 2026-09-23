@@ -47,7 +47,9 @@ function logUpdate(msg: string): void {
 export function installUpdateNow(): void {
   if (!app.isPackaged) return
   logUpdate('installation demandée par l’utilisateur (bandeau)')
-  autoUpdater.quitAndInstall()
+  // (true, true) = installation SILENCIEUSE + relance automatique — sans ces
+  // drapeaux, la fenêtre de l'installateur NSIS s'affichait au redémarrage
+  autoUpdater.quitAndInstall(true, true)
 }
 
 export function setupAutoUpdater(): void {
