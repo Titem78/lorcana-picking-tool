@@ -112,14 +112,6 @@ interface DormantRow {
 const cleVente = (r: { name: string; language: string | null; is_foil: number }): string =>
   `${r.name}|${r.language ?? ''}|${r.is_foil}`
 
-/** Tendance vs la période précédente de même durée. */
-function Tendance({ r }: { r: SalesRow }): React.JSX.Element {
-  if (r.sold > r.prev_sold)
-    return <span style={{ color: 'var(--ok)' }} title={`période précédente : ${r.prev_sold}`}>↗</span>
-  if (r.sold < r.prev_sold)
-    return <span style={{ color: 'var(--danger, #e5534b)' }} title={`période précédente : ${r.prev_sold}`}>↘</span>
-  return <span style={{ color: 'var(--text-dim)' }} title={`période précédente : ${r.prev_sold}`}>→</span>
-}
 
 const euros = (cents: number): string =>
   (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -473,6 +465,27 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           </div>
           {/* Multifiltres : combine librement raretés + langues + états + chapitres */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            {(fSets.length > 0 || fLangs.length > 0 || fRars.length > 0 || fConds.length > 0 || fFoil || q) && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span className="badge" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                  {items.length}
+                  {items.length === 500 ? '+' : ''} résultat(s)
+                </span>
+                <button
+                  style={{ padding: '2px 10px', fontSize: '0.8rem' }}
+                  onClick={() => {
+                    setQ('')
+                    setFSets([])
+                    setFLangs([])
+                    setFRars([])
+                    setFConds([])
+                    setFFoil('')
+                  }}
+                >
+                  ✕ Réinitialiser les filtres
+                </button>
+              </div>
+            )}
             {rarities.length > 0 && (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', width: 70 }}>Raretés</span>
@@ -601,9 +614,6 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <th>Rareté</th>
                 <th style={{ textAlign: 'right' }}>Vendues</th>
                 <th style={{ textAlign: 'right' }} title="NOS ventes par semaine sur la période">/sem</th>
-                <th title="Tendance de NOS ventes (pas du marché) : période actuelle vs période précédente de même durée">
-                  Tend.
-                </th>
                 <th style={{ textAlign: 'right' }}>CA</th>
                 <th style={{ textAlign: 'right' }}>Dernier prix</th>
                 <th style={{ textAlign: 'right' }}>En stock</th>
@@ -644,9 +654,6 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                     </td>
                     <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>
                       {parSemaine >= 10 ? Math.round(parSemaine) : parSemaine.toFixed(1)}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <Tendance r={r} />
                     </td>
                     <td style={{ textAlign: 'right' }}>{euros(r.revenue_cents)}</td>
                     <td style={{ textAlign: 'right' }}>{r.last_price}</td>

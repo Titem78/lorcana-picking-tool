@@ -183,6 +183,18 @@ export function listStock(
 export async function enrichStockMeta(): Promise<number> {
   if (process.env.VITEST) return 0
   const db = getDb()
+  // Réparation UNE FOIS : les raretés posées avant la v2.43.1 pouvaient être
+  // celles d'une VARIANTE (Enchantée/Iconique) au lieu de la carte de base —
+  // on efface tout et on ré-enrichit avec la règle corrigée.
+  const flag = db
+    .prepare("SELECT value FROM settings WHERE key = 'stock_meta_reset_2431'")
+    .get() as { value: string } | undefined
+  if (!flag) {
+    db.prepare('UPDATE stock_items SET rarity = NULL, ink = NULL').run()
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_meta_reset_2431', '1')"
+    ).run()
+  }
   const rows = db
     .prepare(
       `SELECT cm_article_id, name, set_code, color_code FROM stock_items

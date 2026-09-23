@@ -128,3 +128,34 @@ describe('conversions LorcanaJSON (libellés FR officiels → canonique app)', (
     expect(normName('Elsa - Le cinquième esprit (V.1)')).toBe(normName('Elsa - Le cinquième esprit'))
   })
 })
+
+describe('buildMetaIndex / pickMeta — variantes Iconique/Enchantée (bug signalé)', async () => {
+  const { buildMetaIndex, pickMeta } = await import('../src/main/lorcanajson')
+  // Set 10 : Hadès existe en BASE (n°68, Légendaire) et en ICONIQUE (n°223)
+  const idx = buildMetaIndex([
+    { fullName: 'Hadès - Cherchant un accord', setCode: '10', number: 68, rarity: 'Légendaire', color: 'Améthyste' },
+    { fullName: 'Hadès - Cherchant un accord', setCode: '10', number: 223, rarity: 'Iconique', color: 'Améthyste' },
+    { fullName: 'Mushu - Dragon furtif', setCode: '13', number: 97, rarity: 'Rare', color: 'Émeraude' },
+    // Réimpression du même nom dans deux sets avec la même rareté
+    { fullName: 'Mushu - Dragon furtif', setCode: 'D23', number: 4, rarity: 'Rare', color: 'Émeraude', promoGrouping: 'D23' }
+  ])
+
+  it('la carte de base garde SA rareté (jamais celle de la variante)', () => {
+    expect(pickMeta(idx, 'Hadès - Cherchant un accord', '10', null)?.rarity).toBe('Legendary')
+  })
+
+  it('un nom (V.x) dans un set multi-versions : rareté omise, encre conservée', () => {
+    const m = pickMeta(idx, 'Hadès - Cherchant un accord (V.1)', '10', null)
+    expect(m?.rarity).toBe('')
+    expect(m?.ink).toBe('Amethyst')
+  })
+
+  it('un nom (V.x) dans un set à version unique garde sa rareté', () => {
+    expect(pickMeta(idx, 'Mushu - Dragon furtif (V.1)', '13', null)?.rarity).toBe('Rare')
+  })
+
+  it('repli par nom seul : rareté des bases si unanimes', () => {
+    expect(pickMeta(idx, 'Mushu - Dragon furtif', '', '')?.rarity).toBe('Rare')
+    expect(pickMeta(idx, 'Carte Inconnue', '', '')).toBeNull()
+  })
+})

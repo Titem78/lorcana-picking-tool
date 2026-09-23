@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.1',
+    title: 'Raretés corrigées (fausses Iconiques) + filtres nets',
+    items: [
+      'Bug signalé : des cartes de base étaient étiquetées « Iconique » — les versions spéciales (Enchantée, Iconique…) portent le même nom que la carte de base dans le même chapitre et écrasaient sa rareté. Corrigé : la rareté retenue est celle de la carte de BASE, et un nom « (V.x) » ambigu reste sans rareté plutôt que fausse',
+      'Les raretés déjà mal posées sont effacées et recalculées automatiquement au prochain démarrage',
+      'Colonne Tendance retirée de l’onglet Ventes (elle prêtait à confusion avec les tendances du marché)',
+      'Filtres du stock : compteur de résultats et bouton « ✕ Réinitialiser les filtres »',
+      'Aucun changement au picking : ce chantier ne touche que le module Stock'
+    ]
+  },
+  {
     version: '2.43.0',
     title: 'Rareté & encre dans le stock, multifiltres, seuils par rareté',
     items: [

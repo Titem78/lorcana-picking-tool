@@ -14,20 +14,26 @@ const UA = 'LorcanaPickingTool/2.0 (+local)'
 const STALE_MS = 7 * 24 * 3600_000
 const MISS_REFRESH_MS = 3600_000
 
-interface LjMeta {
-  /** rareté canonique de l'app (Common, Super_rare, Promo, Iconic…) */
+export interface LjMeta {
+  /** rareté canonique de l'app (Common, Super_rare, Promo, Iconic…) —
+   *  celle de la carte de BASE du nom dans ce set (plus petit numéro) */
   rarity: string
   /** encre canonique (Amber…) — bi-encre : la PREMIÈRE couleur */
   ink: string
+  /** plusieurs versions du nom dans ce set (base + Enchantée/Iconique…) :
+   *  un nom Cardmarket « (V.x) » ne peut alors pas recevoir la rareté */
+  multi: boolean
 }
 
-interface LjIndex {
+export interface LjIndex {
   fetchedAt: string
+  /** version du format des métadonnées (ancien cache → re-téléchargé) */
+  metaV?: number
   /** « set/num » → URL image officielle (cartes des chapitres) */
   std: Record<string, string>
   /** « P3/6 » (promoGrouping/num) → URL image officielle (promos) */
   promo: Record<string, string>
-  /** « nomNormalisé|set » → rareté + encre (set = chapitre ou grouping promo) */
+  /** « nomNormalisé|set » → métadonnées (set = chapitre ou grouping promo) */
   meta: Record<string, LjMeta>
   /** nom seul (réimpressions : rarity vide si ambiguë, l'encre est sûre) */
   metaByName: Record<string, LjMeta>
@@ -105,12 +111,14 @@ async function download(): Promise<LjIndex | null> {
         images?: { full?: string; thumbnail?: string }
       }[]
     }
+    const built = buildMetaIndex(data.cards ?? [])
     const idx: LjIndex = {
       fetchedAt: new Date().toISOString(),
+      metaV: 2,
       std: {},
       promo: {},
-      meta: {},
-      metaByName: {}
+      meta: built.meta,
+      metaByName: built.metaByName
     }
     for (const c of data.cards ?? []) {
       const url = c.images?.full ?? c.images?.thumbnail
@@ -119,23 +127,6 @@ async function download(): Promise<LjIndex | null> {
           idx.promo[`${String(c.promoGrouping).toUpperCase()}/${c.number}`] = url
         } else if (c.setCode != null) {
           idx.std[`${c.setCode}/${c.number}`] = url
-        }
-      }
-      // Rareté + encre par nom (pour le stock, dont le balayage ne les a pas)
-      if (c.fullName) {
-        const nom = normName(c.fullName)
-        const setKey = c.promoGrouping
-          ? String(c.promoGrouping).toUpperCase()
-          : String(c.setCode ?? '')
-        const m: LjMeta = { rarity: frRarity(c.rarity), ink: frInk(c.color) }
-        if (setKey) idx.meta[`${nom}|${setKey}`] = m
-        const parNom = idx.metaByName[nom]
-        if (!parNom) {
-          idx.metaByName[nom] = { ...m }
-        } else {
-          // Réimpression : l'encre reste sûre ; la rareté seulement si identique
-          if (parNom.rarity && parNom.rarity !== m.rarity) parNom.rarity = ''
-          if (!parNom.ink) parNom.ink = m.ink
         }
       }
     }
@@ -154,8 +145,8 @@ async function download(): Promise<LjIndex | null> {
 async function ensureIndex(forceRefresh = false): Promise<LjIndex | null> {
   if (process.env.VITEST) return null
   if (!index) index = loadDisk()
-  // Ancien cache sans les métadonnées (rareté/encre) : on re-télécharge
-  if (index && !index.meta) index = null
+  // Ancien cache sans les métadonnées (ou format antérieur) : on re-télécharge
+  if (index && (!index.meta || index.metaV !== 2)) index = null
   const fresh = index && Date.now() - Date.parse(index.fetchedAt) < STALE_MS
   if (index && fresh && !forceRefresh) return index
   if (!loading) {
@@ -168,11 +159,92 @@ async function ensureIndex(forceRefresh = false): Promise<LjIndex | null> {
   return index ?? (await loading)
 }
 
+export interface LjCardInput {
+  setCode?: string | number
+  number?: number
+  promoGrouping?: string
+  fullName?: string
+  rarity?: string
+  color?: string
+}
+
 /**
- * Rareté + encre OFFICIELLES d'une carte du stock, par NOM (+ set quand on le
- * connaît). Réimpressions : sans set, la rareté n'est donnée que si toutes les
- * versions du nom partagent la même ; l'encre est toujours sûre.
+ * Construit l'index des métadonnées par nom. ⚠ PIÈGE (bug réel signalé) : les
+ * versions spéciales (Enchantée, Iconique…) portent le MÊME nom que la carte
+ * de base dans le MÊME set — un simple écrasement étiquetait des cartes de
+ * base « Iconique ». Règle : la rareté retenue est celle du PLUS PETIT numéro
+ * (= la carte de base), et `multi` mémorise qu'il existe plusieurs versions.
  */
+export function buildMetaIndex(cards: LjCardInput[]): {
+  meta: Record<string, LjMeta>
+  metaByName: Record<string, LjMeta>
+} {
+  const parSet = new Map<string, { rarity: string; ink: string; number: number; n: number }>()
+  for (const c of cards) {
+    if (!c.fullName) continue
+    const nom = normName(c.fullName)
+    const setKey = c.promoGrouping ? String(c.promoGrouping).toUpperCase() : String(c.setCode ?? '')
+    if (!nom || !setKey) continue
+    const key = `${nom}|${setKey}`
+    const num = c.number ?? 9999
+    const cur = parSet.get(key)
+    if (!cur) {
+      parSet.set(key, { rarity: frRarity(c.rarity), ink: frInk(c.color), number: num, n: 1 })
+    } else {
+      cur.n++
+      if (num < cur.number) {
+        cur.number = num
+        cur.rarity = frRarity(c.rarity)
+      }
+      if (!cur.ink) cur.ink = frInk(c.color)
+    }
+  }
+  const meta: Record<string, LjMeta> = {}
+  const metaByName: Record<string, LjMeta> = {}
+  for (const [key, v] of parSet) {
+    meta[key] = { rarity: v.rarity, ink: v.ink, multi: v.n > 1 }
+    const nom = key.slice(0, key.lastIndexOf('|'))
+    const parNom = metaByName[nom]
+    if (!parNom) {
+      metaByName[nom] = { rarity: v.rarity, ink: v.ink, multi: v.n > 1 }
+    } else {
+      // Réimpression dans un autre set : l'encre reste sûre ; la rareté
+      // seulement si toutes les bases sont d'accord
+      if (parNom.rarity && parNom.rarity !== v.rarity) parNom.rarity = ''
+      if (!parNom.ink) parNom.ink = v.ink
+      if (v.n > 1) parNom.multi = true
+    }
+  }
+  return { meta, metaByName }
+}
+
+/**
+ * Choix des métadonnées pour une carte du STOCK (fonction pure, testée) :
+ * set exact d'abord, nom seul en repli. Un nom Cardmarket « (V.x) » désigne
+ * une VARIANTE : si le set compte plusieurs versions, la rareté est omise
+ * (on ne sait pas laquelle) — l'encre reste valable dans tous les cas.
+ */
+export function pickMeta(
+  idx: Pick<LjIndex, 'meta' | 'metaByName'>,
+  name: string,
+  setCode: string | null,
+  colorCode: string | null
+): LjMeta | null {
+  const nom = normName(name)
+  if (!nom) return null
+  const estVariante = /\(V\.\d+\)/i.test(name)
+  const setKey = setCode
+    ? String(parseInt(setCode, 10) || setCode)
+    : colorCode
+      ? groupingFor(colorCode)
+      : ''
+  const m = (setKey ? idx.meta[`${nom}|${setKey}`] : undefined) ?? idx.metaByName[nom]
+  if (!m) return null
+  if (estVariante && m.multi) return { ...m, rarity: '' }
+  return m
+}
+
+/** Rareté + encre OFFICIELLES d'une carte du stock (voir pickMeta). */
 export async function getCardMetaFr(
   name: string,
   setCode: string | null,
@@ -180,14 +252,7 @@ export async function getCardMetaFr(
 ): Promise<LjMeta | null> {
   const idx = await ensureIndex()
   if (!idx?.meta) return null
-  const nom = normName(name)
-  if (!nom) return null
-  const setKey = setCode ? String(parseInt(setCode, 10) || setCode) : colorCode ? groupingFor(colorCode) : ''
-  if (setKey) {
-    const m = idx.meta[`${nom}|${setKey}`]
-    if (m) return m
-  }
-  return idx.metaByName[nom] ?? null
+  return pickMeta(idx, name, setCode, colorCode)
 }
 
 /** Set promo LorcanaJSON pour un code Cardmarket : PR3 → P3, sinon tel quel. */
