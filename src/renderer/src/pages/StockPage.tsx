@@ -102,6 +102,7 @@ interface DormantRow {
   color_code: string | null
   language: string | null
   is_foil: number
+  rarity: string | null
   condition: string | null
   price: string | null
   quantity: number
@@ -115,6 +116,13 @@ const cleVente = (r: { name: string; language: string | null; is_foil: number })
 
 const euros = (cents: number): string =>
   (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
+
+/** « 1,50 EUR » → centimes (tri par prix côté interface). */
+const prixCentsUi = (p: string | null | undefined): number => {
+  const m = (p ?? '').replace(/\s/g, '').match(/^([\d.]+),?(\d{0,2})/)
+  if (!m) return 0
+  return parseInt(m[1].replace(/\./g, ''), 10) * 100 + parseInt((m[2] || '0').padEnd(2, '0'), 10)
+}
 
 const chapitre = (r: { set_code: string | null; color_code: string | null }): string =>
   r.set_code ? `${r.set_code}${r.color_code ?? ''}` : (r.color_code ?? '')
@@ -157,8 +165,78 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [fRars, setFRars] = useState<string[]>([])
   const [fConds, setFConds] = useState<string[]>([])
   const [fFoil, setFFoil] = useState<'' | '1' | '0'>('')
-  const [sort, setSort] = useState<'recent' | 'name' | 'qty' | 'price'>('recent')
+  const sort = 'recent' as const // ordre serveur par défaut ; le tri se fait par clic sur les colonnes
   const [exportMsg, setExportMsg] = useState('')
+
+  // --- Tri par clic sur les EN-TÊTES (toutes les sections) ------------------------
+  const [sortBy, setSortBy] = useState<{ key: string; dir: 1 | -1 } | null>(null)
+  const Th = ({
+    k,
+    right,
+    title,
+    children
+  }: {
+    k?: string
+    right?: boolean
+    title?: string
+    children?: React.ReactNode
+  }): React.JSX.Element => (
+    <th
+      title={title ?? (k ? 'Clique pour trier' : undefined)}
+      style={{ textAlign: right ? 'right' : undefined, cursor: k ? 'pointer' : undefined, userSelect: 'none' }}
+      onClick={
+        k
+          ? () =>
+              setSortBy((s) =>
+                s?.key === k ? (s.dir === 1 ? { key: k, dir: -1 } : null) : { key: k, dir: 1 }
+              )
+          : undefined
+      }
+    >
+      {children}
+      {k && sortBy?.key === k ? (sortBy.dir === 1 ? ' ▲' : ' ▼') : ''}
+    </th>
+  )
+  const valeurTri = (r: Record<string, unknown>, key: string): string | number => {
+    if (key === 'chapitre')
+      return `${(r.set_code as string) ?? ''}${(r.color_code as string) ?? ''}`
+    if (key === 'price') return prixCentsUi((r.price as string) ?? (r.last_price as string) ?? null)
+    const v = r[key]
+    return v == null ? '' : (v as string | number)
+  }
+  const sortRows = <T,>(rows: T[]): T[] => {
+    if (!sortBy) return rows
+    const { key, dir } = sortBy
+    return [...rows].sort((a, b) => {
+      const va = valeurTri(a as Record<string, unknown>, key)
+      const vb = valeurTri(b as Record<string, unknown>, key)
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+      return String(va).localeCompare(String(vb), 'fr') * dir
+    })
+  }
+  // Les MÊMES filtres s'appliquent à toutes les sections (côté interface)
+  const applyFilters = <
+    T extends {
+      name: string
+      language?: string | null
+      is_foil?: number
+      rarity?: string | null
+      set_code?: string | null
+      color_code?: string | null
+      condition?: string | null
+    }
+  >(
+    rows: T[]
+  ): T[] =>
+    rows.filter((r) => {
+      if (q && !r.name.toLowerCase().includes(q.toLowerCase())) return false
+      if (fFoil && (r.is_foil === 1 ? '1' : '0') !== fFoil) return false
+      if (fLangs.length && !fLangs.includes(r.language ?? '')) return false
+      if (fRars.length && 'rarity' in r && !fRars.includes(r.rarity ?? '')) return false
+      if (fConds.length && 'condition' in r && !fConds.includes(r.condition ?? '')) return false
+      if (fSets.length && !fSets.includes(r.set_code || r.color_code || '')) return false
+      return true
+    })
 
   const refresh = (): void => {
     window.api.stock
@@ -182,7 +260,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       )
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(refresh, [q, fSets, fLangs, fRars, fConds, fFoil, sort])
+  useEffect(refresh, [q, fSets, fLangs, fRars, fConds, fFoil])
 
   // --- Section Ventes / Réassort -------------------------------------------------
   const [days, setDays] = useState(30)
@@ -316,6 +394,20 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Listes affichées : filtres COMMUNS + tri par colonne, dans chaque section
+  const lignesStock = sortRows(items)
+  const lignesVR = sortRows(applyFilters(section === 'ventes' ? sales : restock))
+  const lignesDormant = sortRows(applyFilters(dormant?.rows ?? []))
+  const lignesManquants = sortRows(applyFilters(manquants))
+  const nbAffiches =
+    section === 'stock'
+      ? lignesStock.length
+      : section === 'dormant'
+        ? lignesDormant.length
+        : section === 'seuils'
+          ? lignesManquants.length
+          : lignesVR.length
+
   const vide =
     totals.items === 0 &&
     !q &&
@@ -442,7 +534,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
         </div>
       )}
 
-      {section === 'stock' && !vide && (
+      {section !== 'inventaires' && !(section === 'stock' && vide) && (
         <>
           <div style={{ display: 'flex', gap: 10, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <input
@@ -456,20 +548,14 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               <option value="1">✨ Foil</option>
               <option value="0">Non foil</option>
             </select>
-            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-              <option value="recent">Tri : plus récents</option>
-              <option value="name">Tri : nom</option>
-              <option value="qty">Tri : quantité</option>
-              <option value="price">Tri : prix</option>
-            </select>
           </div>
           {/* Multifiltres : combine librement raretés + langues + états + chapitres */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
             {(fSets.length > 0 || fLangs.length > 0 || fRars.length > 0 || fConds.length > 0 || fFoil || q) && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <span className="badge" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
-                  {items.length}
-                  {items.length === 500 ? '+' : ''} résultat(s)
+                  {nbAffiches}
+                  {section === 'stock' && items.length === 500 ? '+' : ''} résultat(s)
                 </span>
                 <button
                   style={{ padding: '2px 10px', fontSize: '0.8rem' }}
@@ -511,22 +597,26 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               </div>
             )}
           </div>
+        </>
+      )}
 
+      {section === 'stock' && !vide && (
+        <>
           <table className="data">
             <thead>
               <tr>
-                <th>Carte / article</th>
-                <th>Chapitre</th>
-                <th>Rareté</th>
-                <th>Encre</th>
-                <th>État</th>
+                <Th k="name">Carte / article</Th>
+                <Th k="chapitre">Chapitre</Th>
+                <Th k="rarity">Rareté</Th>
+                <Th k="ink">Encre</Th>
+                <Th k="condition">État</Th>
                 <th>Commentaire</th>
-                <th style={{ textAlign: 'right' }}>Prix</th>
-                <th style={{ textAlign: 'right' }}>Qté</th>
+                <Th k="price" right>Prix</Th>
+                <Th k="quantity" right>Qté</Th>
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {lignesStock.map((it) => (
                 <tr key={it.cm_article_id}>
                   <CarteCell r={it} />
                   <td>{chapitre(it)}</td>
@@ -590,13 +680,13 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <button
                   onClick={() =>
                     setChecked(
-                      checked.size === restock.length
+                      checked.size === lignesVR.length
                         ? new Set()
-                        : new Set(restock.map(cleVente))
+                        : new Set(lignesVR.map(cleVente))
                     )
                   }
                 >
-                  {checked.size === restock.length && restock.length > 0 ? '☐ Tout décocher' : '☑ Tout cocher'}
+                  {checked.size === lignesVR.length && lignesVR.length > 0 ? '☐ Tout décocher' : '☑ Tout cocher'}
                 </button>
                 <button className="primary" disabled={checked.size === 0} onClick={exporterListe}>
                   🛒 Exporter la liste d&apos;achat ({checked.size})
@@ -609,14 +699,14 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             <thead>
               <tr>
                 {section === 'reassort' && <th></th>}
-                <th>Carte</th>
-                <th>Chapitre</th>
-                <th>Rareté</th>
-                <th style={{ textAlign: 'right' }}>Vendues</th>
-                <th style={{ textAlign: 'right' }} title="NOS ventes par semaine sur la période">/sem</th>
-                <th style={{ textAlign: 'right' }}>CA</th>
-                <th style={{ textAlign: 'right' }}>Dernier prix</th>
-                <th style={{ textAlign: 'right' }}>En stock</th>
+                <Th k="name">Carte</Th>
+                <Th k="chapitre">Chapitre</Th>
+                <Th k="rarity">Rareté</Th>
+                <Th k="sold" right>Vendues</Th>
+                <Th k="sold" right title="NOS ventes par semaine sur la période">/sem</Th>
+                <Th k="revenue_cents" right>CA</Th>
+                <Th k="price" right>Dernier prix</Th>
+                <Th k="in_stock" right>En stock</Th>
                 {section === 'ventes' && (
                   <th style={{ textAlign: 'right' }} title="Stock ÷ rythme de vente">Couverture</th>
                 )}
@@ -626,7 +716,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {(section === 'ventes' ? sales : restock).map((r, i) => {
+              {lignesVR.map((r, i) => {
                 const parSemaine = (r.sold / days) * 7
                 const couverture = r.sold > 0 ? Math.round(r.in_stock / (r.sold / days)) : null
                 const k = cleVente(r)
@@ -690,7 +780,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               })}
             </tbody>
           </table>
-          {(section === 'ventes' ? sales : restock).length === 0 && (
+          {lignesVR.length === 0 && (
             <p style={{ color: 'var(--text-dim)' }}>
               Rien sur cette période{section === 'reassort' ? ' avec ces critères' : ''}.
             </p>
@@ -720,20 +810,22 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           <table className="data">
             <thead>
               <tr>
-                <th>Carte / article</th>
-                <th>Chapitre</th>
-                <th>État</th>
-                <th style={{ textAlign: 'right' }}>Prix</th>
-                <th style={{ textAlign: 'right' }}>Qté</th>
-                <th style={{ textAlign: 'right' }}>Valeur</th>
+                <Th k="name">Carte / article</Th>
+                <Th k="chapitre">Chapitre</Th>
+                <Th k="rarity">Rareté</Th>
+                <Th k="condition">État</Th>
+                <Th k="price" right>Prix</Th>
+                <Th k="quantity" right>Qté</Th>
+                <Th k="value_cents" right>Valeur</Th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {(dormant?.rows ?? []).map((r, i) => (
+              {lignesDormant.map((r, i) => (
                 <tr key={i}>
                   <CarteCell r={r} />
                   <td>{chapitre(r)}</td>
+                  <td>{r.rarity ? (RARITY_LABELS_FR[r.rarity] ?? r.rarity) : ''}</td>
                   <td>{r.condition}</td>
                   <td style={{ textAlign: 'right' }}>{r.price}</td>
                   <td style={{ textAlign: 'right' }}>{r.quantity}</td>
@@ -756,7 +848,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               ))}
             </tbody>
           </table>
-          {dormant && dormant.rows.length === 0 && (
+          {dormant && lignesDormant.length === 0 && (
             <p style={{ color: 'var(--text-dim)' }}>
               Rien ne dort : tout le stock a vendu au moins un exemplaire sur la période 🎉
             </p>
@@ -799,18 +891,18 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Carte</th>
-                    <th>Chapitre</th>
-                    <th>Rareté</th>
-                    <th style={{ textAlign: 'right' }}>En stock</th>
-                    <th style={{ textAlign: 'right' }}>Seuil</th>
-                    <th style={{ textAlign: 'right' }}>Manque</th>
-                    <th style={{ textAlign: 'right' }}>Prix</th>
+                    <Th k="name">Carte</Th>
+                    <Th k="chapitre">Chapitre</Th>
+                    <Th k="rarity">Rareté</Th>
+                    <Th k="quantity" right>En stock</Th>
+                    <Th k="seuil" right>Seuil</Th>
+                    <Th k="manque" right>Manque</Th>
+                    <Th k="price" right>Prix</Th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {manquants.map((m, i) => (
+                  {lignesManquants.map((m, i) => (
                     <tr key={i}>
                       <CarteCell r={m} />
                       <td>{chapitre(m)}</td>
@@ -837,7 +929,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                   ))}
                 </tbody>
               </table>
-              {manquants.length === 0 && (
+              {lignesManquants.length === 0 && (
                 <p style={{ color: 'var(--text-dim)' }}>Tout le stock est au-dessus des seuils 🎉</p>
               )}
             </>

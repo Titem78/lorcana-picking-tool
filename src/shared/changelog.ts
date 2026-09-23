@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.2',
+    title: 'Filtres et tri partout dans le module Stock',
+    items: [
+      'TRI PAR CLIC sur les en-têtes de colonnes (▲/▼) dans toutes les sections : Stock, Ventes, À racheter, Dormant, Seuils — nom, chapitre, rareté, prix, quantités, CA, manque…',
+      'Les MÊMES filtres (recherche, raretés, langues, états, chapitres, foil) s’appliquent maintenant à TOUTES les sections, plus seulement à la liste Stock',
+      'Colonne Rareté ajoutée au Stock dormant',
+      'Rappel : les puces de chapitres/raretés listent ce qui existe dans TON stock — pas de puce PR1 tant qu’aucun article PR1 n’est en vente'
+    ]
+  },
+  {
     version: '2.43.1',
     title: 'Raretés corrigées (fausses Iconiques) + filtres nets',
     items: [

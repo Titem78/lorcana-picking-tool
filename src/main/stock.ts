@@ -538,6 +538,7 @@ export interface DormantRow {
   color_code: string | null
   language: string | null
   is_foil: number
+  rarity: string | null
   condition: string | null
   price: string | null
   quantity: number
@@ -560,7 +561,7 @@ export function dormantStock(days: number): { rows: DormantRow[]; total_cents: n
   const items = db
     .prepare(
       `SELECT ${CLE_STOCK} AS key, name, set_code, color_code, language, is_foil,
-              condition, price, quantity, updated_at
+              rarity, condition, price, quantity, updated_at
        FROM stock_items`
     )
     .all() as (DormantRow & { key: string })[]
@@ -577,6 +578,7 @@ export function dormantStock(days: number): { rows: DormantRow[]; total_cents: n
       // prix affiché : celui de l'annonce la plus chère du groupe
       if (prixEnCents(it.price) > prixEnCents(g.price)) g.price = it.price
       if (it.updated_at > g.updated_at) g.updated_at = it.updated_at
+      if (!g.rarity && it.rarity) g.rarity = it.rarity
     }
   }
   const rows = [...groupes.values()]
