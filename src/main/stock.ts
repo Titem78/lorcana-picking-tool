@@ -334,8 +334,22 @@ export interface SalesRow {
 
 // ⚠ Le balayage d'inventaire ne fournit PAS le numéro de collection (la page
 // « Mes offres » ne l'affiche pas) : le rapprochement ventes ↔ stock se fait
-// donc par NOM + langue + foil — la maille fiable des deux côtés.
-const CLE_STOCK = `name || '|' || COALESCE(language,'') || '|' || is_foil`
+// par NOM + SET (chapitre, sinon code promo DIS/PR2…) + langue + foil.
+// Le set est indispensable : une promo et sa version classique portent le
+// MÊME nom (bug réel : 4 Maléfique promo à 24 € fusionnées avec 31 classiques
+// → « 35 exemplaires à 24 € »).
+const CLE_STOCK = `name || '|' || COALESCE(NULLIF(set_code, ''), NULLIF(color_code, ''), '') || '|' || COALESCE(language,'') || '|' || is_foil`
+
+/** Même clé côté ventes (order_lines) : chapitre, sinon code promo. */
+function cleVenteLigne(l: {
+  name: string
+  set_code: string | null
+  color_code: string | null
+  language: string | null
+  is_foil: number
+}): string {
+  return `${l.name}|${l.set_code || l.color_code || ''}|${l.language ?? ''}|${l.is_foil}`
+}
 
 interface LigneVente {
   name: string
@@ -379,17 +393,15 @@ export function salesStats(days: number): SalesRow[] {
     .all() as { key: string; qty: number }[]
   const stockByKey = new Map(stock.map((r) => [r.key, r.qty]))
 
-  const cle = (l: { name: string; language: string | null; is_foil: number }): string =>
-    `${l.name}|${l.language ?? ''}|${l.is_foil}`
-
   const prevByKey = new Map<string, number>()
   for (const l of precedentes) {
-    prevByKey.set(cle(l), (prevByKey.get(cle(l)) ?? 0) + l.quantity)
+    const k = cleVenteLigne(l)
+    prevByKey.set(k, (prevByKey.get(k) ?? 0) + l.quantity)
   }
 
   const byKey = new Map<string, SalesRow & { orderIds: Set<number> }>()
   for (const l of lignes) {
-    const key = cle(l)
+    const key = cleVenteLigne(l)
     let row = byKey.get(key)
     if (!row) {
       row = {
@@ -445,25 +457,35 @@ export interface DormantRow {
 export function dormantStock(days: number): { rows: DormantRow[]; total_cents: number } {
   const db = getDb()
   const vendues = new Set(
-    lignesVendues(db, `-${Math.max(1, Math.round(days))} days`, '+1 day').map(
-      (l) => `${l.name}|${l.language ?? ''}|${l.is_foil}`
-    )
+    lignesVendues(db, `-${Math.max(1, Math.round(days))} days`, '+1 day').map(cleVenteLigne)
   )
+  // Valeur calculée LIGNE PAR LIGNE (prix de chaque annonce × sa quantité) —
+  // jamais « prix max × total », qui gonflait les groupes aux prix mélangés.
   const items = db
     .prepare(
-      `SELECT name, set_code, color_code, language, is_foil, MAX(condition) AS condition,
-              MAX(price) AS price, SUM(quantity) AS quantity, MAX(updated_at) AS updated_at
-       FROM stock_items GROUP BY ${CLE_STOCK}`
+      `SELECT ${CLE_STOCK} AS key, name, set_code, color_code, language, is_foil,
+              condition, price, quantity, updated_at
+       FROM stock_items`
     )
-    .all() as DormantRow[]
-  const rows: DormantRow[] = []
-  let total = 0
+    .all() as (DormantRow & { key: string })[]
+  const groupes = new Map<string, DormantRow>()
   for (const it of items) {
-    if (vendues.has(`${it.name}|${it.language ?? ''}|${it.is_foil}`)) continue
-    const value = prixEnCents(it.price) * it.quantity
-    rows.push({ ...it, value_cents: value })
-    total += value
+    if (vendues.has(it.key)) continue
+    const valeur = prixEnCents(it.price) * it.quantity
+    const g = groupes.get(it.key)
+    if (!g) {
+      groupes.set(it.key, { ...it, value_cents: valeur })
+    } else {
+      g.quantity += it.quantity
+      g.value_cents += valeur
+      // prix affiché : celui de l'annonce la plus chère du groupe
+      if (prixEnCents(it.price) > prixEnCents(g.price)) g.price = it.price
+      if (it.updated_at > g.updated_at) g.updated_at = it.updated_at
+    }
   }
+  const rows = [...groupes.values()]
+  let total = 0
+  for (const r of rows) total += r.value_cents
   rows.sort((a, b) => b.value_cents - a.value_cents || a.name.localeCompare(b.name))
   return { rows: rows.slice(0, 500), total_cents: total }
 }

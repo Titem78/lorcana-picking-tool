@@ -131,11 +131,25 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         if (img) break
       }
       // Code d'extension affiché (« 10WHI ») ; repli : segment type 13ATV de l'URL S3
-      let setM = (row.querySelector('.expansion-symbol span')?.textContent || '').trim().match(/^(\\d{1,2})([A-Z]{2,5})$/)
+      const symbole = (row.querySelector('.expansion-symbol span')?.textContent || '').trim()
+      let setM = symbole.match(/^(\\d{1,2})([A-Z]{2,5})$/)
       if (!setM) {
         for (const seg of img.split('/')) {
           const m = seg.match(/^(\\d{1,2})([A-Z]{2,5})$/)
           if (m) { setM = m; break }
+        }
+      }
+      // Sets PROMO tout en lettres (« DIS », « D23 »…) : pas de chapitre, le
+      // code part en color_code — même convention que l'import des ventes.
+      // Sans lui, promo et version classique du même nom se confondaient.
+      let promoCode = ''
+      if (!setM) {
+        const p = symbole.match(/^([A-Z][A-Z0-9]{1,4})$/)
+        if (p) { promoCode = p[1] } else {
+          for (const seg of img.split('/')) {
+            const m = seg.match(/^([A-Z][A-Z0-9]{1,4})$/)
+            if (m) { promoCode = m[1]; break }
+          }
         }
       }
       let language = ''
@@ -151,7 +165,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         language,
         condition: (row.querySelector('.article-condition .badge')?.textContent || '').trim(),
         set_code: setM ? setM[1] : '',
-        color_code: setM ? setM[2] : '',
+        color_code: setM ? setM[2] : promoCode,
         rarity_code: '',
         price: (row.querySelector('.price-container .color-primary')?.textContent || row.querySelector('.color-primary')?.textContent || '').trim(),
         comment: (row.querySelector('.product-comments .text-truncate')?.textContent || row.querySelector('.product-comments [aria-label]')?.getAttribute('aria-label') || '').trim(),

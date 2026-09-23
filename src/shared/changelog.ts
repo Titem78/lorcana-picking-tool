@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.42.1',
+    title: 'Promo et version classique ne se mélangent plus dans le Stock',
+    items: [
+      'Bug signalé (Maléfique) : 4 promos DIS à 24 € fusionnées avec 31 classiques → « 35 exemplaires à 24 € = 840 € ». Le regroupement tient maintenant compte de la VERSION (chapitre ou set promo) : deux lignes distinctes, chacune avec sa vraie valeur',
+      'La valeur est calculée annonce par annonce (prix de chaque annonce × sa quantité), plus jamais « prix le plus haut × total »',
+      'L’inventaire général reconnaît désormais les sets promo tout en lettres (DIS, D23…) — relance un inventaire pour que les promos déjà balayées récupèrent leur set',
+      'Le rapprochement ventes ↔ stock (colonnes « En stock », À racheter) distingue aussi les versions'
+    ]
+  },
+  {
     version: '2.42.0',
     title: 'Liste d’achat, tendances, stock dormant, mise à jour en un clic',
     items: [

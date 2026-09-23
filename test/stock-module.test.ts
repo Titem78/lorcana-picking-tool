@@ -167,6 +167,41 @@ describe('module stock — ventes et réassort', () => {
     expect(d.rows.some((r) => r.name.includes('Mickey'))).toBe(false)
   })
 
+  it('promo et version classique du même nom ne sont JAMAIS fusionnées (bug Maléfique)', () => {
+    // Cas réel : 31 classiques 13ATV à 0,20 € + 4 promos DIS à 24 € — l'ancien
+    // regroupement par nom donnait « 35 exemplaires à 24 € » = 840 €.
+    upsertStock(userId, [
+      { article_id: 'm1', name: 'Maléfique - Lanceuse de sorts exultante', set_code: '13', color_code: 'ATV', language: 'FR', condition: 'NM', is_foil: false, price: '0,20 EUR', quantity: 31 },
+      { article_id: 'm2', name: 'Maléfique - Lanceuse de sorts exultante', set_code: '', color_code: 'DIS', language: 'FR', condition: 'NM', is_foil: false, price: '24,00 EUR', quantity: 4 }
+    ])
+    const d = dormantStock(30)
+    const malefiques = d.rows.filter((r) => r.name.includes('Maléfique'))
+    expect(malefiques).toHaveLength(2) // deux versions distinctes
+    const promo = malefiques.find((r) => r.color_code === 'DIS')
+    const classique = malefiques.find((r) => r.set_code === '13')
+    expect(promo?.quantity).toBe(4)
+    expect(promo?.value_cents).toBe(4 * 2400)
+    expect(classique?.quantity).toBe(31)
+    expect(classique?.value_cents).toBe(31 * 20) // valeur ligne à ligne, pas prix max × total
+
+    // Vente d'une promo DIS : le stock rapproché est celui de la PROMO seule
+    const db = getDb()
+    const o = db
+      .prepare(
+        `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, status, imported_by)
+         VALUES ('999003', 'client3', 'Client Trois', 'adresse', 'shipped', ?)`
+      )
+      .run(userId)
+    db.prepare(
+      `INSERT INTO order_lines (order_id, quantity, name, number, language, condition, set_code,
+         color_code, color_label, rarity_code, price, comment, is_foil, section)
+       VALUES (?, 1, 'Maléfique - Lanceuse de sorts exultante', '12', 'FR', 'NM', '',
+         'DIS', '', 'P', '24,00 EUR', '', 0, 'Lorcana Cartes')`
+    ).run(Number(o.lastInsertRowid))
+    const vente = salesStats(30).find((r) => r.name.includes('Maléfique'))
+    expect(vente?.in_stock).toBe(4) // les 31 classiques ne comptent pas
+  })
+
   it("liste d'achat : CSV avec quantité conseillée", () => {
     const csv = buyListCsv([
       { name: 'Elsa - Le cinquième esprit', chapitre: '5SHI', rarity: 'Super rare', language: 'FR', is_foil: 0, sold: 3, in_stock: 1, qty: 2, last_price: '2,50 EUR' }
