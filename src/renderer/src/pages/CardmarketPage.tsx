@@ -42,6 +42,9 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const cancelRef = useRef(false)
+  // Balayage en cours ? (ref : lisible depuis les écouteurs d'événements,
+  // dont la closure ne voit pas l'état `busy` à jour)
+  const runningRef = useRef(false)
 
   // Chaque navigation dans l'onglet (ex. juste après la connexion) déclenche
   // une re-vérification de la bulle de connexion, avec un petit délai.
@@ -259,7 +262,8 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
   }
   const importFullInventory = async (): Promise<void> => {
     const wv = webviewRef.current
-    if (!wv) return
+    if (!wv || runningRef.current) return
+    runningRef.current = true
     setBusy(true)
     cancelRef.current = false
     const warnings: string[] = []
@@ -350,6 +354,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     } catch (err) {
       finInventaire(`❌ ${String((err as Error).message ?? err)}`)
     } finally {
+      runningRef.current = false
       setBusy(false)
       publishProgress(null)
     }
@@ -364,23 +369,35 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
     return () => window.removeEventListener('inventory-stop', stop)
   }, [])
 
-  // Lancement demandé depuis l'onglet 📦 Stock : on attend que le webview soit
-  // prêt (page chargée) puis on démarre le balayage tout seul.
+  // Lancement demandé depuis l'onglet 📦 Stock. Deux chemins obligatoires :
+  // - drapeau sessionStorage, lu AU MONTAGE (première visite de l'onglet) ;
+  // - événement 'start-inventory' quand l'onglet est DÉJÀ vivant en arrière-
+  //   plan (depuis la v2.41.2 il n'est plus remonté → le drapeau seul ne
+  //   suffisait plus : « je clique et il ne se passe rien »).
+  const startPollRef = useRef<number | null>(null)
   useEffect(() => {
-    if (sessionStorage.getItem('startInventory') !== '1') return
-    const timer = window.setInterval(() => {
-      const wv = webviewRef.current
-      if (!wv) return
-      try {
-        if (!wv.getURL() || wv.isLoading()) return
-      } catch {
-        return
-      }
-      window.clearInterval(timer)
+    const demarrerQuandPret = (): void => {
+      if (startPollRef.current != null || runningRef.current) return
       sessionStorage.removeItem('startInventory')
-      importFullInventory()
-    }, 1200)
-    return () => window.clearInterval(timer)
+      startPollRef.current = window.setInterval(() => {
+        const wv = webviewRef.current
+        if (!wv) return
+        try {
+          if (!wv.getURL() || wv.isLoading()) return
+        } catch {
+          return
+        }
+        window.clearInterval(startPollRef.current!)
+        startPollRef.current = null
+        importFullInventory()
+      }, 1200)
+    }
+    window.addEventListener('start-inventory', demarrerQuandPret)
+    if (sessionStorage.getItem('startInventory') === '1') demarrerQuandPret()
+    return () => {
+      window.removeEventListener('start-inventory', demarrerQuandPret)
+      if (startPollRef.current != null) window.clearInterval(startPollRef.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.42.3',
+    title: 'Le bouton Inventaire général répond à tous les coups',
+    items: [
+      'Cliquer « 📥 Inventaire général » ne faisait rien si l’onglet Cardmarket avait déjà été ouvert (effet de bord de l’onglet gardé vivant en 2.41.2) — corrigé : le lancement fonctionne dans tous les cas, avec une garde anti-double-lancement'
+    ]
+  },
+  {
     version: '2.42.2',
     title: 'Progression visible partout, navigation, mise à jour discrète',
     items: [

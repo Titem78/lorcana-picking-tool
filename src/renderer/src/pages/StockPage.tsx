@@ -220,8 +220,11 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   }, [section, fromId, toId])
 
   const lancerInventaire = (): void => {
+    // Drapeau (si l'onglet Cardmarket n'a jamais été ouvert : lu à son
+    // montage) + événement (s'il est déjà vivant en arrière-plan)
     sessionStorage.setItem('startInventory', '1')
     window.dispatchEvent(new CustomEvent('goto-tab', { detail: 'cardmarket' }))
+    window.dispatchEvent(new CustomEvent('start-inventory'))
   }
 
   // Balayage silencieux : l'onglet Cardmarket (vivant en arrière-plan) diffuse
