@@ -83,6 +83,10 @@ export default function App(): React.JSX.Element {
   const [tab, setTab] = useState<TabId>('orders')
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   const [whatsNew, setWhatsNew] = useState<string | null>(null)
+  // Mise à jour téléchargée, en attente d'installation (bandeau + pastille)
+  const [updateReady, setUpdateReady] = useState<string | null>(null)
+  const [updateBannerHidden, setUpdateBannerHidden] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
   // L'onglet Cardmarket n'est monté qu'à la première visite (rien au
   // lancement), puis reste vivant caché — voir le rendu plus bas.
   const [cmMounted, setCmMounted] = useState(false)
@@ -93,6 +97,7 @@ export default function App(): React.JSX.Element {
   // Récap « Quoi de neuf » à la première ouverture après une mise à jour
   useEffect(() => {
     window.api.appInfo().then((info: { version: string }) => {
+      setAppVersion(info.version)
       const seen = localStorage.getItem('lastSeenVersion')
       if (seen && seen !== info.version) setWhatsNew(info.version)
       localStorage.setItem('lastSeenVersion', info.version)
@@ -126,7 +131,10 @@ export default function App(): React.JSX.Element {
       if (event === 'updater:available') {
         setUpdateMsg(`⬇ Mise à jour ${payload} détectée — téléchargement en cours…`)
       } else if (event === 'updater:downloaded') {
-        setUpdateMsg(`✅ Mise à jour ${payload} téléchargée — elle s'installera à la fermeture.`)
+        // Bandeau « prête » : un clic installe et relance — fini le double
+        // redémarrage silencieux
+        setUpdateMsg(null)
+        setUpdateReady(String(payload))
       } else if (event === 'updater:error') {
         setUpdateMsg(`⚠ Mise à jour impossible : ${payload}`)
       }
@@ -166,6 +174,34 @@ export default function App(): React.JSX.Element {
           </button>
         ))}
         <div className="spacer" />
+        {/* Version courante + pastille orange quand une mise à jour attend */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 14px',
+            fontSize: '0.78rem',
+            color: 'var(--text-dim)',
+            cursor: updateReady ? 'pointer' : 'default'
+          }}
+          title={updateReady ? `Mise à jour ${updateReady} prête — clique pour redémarrer` : `Version installée`}
+          onClick={() => updateReady && setUpdateBannerHidden(false)}
+        >
+          v{appVersion}
+          {updateReady && (
+            <span
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                background: '#f0a020',
+                display: 'inline-block'
+              }}
+            />
+          )}
+          {updateReady && <span style={{ color: '#f0a020' }}>v{updateReady} prête</span>}
+        </div>
         <div className="userchip">
           <span className="dot" />
           {user.name}
@@ -194,6 +230,34 @@ export default function App(): React.JSX.Element {
       {updateMsg && (
         <div className="toast" onClick={() => setUpdateMsg(null)}>
           {updateMsg}
+        </div>
+      )}
+      {updateReady && !updateBannerHidden && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 18,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            background: 'var(--bg-panel)',
+            border: '1px solid #f0a020',
+            borderRadius: 10,
+            padding: '12px 18px',
+            zIndex: 65,
+            boxShadow: '0 6px 30px rgba(0,0,0,0.5)'
+          }}
+        >
+          <span>
+            🔄 <b>Mise à jour {updateReady} prête</b> — redémarre pour l&apos;installer (tes
+            données ne bougent pas)
+          </span>
+          <button className="primary" onClick={() => window.api.installUpdate()}>
+            Redémarrer maintenant
+          </button>
+          <button onClick={() => setUpdateBannerHidden(true)}>Plus tard</button>
         </div>
       )}
       {whatsNew && (

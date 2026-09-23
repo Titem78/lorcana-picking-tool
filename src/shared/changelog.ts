@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.42.0',
+    title: 'Liste d’achat, tendances, stock dormant, mise à jour en un clic',
+    items: [
+      '💡 À racheter : coche les cartes → liste d’achat CSV avec la QUANTITÉ CONSEILLÉE (ventes − stock), et bouton 🛒 qui ouvre la carte sur Cardmarket (session connectée) pour racheter en 2 clics',
+      '🏆 Ventes : rythme (ventes/semaine), tendance ↗/↘ vs la période précédente, et couverture (« ~N jours de stock restants »)',
+      '😴 Nouveau : Stock dormant — les articles jamais vendus sur la période, triés par valeur immobilisée : les candidats à baisser de prix ou déstocker',
+      '🔄 Mise à jour en un clic : quand une mise à jour est téléchargée, un bandeau « Redémarrer maintenant » l’installe immédiatement — fini le double redémarrage mystère ; la version (et la pastille orange si une mise à jour attend) s’affiche en bas de la barre latérale',
+      'Correction : « En stock » dans Ventes/À racheter affichait 0 à tort pour les articles balayés (l’inventaire ne fournit pas le numéro de carte) — rapprochement par nom + langue + foil'
+    ]
+  },
+  {
     version: '2.41.2',
     title: 'Inventaire silencieux + démarrage plus fluide',
     items: [

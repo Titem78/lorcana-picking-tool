@@ -82,6 +82,7 @@ const api = {
   },
 
   checkUpdates: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
 
   odoo: {
     getConfig: () => ipcRenderer.invoke('odoo:getConfig'),
@@ -130,7 +131,9 @@ const api = {
     compare: (fromId: number, toId: number | null) =>
       ipcRenderer.invoke('stock:compare', fromId, toId),
     sales: (days: number) => ipcRenderer.invoke('stock:sales', days),
-    restock: (days: number, minSold: number) => ipcRenderer.invoke('stock:restock', days, minSold)
+    restock: (days: number, minSold: number) => ipcRenderer.invoke('stock:restock', days, minSold),
+    dormant: (days: number) => ipcRenderer.invoke('stock:dormant', days),
+    buyListCsv: (rows: unknown[]) => ipcRenderer.invoke('stock:buyListCsv', rows)
   },
 
   cmtx: {

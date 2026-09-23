@@ -43,6 +43,13 @@ function logUpdate(msg: string): void {
   }
 }
 
+/** Bouton « Redémarrer maintenant » du bandeau : installe et relance l'app. */
+export function installUpdateNow(): void {
+  if (!app.isPackaged) return
+  logUpdate('installation demandée par l’utilisateur (bandeau)')
+  autoUpdater.quitAndInstall()
+}
+
 export function setupAutoUpdater(): void {
   if (!app.isPackaged) return // pas de mise à jour en mode développement
 

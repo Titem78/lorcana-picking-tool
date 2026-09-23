@@ -324,51 +324,72 @@ export interface SalesRow {
   is_foil: number
   rarity: string
   sold: number
+  /** ventes de la période PRÉCÉDENTE de même durée (tendance ↗/↘) */
+  prev_sold: number
   orders: number
   revenue_cents: number
   last_price: string | null
   in_stock: number
 }
 
-/**
- * Top des ventes sur une période (jours), depuis les commandes importées —
- * agrégé par carte physique, avec rareté, chiffre d'affaires et stock ACTUEL.
- */
-export function salesStats(days: number): SalesRow[] {
-  const db = getDb()
-  const lignes = db
+// ⚠ Le balayage d'inventaire ne fournit PAS le numéro de collection (la page
+// « Mes offres » ne l'affiche pas) : le rapprochement ventes ↔ stock se fait
+// donc par NOM + langue + foil — la maille fiable des deux côtés.
+const CLE_STOCK = `name || '|' || COALESCE(language,'') || '|' || is_foil`
+
+interface LigneVente {
+  name: string
+  number: string | null
+  set_code: string | null
+  color_code: string | null
+  language: string | null
+  is_foil: number
+  rarity: string
+  price: string | null
+  quantity: number
+  order_id: number
+}
+
+function lignesVendues(db: ReturnType<typeof getDb>, de: string, a: string): LigneVente[] {
+  return db
     .prepare(
       `SELECT l.name, l.number, l.set_code, l.color_code, l.language, l.is_foil,
               COALESCE(l.rarity, l.rarity_code, '') AS rarity, l.price, l.quantity, l.order_id
        FROM order_lines l JOIN orders o ON o.id = l.order_id
        WHERE l.section LIKE '%arte%'
-         AND o.imported_at >= datetime('now', 'localtime', ?)`
+         AND o.imported_at >= datetime('now', 'localtime', ?)
+         AND o.imported_at < datetime('now', 'localtime', ?)`
     )
-    .all(`-${Math.max(1, Math.round(days))} days`) as {
-    name: string
-    number: string | null
-    set_code: string | null
-    color_code: string | null
-    language: string | null
-    is_foil: number
-    rarity: string
-    price: string | null
-    quantity: number
-    order_id: number
-  }[]
+    .all(de, a) as LigneVente[]
+}
+
+/**
+ * Top des ventes sur une période (jours), depuis les commandes importées —
+ * agrégé par carte physique, avec rareté, chiffre d'affaires, stock ACTUEL
+ * et ventes de la période précédente (tendance).
+ */
+export function salesStats(days: number): SalesRow[] {
+  const db = getDb()
+  const d = Math.max(1, Math.round(days))
+  const lignes = lignesVendues(db, `-${d} days`, '+1 day')
+  const precedentes = lignesVendues(db, `-${2 * d} days`, `-${d} days`)
 
   const stock = db
-    .prepare(
-      `SELECT name || '|' || COALESCE(number,'') || '|' || COALESCE(language,'') || '|' || is_foil AS key,
-              SUM(quantity) AS qty
-       FROM stock_items GROUP BY key`
-    )
+    .prepare(`SELECT ${CLE_STOCK} AS key, SUM(quantity) AS qty FROM stock_items GROUP BY key`)
     .all() as { key: string; qty: number }[]
   const stockByKey = new Map(stock.map((r) => [r.key, r.qty]))
 
+  const cle = (l: { name: string; language: string | null; is_foil: number }): string =>
+    `${l.name}|${l.language ?? ''}|${l.is_foil}`
+
+  const prevByKey = new Map<string, number>()
+  for (const l of precedentes) {
+    prevByKey.set(cle(l), (prevByKey.get(cle(l)) ?? 0) + l.quantity)
+  }
+
   const byKey = new Map<string, SalesRow & { orderIds: Set<number> }>()
   for (const l of lignes) {
-    const key = `${l.name}|${l.number ?? ''}|${l.language ?? ''}|${l.is_foil}`
+    const key = cle(l)
     let row = byKey.get(key)
     if (!row) {
       row = {
@@ -380,6 +401,7 @@ export function salesStats(days: number): SalesRow[] {
         is_foil: l.is_foil,
         rarity: canonicalRarity(l.rarity),
         sold: 0,
+        prev_sold: prevByKey.get(key) ?? 0,
         orders: 0,
         revenue_cents: 0,
         last_price: l.price,
@@ -400,6 +422,70 @@ export function salesStats(days: number): SalesRow[] {
   })
   rows.sort((a, b) => b.sold - a.sold || b.revenue_cents - a.revenue_cents)
   return rows
+}
+
+export interface DormantRow {
+  name: string
+  set_code: string | null
+  color_code: string | null
+  language: string | null
+  is_foil: number
+  condition: string | null
+  price: string | null
+  quantity: number
+  value_cents: number
+  updated_at: string
+}
+
+/**
+ * Stock DORMANT : les articles en stock dont AUCUN exemplaire ne s'est vendu
+ * sur la période — candidats à baisser de prix ou déstocker. Triés par valeur
+ * immobilisée décroissante.
+ */
+export function dormantStock(days: number): { rows: DormantRow[]; total_cents: number } {
+  const db = getDb()
+  const vendues = new Set(
+    lignesVendues(db, `-${Math.max(1, Math.round(days))} days`, '+1 day').map(
+      (l) => `${l.name}|${l.language ?? ''}|${l.is_foil}`
+    )
+  )
+  const items = db
+    .prepare(
+      `SELECT name, set_code, color_code, language, is_foil, MAX(condition) AS condition,
+              MAX(price) AS price, SUM(quantity) AS quantity, MAX(updated_at) AS updated_at
+       FROM stock_items GROUP BY ${CLE_STOCK}`
+    )
+    .all() as DormantRow[]
+  const rows: DormantRow[] = []
+  let total = 0
+  for (const it of items) {
+    if (vendues.has(`${it.name}|${it.language ?? ''}|${it.is_foil}`)) continue
+    const value = prixEnCents(it.price) * it.quantity
+    rows.push({ ...it, value_cents: value })
+    total += value
+  }
+  rows.sort((a, b) => b.value_cents - a.value_cents || a.name.localeCompare(b.name))
+  return { rows: rows.slice(0, 500), total_cents: total }
+}
+
+/** CSV (Excel FR) de la liste d'achat sélectionnée dans « À racheter ». */
+export function buyListCsv(
+  rows: { name: string; chapitre: string; rarity: string; language: string | null; is_foil: number; sold: number; in_stock: number; qty: number; last_price: string | null }[]
+): string {
+  const esc = (v: unknown): string => {
+    const s = v == null ? '' : String(v)
+    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const head = ['carte', 'chapitre', 'rarete', 'langue', 'foil', 'vendues', 'en_stock', 'qte_a_racheter', 'dernier_prix']
+  const lines = [head.join(';')]
+  for (const r of rows) {
+    lines.push(
+      [r.name, r.chapitre, r.rarity, r.language ?? '', r.is_foil ? 'oui' : '', r.sold, r.in_stock, r.qty, r.last_price ?? '']
+        .map(esc)
+        .join(';')
+    )
+  }
+  return '﻿' + lines.join('\r\n')
 }
 
 /**

@@ -448,6 +448,20 @@ export function registerIpc(): void {
   ipcMain.handle('stock:restock', (_e, days: number, minSold: number) =>
     stock.restockSuggestions(days ?? 30, minSold ?? 1)
   )
+  ipcMain.handle('stock:dormant', (_e, days: number) => stock.dormantStock(days ?? 90))
+  ipcMain.handle('stock:buyListCsv', async (e, rows: Parameters<typeof stock.buyListCsv>[0]) => {
+    const { dialog } = await import('electron')
+    const { writeFileSync } = await import('fs')
+    const win = BrowserWindow.fromWebContents(e.sender)!
+    const r = await dialog.showSaveDialog(win, {
+      title: "Exporter la liste d'achat",
+      defaultPath: `liste-achat-${new Date().toISOString().slice(0, 10)}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (r.canceled || !r.filePath) return ''
+    writeFileSync(r.filePath, stock.buyListCsv(rows ?? []), 'utf-8')
+    return r.filePath
+  })
   ipcMain.handle('stock:clear', (_e, userId: number) => stock.clearStock(userId))
   ipcMain.handle('stock:sweepMark', () => stock.sweepMark())
   ipcMain.handle('stock:purgeOlder', (_e, userId: number, mark: string) =>
@@ -507,6 +521,10 @@ export function registerIpc(): void {
 
   // --- Mises à jour -------------------------------------------------------------
   ipcMain.handle('updater:check', () => checkForUpdatesNow())
+  ipcMain.handle('updater:install', async () => {
+    const { installUpdateNow } = await import('./updater')
+    installUpdateNow()
+  })
 
   // --- Réinitialisation ----------------------------------------------------------
   ipcMain.handle('app:resetData', (_e, userId: number, confirmation: string) => {

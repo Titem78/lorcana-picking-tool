@@ -56,11 +56,37 @@ interface SalesRow {
   is_foil: number
   rarity: string
   sold: number
+  prev_sold: number
   orders: number
   revenue_cents: number
   last_price: string | null
   in_stock: number
   statut?: 'rupture' | 'faible'
+}
+
+interface DormantRow {
+  name: string
+  set_code: string | null
+  color_code: string | null
+  language: string | null
+  is_foil: number
+  condition: string | null
+  price: string | null
+  quantity: number
+  value_cents: number
+  updated_at: string
+}
+
+const cleVente = (r: { name: string; language: string | null; is_foil: number }): string =>
+  `${r.name}|${r.language ?? ''}|${r.is_foil}`
+
+/** Tendance vs la période précédente de même durée. */
+function Tendance({ r }: { r: SalesRow }): React.JSX.Element {
+  if (r.sold > r.prev_sold)
+    return <span style={{ color: 'var(--ok)' }} title={`période précédente : ${r.prev_sold}`}>↗</span>
+  if (r.sold < r.prev_sold)
+    return <span style={{ color: 'var(--danger, #e5534b)' }} title={`période précédente : ${r.prev_sold}`}>↘</span>
+  return <span style={{ color: 'var(--text-dim)' }} title={`période précédente : ${r.prev_sold}`}>→</span>
 }
 
 const euros = (cents: number): string =>
@@ -90,7 +116,9 @@ function CarteCell({ r }: { r: { name: string; number?: string | null; is_foil: 
  * top des ventes par période, et recommandations de réassort.
  */
 export default function StockPage({ user }: { user: User }): React.JSX.Element {
-  const [section, setSection] = useState<'stock' | 'ventes' | 'inventaires' | 'reassort'>('stock')
+  const [section, setSection] = useState<'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant'>(
+    'stock'
+  )
 
   // --- Section Stock -----------------------------------------------------------
   const [items, setItems] = useState<StockItem[]>([])
@@ -132,10 +160,39 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [sales, setSales] = useState<SalesRow[]>([])
   const [restock, setRestock] = useState<SalesRow[]>([])
   const [minSold, setMinSold] = useState(2)
+  const [dormant, setDormant] = useState<{ rows: DormantRow[]; total_cents: number } | null>(null)
+  const [dormantDays, setDormantDays] = useState(90)
+  // Liste d'achat : sélection dans « À racheter »
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [buyMsg, setBuyMsg] = useState('')
   useEffect(() => {
     if (section === 'ventes') window.api.stock.sales(days).then(setSales)
-    if (section === 'reassort') window.api.stock.restock(days, minSold).then(setRestock)
-  }, [section, days, minSold])
+    if (section === 'reassort')
+      window.api.stock.restock(days, minSold).then((r: SalesRow[]) => {
+        setRestock(r)
+        setChecked(new Set())
+      })
+    if (section === 'dormant') window.api.stock.dormant(dormantDays).then(setDormant)
+  }, [section, days, minSold, dormantDays])
+
+  const exporterListe = (): void => {
+    const rows = restock
+      .filter((r) => checked.has(cleVente(r)))
+      .map((r) => ({
+        name: r.name,
+        chapitre: chapitre(r),
+        rarity: RARITY_LABELS_FR[r.rarity] ?? r.rarity,
+        language: r.language,
+        is_foil: r.is_foil,
+        sold: r.sold,
+        in_stock: r.in_stock,
+        qty: Math.max(1, r.sold - r.in_stock),
+        last_price: r.last_price
+      }))
+    window.api.stock.buyListCsv(rows).then((p: string) => {
+      if (p) setBuyMsg(`✅ Liste d'achat enregistrée : ${p}`)
+    })
+  }
 
   // --- Section Inventaires -------------------------------------------------------
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
@@ -253,7 +310,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             ['stock', '📋 Stock'],
             ['ventes', '🏆 Ventes'],
             ['inventaires', '📸 Inventaires'],
-            ['reassort', '💡 À racheter']
+            ['reassort', '💡 À racheter'],
+            ['dormant', '😴 Dormant']
           ] as const
         ).map(([id, label]) => (
           <button
@@ -414,50 +472,189 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             )}
           </div>
           {section === 'reassort' && (
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>
-              Cartes vendues sur la période dont le stock actuel est épuisé (🔴 rupture) ou inférieur
-              aux ventes de la période (🟠 faible) — les meilleures candidates au rachat.
-            </p>
+            <>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>
+                Cartes vendues sur la période dont le stock actuel est épuisé (🔴 rupture) ou
+                inférieur aux ventes de la période (🟠 faible). Coche celles à racheter puis
+                exporte la liste d&apos;achat.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() =>
+                    setChecked(
+                      checked.size === restock.length
+                        ? new Set()
+                        : new Set(restock.map(cleVente))
+                    )
+                  }
+                >
+                  {checked.size === restock.length && restock.length > 0 ? '☐ Tout décocher' : '☑ Tout cocher'}
+                </button>
+                <button className="primary" disabled={checked.size === 0} onClick={exporterListe}>
+                  🛒 Exporter la liste d&apos;achat ({checked.size})
+                </button>
+                {buyMsg && <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{buyMsg}</span>}
+              </div>
+            </>
           )}
           <table className="data">
             <thead>
               <tr>
+                {section === 'reassort' && <th></th>}
                 <th>Carte</th>
                 <th>Chapitre</th>
                 <th>Rareté</th>
                 <th style={{ textAlign: 'right' }}>Vendues</th>
-                <th style={{ textAlign: 'right' }}>Cmd</th>
+                <th style={{ textAlign: 'right' }} title="Rythme de vente sur la période">/sem</th>
+                <th title="Par rapport à la période précédente de même durée">Tend.</th>
                 <th style={{ textAlign: 'right' }}>CA</th>
                 <th style={{ textAlign: 'right' }}>Dernier prix</th>
                 <th style={{ textAlign: 'right' }}>En stock</th>
+                {section === 'ventes' && (
+                  <th style={{ textAlign: 'right' }} title="Stock ÷ rythme de vente">Couverture</th>
+                )}
+                {section === 'reassort' && <th style={{ textAlign: 'right' }}>À racheter</th>}
                 {section === 'reassort' && <th>Statut</th>}
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {(section === 'ventes' ? sales : restock).map((r, i) => (
-                <tr key={`${r.name}|${r.number}|${r.language}|${r.is_foil}|${i}`}>
-                  <CarteCell r={r} />
-                  <td>{chapitre(r)}</td>
-                  <td>{RARITY_LABELS_FR[r.rarity] ?? r.rarity}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <b>{r.sold}</b>
-                  </td>
-                  <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>{r.orders}</td>
-                  <td style={{ textAlign: 'right' }}>{euros(r.revenue_cents)}</td>
-                  <td style={{ textAlign: 'right' }}>{r.last_price}</td>
-                  <td style={{ textAlign: 'right', color: r.in_stock === 0 ? 'var(--danger, #e5534b)' : undefined }}>
-                    <b>{r.in_stock}</b>
-                  </td>
-                  {section === 'reassort' && (
-                    <td>{r.statut === 'rupture' ? '🔴 rupture' : '🟠 faible'}</td>
-                  )}
-                </tr>
-              ))}
+              {(section === 'ventes' ? sales : restock).map((r, i) => {
+                const parSemaine = (r.sold / days) * 7
+                const couverture = r.sold > 0 ? Math.round(r.in_stock / (r.sold / days)) : null
+                const k = cleVente(r)
+                return (
+                  <tr key={`${k}|${i}`}>
+                    {section === 'reassort' && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={checked.has(k)}
+                          onChange={(e) => {
+                            const next = new Set(checked)
+                            if (e.target.checked) next.add(k)
+                            else next.delete(k)
+                            setChecked(next)
+                          }}
+                        />
+                      </td>
+                    )}
+                    <CarteCell r={r} />
+                    <td>{chapitre(r)}</td>
+                    <td>{RARITY_LABELS_FR[r.rarity] ?? r.rarity}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <b>{r.sold}</b>
+                    </td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>
+                      {parSemaine >= 10 ? Math.round(parSemaine) : parSemaine.toFixed(1)}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <Tendance r={r} />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{euros(r.revenue_cents)}</td>
+                    <td style={{ textAlign: 'right' }}>{r.last_price}</td>
+                    <td style={{ textAlign: 'right', color: r.in_stock === 0 ? 'var(--danger, #e5534b)' : undefined }}>
+                      <b>{r.in_stock}</b>
+                    </td>
+                    {section === 'ventes' && (
+                      <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>
+                        {couverture == null ? '' : couverture === 0 ? '🔴 0 j' : `~${couverture} j`}
+                      </td>
+                    )}
+                    {section === 'reassort' && (
+                      <td style={{ textAlign: 'right' }}>
+                        <b>{Math.max(1, r.sold - r.in_stock)}</b>
+                      </td>
+                    )}
+                    {section === 'reassort' && (
+                      <td>{r.statut === 'rupture' ? '🔴 rupture' : '🟠 faible'}</td>
+                    )}
+                    <td>
+                      <button
+                        title="Ouvrir la recherche de cette carte sur Cardmarket (2e fenêtre, session connectée)"
+                        onClick={() =>
+                          window.api.cm.openWindow(
+                            `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(r.name)}`
+                          )
+                        }
+                      >
+                        🛒
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           {(section === 'ventes' ? sales : restock).length === 0 && (
             <p style={{ color: 'var(--text-dim)' }}>
               Rien sur cette période{section === 'reassort' ? ' avec ces critères' : ''}.
+            </p>
+          )}
+        </>
+      )}
+
+      {section === 'dormant' && (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-dim)' }}>Aucune vente depuis :</span>
+            {[30, 90, 180, 365].map((d) => (
+              <button key={d} className={dormantDays === d ? 'primary' : ''} onClick={() => setDormantDays(d)}>
+                {d} j
+              </button>
+            ))}
+            {dormant && (
+              <span className="badge" style={{ borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: 700 }}>
+                valeur immobilisée : {euros(dormant.total_cents)}
+              </span>
+            )}
+          </div>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>
+            Les articles en stock dont AUCUN exemplaire ne s&apos;est vendu sur la période —
+            candidats à une baisse de prix ou au déstockage, triés par valeur immobilisée.
+          </p>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Carte / article</th>
+                <th>Chapitre</th>
+                <th>État</th>
+                <th style={{ textAlign: 'right' }}>Prix</th>
+                <th style={{ textAlign: 'right' }}>Qté</th>
+                <th style={{ textAlign: 'right' }}>Valeur</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(dormant?.rows ?? []).map((r, i) => (
+                <tr key={i}>
+                  <CarteCell r={r} />
+                  <td>{chapitre(r)}</td>
+                  <td>{r.condition}</td>
+                  <td style={{ textAlign: 'right' }}>{r.price}</td>
+                  <td style={{ textAlign: 'right' }}>{r.quantity}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <b>{euros(r.value_cents)}</b>
+                  </td>
+                  <td>
+                    <button
+                      title="Ouvrir la recherche de cette carte sur Cardmarket (2e fenêtre) pour ajuster le prix"
+                      onClick={() =>
+                        window.api.cm.openWindow(
+                          `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(r.name)}`
+                        )
+                      }
+                    >
+                      🛒
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {dormant && dormant.rows.length === 0 && (
+            <p style={{ color: 'var(--text-dim)' }}>
+              Rien ne dort : tout le stock a vendu au moins un exemplaire sur la période 🎉
             </p>
           )}
         </>

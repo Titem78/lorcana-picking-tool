@@ -19,7 +19,9 @@ import {
   salesStats,
   restockSuggestions,
   decrementForSale,
-  prixEnCents
+  prixEnCents,
+  dormantStock,
+  buyListCsv
 } from '../src/main/stock'
 
 let userId = 0
@@ -130,5 +132,46 @@ describe('module stock — ventes et réassort', () => {
     // hors période : rien
     expect(salesStats(30).length).toBeGreaterThan(0)
     expect(restockSuggestions(30, 99)).toHaveLength(0)
+  })
+
+  it('tendance : les ventes de la période précédente sont exposées', () => {
+    const elsa = salesStats(30).find((r) => r.name.includes('Elsa'))
+    expect(elsa?.prev_sold).toBe(0) // aucune vente il y a 30-60 jours
+  })
+
+  it('le rapprochement ventes ↔ stock ignore le numéro (le balayage ne le fournit pas)', () => {
+    // Article balayé SANS numéro (cas réel de « Mes offres »)
+    upsertStock(userId, [
+      { article_id: 'b1', name: 'Mickey Mouse - Champion Ambre', number: '', set_code: '10', language: 'FR', condition: 'NM', is_foil: true, price: '1,00 EUR', quantity: 5 }
+    ])
+    const db = getDb()
+    const o = db
+      .prepare(
+        `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, status, imported_by)
+         VALUES ('999002', 'client2', 'Client Deux', 'adresse', 'shipped', ?)`
+      )
+      .run(userId)
+    db.prepare(
+      `INSERT INTO order_lines (order_id, quantity, name, number, language, condition, set_code,
+         color_code, color_label, rarity_code, price, comment, is_foil, section)
+       VALUES (?, 2, 'Mickey Mouse - Champion Ambre', '23', 'FR', 'NM', '10', 'WHI', '', 'R', '1,00 EUR', '', 1, 'Lorcana Cartes')`
+    ).run(Number(o.lastInsertRowid))
+    const mickey = salesStats(30).find((r) => r.name.includes('Mickey'))
+    expect(mickey?.in_stock).toBe(5 + 2) // b1 (5) + a2 (2), malgré numéro absent côté stock
+  })
+
+  it('stock dormant : jamais vendu sur la période, avec valeur immobilisée', () => {
+    const d = dormantStock(30)
+    // Elsa, Stitch et Mickey ont vendu → seuls les invendus restent
+    expect(d.rows.some((r) => r.name.includes('Elsa'))).toBe(false)
+    expect(d.rows.some((r) => r.name.includes('Mickey'))).toBe(false)
+  })
+
+  it("liste d'achat : CSV avec quantité conseillée", () => {
+    const csv = buyListCsv([
+      { name: 'Elsa - Le cinquième esprit', chapitre: '5SHI', rarity: 'Super rare', language: 'FR', is_foil: 0, sold: 3, in_stock: 1, qty: 2, last_price: '2,50 EUR' }
+    ])
+    expect(csv).toContain('qte_a_racheter')
+    expect(csv).toContain('Elsa - Le cinquième esprit;5SHI;Super rare;FR;;3;1;2;2,50 EUR')
   })
 })
