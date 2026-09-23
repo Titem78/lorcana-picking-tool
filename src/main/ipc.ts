@@ -495,6 +495,8 @@ export function registerIpc(): void {
     stock.restockSuggestions(days ?? 30, minSold ?? 1)
   )
   ipcMain.handle('stock:dormant', (_e, days: number) => stock.dormantStock(days ?? 90))
+  ipcMain.handle('stock:enrichMeta', () => stock.enrichStockMeta())
+  ipcMain.handle('stock:lowStock', () => stock.lowStockByRarity())
   ipcMain.handle('stock:buyListCsv', async (e, rows: Parameters<typeof stock.buyListCsv>[0]) => {
     const { dialog } = await import('electron')
     const { writeFileSync } = await import('fs')

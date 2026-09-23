@@ -1,7 +1,37 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@shared/types'
 import { confirmDialog } from '@/lib/dialogs'
-import { RARITY_LABELS_FR } from '@shared/constants'
+import { INK_HEX, INK_LABELS_FR, RARITY_LABELS_FR } from '@shared/constants'
+
+/** Multi-sélection à puces : clic = coche/décoche, rien coché = tout. */
+function Chips({
+  options,
+  selected,
+  onChange,
+  labels
+}: {
+  options: string[]
+  selected: string[]
+  onChange: (next: string[]) => void
+  labels?: Record<string, string>
+}): React.JSX.Element {
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {options.map((o) => (
+        <button
+          key={o}
+          className={selected.includes(o) ? 'primary' : ''}
+          style={{ padding: '2px 9px', fontSize: '0.8rem' }}
+          onClick={() =>
+            onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o])
+          }
+        >
+          {labels?.[o] ?? o}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 interface StockItem {
   cm_article_id: string
@@ -15,6 +45,8 @@ interface StockItem {
   comment: string | null
   price: string | null
   quantity: number
+  rarity: string | null
+  ink: string | null
   updated_at: string
 }
 
@@ -116,44 +148,49 @@ function CarteCell({ r }: { r: { name: string; number?: string | null; is_foil: 
  * top des ventes par période, et recommandations de réassort.
  */
 export default function StockPage({ user }: { user: User }): React.JSX.Element {
-  const [section, setSection] = useState<'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant'>(
-    'stock'
-  )
+  const [section, setSection] = useState<
+    'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant' | 'seuils'
+  >('stock')
 
   // --- Section Stock -----------------------------------------------------------
   const [items, setItems] = useState<StockItem[]>([])
   const [totals, setTotals] = useState<StockTotals>({ items: 0, copies: 0, value_cents: 0 })
   const [sets, setSets] = useState<string[]>([])
   const [languages, setLanguages] = useState<string[]>([])
+  const [rarities, setRarities] = useState<string[]>([])
   const [conditions, setConditions] = useState<string[]>([])
   const [q, setQ] = useState('')
-  const [fSet, setFSet] = useState('')
-  const [fLang, setFLang] = useState('')
+  const [fSets, setFSets] = useState<string[]>([])
+  const [fLangs, setFLangs] = useState<string[]>([])
+  const [fRars, setFRars] = useState<string[]>([])
+  const [fConds, setFConds] = useState<string[]>([])
   const [fFoil, setFFoil] = useState<'' | '1' | '0'>('')
-  const [fCond, setFCond] = useState('')
   const [sort, setSort] = useState<'recent' | 'name' | 'qty' | 'price'>('recent')
   const [exportMsg, setExportMsg] = useState('')
 
   const refresh = (): void => {
     window.api.stock
-      .list({ q, set_code: fSet, language: fLang, foil: fFoil, condition: fCond, sort })
+      .list({ q, sets: fSets, languages: fLangs, rarities: fRars, conditions: fConds, foil: fFoil, sort })
       .then(
         (r: {
           items: StockItem[]
           totals: StockTotals
           sets: string[]
           languages: string[]
+          rarities: string[]
           conditions: string[]
         }) => {
           setItems(r.items)
           setTotals(r.totals)
           setSets(r.sets)
           setLanguages(r.languages)
+          setRarities(r.rarities)
           setConditions(r.conditions)
         }
       )
   }
-  useEffect(refresh, [q, fSet, fLang, fFoil, fCond, sort])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refresh, [q, fSets, fLangs, fRars, fConds, fFoil, sort])
 
   // --- Section Ventes / Réassort -------------------------------------------------
   const [days, setDays] = useState(30)
@@ -173,7 +210,39 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
         setChecked(new Set())
       })
     if (section === 'dormant') window.api.stock.dormant(dormantDays).then(setDormant)
+    if (section === 'seuils') chargerSeuils()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, days, minSold, dormantDays])
+
+  // --- Section Seuils par rareté --------------------------------------------------
+  const [seuils, setSeuils] = useState<Record<string, number>>({})
+  const [manquants, setManquants] = useState<
+    {
+      name: string
+      set_code: string | null
+      color_code: string | null
+      language: string | null
+      is_foil: number
+      rarity: string
+      price: string | null
+      quantity: number
+      seuil: number
+      manque: number
+    }[]
+  >([])
+  const chargerSeuils = (): void => {
+    window.api.stock.lowStock().then((r: { rows: typeof manquants; seuils: Record<string, number> }) => {
+      setManquants(r.rows)
+      setSeuils(r.seuils)
+    })
+  }
+  const sauverSeuil = (rarity: string, value: number): void => {
+    const next = { ...seuils }
+    if (value > 0) next[rarity] = value
+    else delete next[rarity]
+    setSeuils(next)
+    window.api.settings.set(user.id, 'stock_min_rarities', JSON.stringify(next)).then(chargerSeuils)
+  }
 
   const exporterListe = (): void => {
     const rows = restock
@@ -242,6 +311,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       setInvProgress((e as CustomEvent).detail as typeof invProgress)
     const onDone = (e: Event): void => {
       setInvMsg(String((e as CustomEvent).detail ?? ''))
+      // Rareté + encre des nouveaux articles (données officielles, hors CM)
+      window.api.stock.enrichMeta().then(() => refresh())
       refresh()
     }
     window.addEventListener('inventory-progress', onProgress)
@@ -253,7 +324,14 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const vide = totals.items === 0 && !q && !fSet && !fLang && !fFoil && !fCond
+  const vide =
+    totals.items === 0 &&
+    !q &&
+    !fFoil &&
+    fSets.length === 0 &&
+    fLangs.length === 0 &&
+    fRars.length === 0 &&
+    fConds.length === 0
 
   return (
     <div>
@@ -314,7 +392,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             ['ventes', '🏆 Ventes'],
             ['inventaires', '📸 Inventaires'],
             ['reassort', '💡 À racheter'],
-            ['dormant', '😴 Dormant']
+            ['dormant', '😴 Dormant'],
+            ['seuils', '🎯 Seuils']
           ] as const
         ).map(([id, label]) => (
           <button
@@ -373,41 +452,17 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
 
       {section === 'stock' && !vide && (
         <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               placeholder="Rechercher une carte, un commentaire…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               style={{ width: 260 }}
             />
-            <select value={fSet} onChange={(e) => setFSet(e.target.value)} title="Chapitre / set promo">
-              <option value="">Tous chapitres</option>
-              {sets.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select value={fLang} onChange={(e) => setFLang(e.target.value)}>
-              <option value="">Toutes langues</option>
-              {languages.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
             <select value={fFoil} onChange={(e) => setFFoil(e.target.value as '' | '1' | '0')}>
               <option value="">Foil ou non</option>
               <option value="1">✨ Foil</option>
               <option value="0">Non foil</option>
-            </select>
-            <select value={fCond} onChange={(e) => setFCond(e.target.value)}>
-              <option value="">Tous états</option>
-              {conditions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
             </select>
             <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
               <option value="recent">Tri : plus récents</option>
@@ -416,12 +471,41 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               <option value="price">Tri : prix</option>
             </select>
           </div>
+          {/* Multifiltres : combine librement raretés + langues + états + chapitres */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            {rarities.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', width: 70 }}>Raretés</span>
+                <Chips options={rarities} selected={fRars} onChange={setFRars} labels={RARITY_LABELS_FR} />
+              </div>
+            )}
+            {languages.length > 1 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', width: 70 }}>Langues</span>
+                <Chips options={languages} selected={fLangs} onChange={setFLangs} />
+              </div>
+            )}
+            {conditions.length > 1 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', width: 70 }}>États</span>
+                <Chips options={conditions} selected={fConds} onChange={setFConds} />
+              </div>
+            )}
+            {sets.length > 1 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', width: 70 }}>Chapitres</span>
+                <Chips options={sets} selected={fSets} onChange={setFSets} />
+              </div>
+            )}
+          </div>
 
           <table className="data">
             <thead>
               <tr>
                 <th>Carte / article</th>
                 <th>Chapitre</th>
+                <th>Rareté</th>
+                <th>Encre</th>
                 <th>État</th>
                 <th>Commentaire</th>
                 <th style={{ textAlign: 'right' }}>Prix</th>
@@ -433,6 +517,14 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <tr key={it.cm_article_id}>
                   <CarteCell r={it} />
                   <td>{chapitre(it)}</td>
+                  <td>{it.rarity ? (RARITY_LABELS_FR[it.rarity] ?? it.rarity) : ''}</td>
+                  <td>
+                    {it.ink && (
+                      <span style={{ color: INK_HEX[it.ink] ?? 'var(--text-dim)' }}>
+                        ⬤ {INK_LABELS_FR[it.ink] ?? it.ink}
+                      </span>
+                    )}
+                  </td>
                   <td>{it.condition}</td>
                   <td style={{ color: 'var(--text-dim)' }}>{it.comment}</td>
                   <td style={{ textAlign: 'right' }}>{it.price}</td>
@@ -508,8 +600,10 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <th>Chapitre</th>
                 <th>Rareté</th>
                 <th style={{ textAlign: 'right' }}>Vendues</th>
-                <th style={{ textAlign: 'right' }} title="Rythme de vente sur la période">/sem</th>
-                <th title="Par rapport à la période précédente de même durée">Tend.</th>
+                <th style={{ textAlign: 'right' }} title="NOS ventes par semaine sur la période">/sem</th>
+                <th title="Tendance de NOS ventes (pas du marché) : période actuelle vs période précédente de même durée">
+                  Tend.
+                </th>
                 <th style={{ textAlign: 'right' }}>CA</th>
                 <th style={{ textAlign: 'right' }}>Dernier prix</th>
                 <th style={{ textAlign: 'right' }}>En stock</th>
@@ -659,6 +753,87 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             <p style={{ color: 'var(--text-dim)' }}>
               Rien ne dort : tout le stock a vendu au moins un exemplaire sur la période 🎉
             </p>
+          )}
+        </>
+      )}
+
+      {section === 'seuils' && (
+        <>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10 }}>
+            Fixe un stock MINIMUM par rareté (ex. 30 pour Commune et Inhabituelle si tu vises 30
+            exemplaires en vente par carte) : la liste montre toutes les cartes SOUS leur seuil,
+            avec combien il en manque — à recompléter depuis les boîtes. Vide = pas de seuil.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+            {['Common', 'Uncommon', 'Rare', 'Super_rare', 'Epic', 'Legendary', 'Enchanted', 'Promo', 'Iconic'].map(
+              (r) => (
+                <label key={r} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.88rem' }}>
+                  {RARITY_LABELS_FR[r] ?? r}
+                  <input
+                    type="number"
+                    min={0}
+                    value={seuils[r] ?? ''}
+                    placeholder="—"
+                    onChange={(e) => sauverSeuil(r, parseInt(e.target.value, 10) || 0)}
+                    style={{ width: 64 }}
+                  />
+                </label>
+              )
+            )}
+          </div>
+          {Object.keys(seuils).length === 0 ? (
+            <p style={{ color: 'var(--text-dim)' }}>Renseigne au moins un seuil pour voir les manquants.</p>
+          ) : (
+            <>
+              <p style={{ marginBottom: 8 }}>
+                <b>{manquants.length}</b> carte(s) sous leur seuil —{' '}
+                <b>{manquants.reduce((s, m) => s + m.manque, 0)}</b> exemplaire(s) à recompléter.
+              </p>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Carte</th>
+                    <th>Chapitre</th>
+                    <th>Rareté</th>
+                    <th style={{ textAlign: 'right' }}>En stock</th>
+                    <th style={{ textAlign: 'right' }}>Seuil</th>
+                    <th style={{ textAlign: 'right' }}>Manque</th>
+                    <th style={{ textAlign: 'right' }}>Prix</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manquants.map((m, i) => (
+                    <tr key={i}>
+                      <CarteCell r={m} />
+                      <td>{chapitre(m)}</td>
+                      <td>{RARITY_LABELS_FR[m.rarity] ?? m.rarity}</td>
+                      <td style={{ textAlign: 'right' }}>{m.quantity}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>{m.seuil}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--danger, #e5534b)' }}>
+                        <b>+{m.manque}</b>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>{m.price}</td>
+                      <td>
+                        <button
+                          title="Ouvrir la recherche de cette carte sur Cardmarket (2e fenêtre)"
+                          onClick={() =>
+                            window.api.cm.openWindow(
+                              `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(m.name)}`
+                            )
+                          }
+                        >
+                          🛒
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {manquants.length === 0 && (
+                <p style={{ color: 'var(--text-dim)' }}>Tout le stock est au-dessus des seuils 🎉</p>
+              )}
+            </>
           )}
         </>
       )}

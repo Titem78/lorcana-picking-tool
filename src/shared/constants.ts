@@ -45,7 +45,10 @@ export const RARITY_LABELS_FR: Record<string, string> = {
   Epic: 'Epic',
   Legendary: 'Légendaire',
   Enchanted: 'Enchantée',
-  Promo: 'Promo'
+  Promo: 'Promo',
+  // Rareté apparue avec les chapitres récents (affichage/stock ; volontairement
+  // ABSENTE de RARITIES pour ne pas casser les règles « toutes raretés cochées »)
+  Iconic: 'Iconique'
 }
 
 /** Codes rareté des PDF Cardmarket → canonique. (La rareté Lorcast, obtenue

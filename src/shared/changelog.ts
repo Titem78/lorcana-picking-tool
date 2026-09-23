@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.0',
+    title: 'Rareté & encre dans le stock, multifiltres, seuils par rareté',
+    items: [
+      'Le stock connaît maintenant la RARETÉ et l’ENCRE de chaque carte (retrouvées par le nom dans les données officielles, sans aucune requête Cardmarket) : nouvelles colonnes, présentes aussi dans l’export CSV',
+      'MULTIFILTRES à puces : combine librement raretés + langues + états + chapitres (ex. Communes ET Inhabituelles des chapitres 12 et 13)',
+      '🎯 Nouvelle section Seuils : fixe un stock minimum par rareté (ex. 30 pour Commune/Inhabituelle) — la liste montre toutes les cartes SOUS leur seuil et combien il en manque, à recompléter depuis les boîtes',
+      'Clarifié : les tendances ↗/↘ de la section Ventes sont VOS ventes (période vs période précédente), pas le marché — les prix du marché Cardmarket viendront en consultation ciblée, carte par carte',
+      'Nouvelle rareté « Iconique » reconnue'
+    ]
+  },
+  {
     version: '2.42.3',
     title: 'Le bouton Inventaire général répond à tous les coups',
     items: [

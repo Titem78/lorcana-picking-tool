@@ -41,11 +41,13 @@ afterAll(() => {
 })
 
 describe('module stock — filtres', () => {
-  it('filtre par langue, foil et chapitre (promos par code)', () => {
-    expect(listStock({ language: 'EN' }).items).toHaveLength(1)
+  it('multifiltres par langue, foil et chapitre (promos par code)', () => {
+    expect(listStock({ languages: ['EN'] }).items).toHaveLength(1)
     expect(listStock({ foil: '1' }).items[0].name).toContain('Mickey')
-    expect(listStock({ set_code: 'DIS' }).items[0].name).toContain('Stitch')
+    expect(listStock({ sets: ['DIS'] }).items[0].name).toContain('Stitch')
     expect(listStock({ q: 'elsa' }).items).toHaveLength(1)
+    // multi : deux chapitres à la fois
+    expect(listStock({ sets: ['5', 'DIS'] }).items).toHaveLength(2)
   })
 
   it('totaux et valeurs de filtres', () => {
@@ -208,5 +210,28 @@ describe('module stock — ventes et réassort', () => {
     ])
     expect(csv).toContain('qte_a_racheter')
     expect(csv).toContain('Elsa - Le cinquième esprit;5SHI;Super rare;FR;;3;1;2;2,50 EUR')
+  })
+})
+
+describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
+  it('liste les cartes sous leur seuil avec le manque', async () => {
+    const { lowStockByRarity } = await import('../src/main/stock')
+    const db = getDb()
+    // Raretés posées (l'enrichissement officiel est réseau, hors tests)
+    db.prepare("UPDATE stock_items SET rarity = 'Common' WHERE cm_article_id = 'a1'").run()
+    db.prepare("UPDATE stock_items SET rarity = 'Uncommon' WHERE cm_article_id = 'b1'").run()
+    // Sans seuils : rien
+    expect(lowStockByRarity().rows).toHaveLength(0)
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_rarities', ?)"
+    ).run(JSON.stringify({ Common: 30, Uncommon: 4 }))
+    const r = lowStockByRarity()
+    const elsa = r.rows.find((x) => x.name.includes('Elsa')) // Common, qty 1
+    expect(elsa?.seuil).toBe(30)
+    expect(elsa?.manque).toBe(29)
+    const mickey = r.rows.find((x) => x.name.includes('Mickey') && x.rarity === 'Uncommon')
+    expect(mickey?.manque).toBeUndefined() // b1 : 5 en stock ≥ seuil 4 → absent
+    // tri : le plus gros manque d'abord
+    expect(r.rows[0].manque).toBeGreaterThanOrEqual(r.rows[r.rows.length - 1].manque)
   })
 })

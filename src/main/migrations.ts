@@ -252,5 +252,12 @@ export const MIGRATIONS: string[] = [
     PRIMARY KEY (snapshot_id, cm_article_id)
   );
   CREATE INDEX idx_snapshot_items_name ON stock_snapshot_items(snapshot_id, name);
+  `,
+
+  // 017 — rareté + encre du stock (enrichies par NOM depuis les données
+  // officielles LorcanaJSON : le balayage Cardmarket ne les fournit pas)
+  `
+  ALTER TABLE stock_items ADD COLUMN rarity TEXT;
+  ALTER TABLE stock_items ADD COLUMN ink TEXT;
   `
 ]

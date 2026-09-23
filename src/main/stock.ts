@@ -20,6 +20,8 @@ export interface StockItem {
   comment: string | null
   price: string | null
   quantity: number
+  rarity: string | null
+  ink: string | null
   updated_at: string
 }
 
@@ -82,10 +84,12 @@ export function prixEnCents(price: string | null): number {
 
 export interface StockFilters {
   q?: string
-  set_code?: string
-  language?: string
+  /** MULTI-sélection : vide = tout */
+  sets?: string[]
+  languages?: string[]
+  rarities?: string[]
+  conditions?: string[]
   foil?: '' | '1' | '0'
-  condition?: string
   sort?: 'recent' | 'name' | 'qty' | 'price'
 }
 
@@ -96,32 +100,31 @@ export function listStock(
   totals: { items: number; copies: number; value_cents: number }
   sets: string[]
   languages: string[]
+  rarities: string[]
   conditions: string[]
 } {
   const db = getDb()
   const f: StockFilters = typeof filters === 'string' ? { q: filters } : (filters ?? {})
   const where: string[] = []
   const args: unknown[] = []
+  const dansListe = (expr: string, values?: string[]): void => {
+    if (values?.length) {
+      where.push(`${expr} IN (${values.map(() => '?').join(',')})`)
+      args.push(...values)
+    }
+  }
   if (f.q?.trim()) {
     where.push('(name LIKE ? OR comment LIKE ? OR set_code LIKE ?)')
     const like = `%${f.q.trim()}%`
     args.push(like, like, like)
   }
-  if (f.set_code) {
-    where.push('COALESCE(set_code, color_code, \'\') = ?')
-    args.push(f.set_code)
-  }
-  if (f.language) {
-    where.push('language = ?')
-    args.push(f.language)
-  }
+  dansListe("COALESCE(set_code, color_code, '')", f.sets)
+  dansListe('language', f.languages)
+  dansListe("COALESCE(rarity, '')", f.rarities)
+  dansListe('condition', f.conditions)
   if (f.foil === '1' || f.foil === '0') {
     where.push('is_foil = ?')
     args.push(parseInt(f.foil, 10))
-  }
-  if (f.condition) {
-    where.push('condition = ?')
-    args.push(f.condition)
   }
   const order =
     f.sort === 'name'
@@ -167,8 +170,89 @@ export function listStock(
         .all() as { v: string }[]
     ).map((r) => r.v),
     languages: distinct('language'),
+    rarities: distinct('rarity'),
     conditions: distinct('condition')
   }
+}
+
+/**
+ * Enrichit rareté + encre des articles qui ne les ont pas encore, par NOM
+ * (+ set) depuis les données officielles LorcanaJSON — hors-ligne après le
+ * premier téléchargement, AUCUNE requête Cardmarket.
+ */
+export async function enrichStockMeta(): Promise<number> {
+  if (process.env.VITEST) return 0
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `SELECT cm_article_id, name, set_code, color_code FROM stock_items
+       WHERE rarity IS NULL OR ink IS NULL`
+    )
+    .all() as { cm_article_id: string; name: string; set_code: string | null; color_code: string | null }[]
+  if (rows.length === 0) return 0
+  const { getCardMetaFr } = await import('./lorcanajson')
+  const upd = db.prepare(
+    `UPDATE stock_items SET rarity = COALESCE(rarity, NULLIF(?, '')),
+       ink = COALESCE(ink, NULLIF(?, '')) WHERE cm_article_id = ?`
+  )
+  let done = 0
+  for (const r of rows) {
+    const m = await getCardMetaFr(r.name, r.set_code, r.color_code).catch(() => null)
+    if (!m || (!m.rarity && !m.ink)) continue
+    upd.run(m.rarity, m.ink, r.cm_article_id)
+    done++
+  }
+  return done
+}
+
+export interface LowStockRow {
+  name: string
+  set_code: string | null
+  color_code: string | null
+  language: string | null
+  is_foil: number
+  rarity: string
+  price: string | null
+  quantity: number
+  seuil: number
+  manque: number
+}
+
+/**
+ * Cartes SOUS LE SEUIL de leur rareté (réglage « stock_min_rarities », JSON
+ * {Common: 30, …}) : là où il faut recompléter depuis les boîtes.
+ */
+export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string, number> } {
+  const db = getDb()
+  let seuils: Record<string, number> = {}
+  try {
+    const raw = (
+      db.prepare("SELECT value FROM settings WHERE key = 'stock_min_rarities'").get() as
+        | { value: string }
+        | undefined
+    )?.value
+    if (raw) seuils = JSON.parse(raw) as Record<string, number>
+  } catch {
+    seuils = {}
+  }
+  const actifs = Object.entries(seuils).filter(([, v]) => v > 0)
+  if (actifs.length === 0) return { rows: [], seuils }
+  const groupes = db
+    .prepare(
+      `SELECT name, set_code, color_code, language, is_foil, MAX(rarity) AS rarity,
+              MAX(price) AS price, SUM(quantity) AS quantity
+       FROM stock_items WHERE rarity IS NOT NULL GROUP BY ${CLE_STOCK}`
+    )
+    .all() as Omit<LowStockRow, 'seuil' | 'manque'>[]
+  const rows: LowStockRow[] = []
+  for (const g of groupes) {
+    const seuil = seuils[g.rarity] ?? 0
+    if (seuil > 0 && g.quantity < seuil) {
+      rows.push({ ...g, seuil, manque: seuil - g.quantity })
+    }
+  }
+  rows.sort((a, b) => b.manque - a.manque || a.name.localeCompare(b.name))
+  return { rows: rows.slice(0, 1000), seuils }
 }
 
 // Prix « 1,50 EUR » → centimes, version SQL (approx : partie entière + décimales)
@@ -573,7 +657,7 @@ export function exportCsv(): string {
     const s = v == null ? '' : String(v)
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  const head = ['cm_article_id', 'name', 'set_code', 'color_code', 'number', 'language', 'condition', 'is_foil', 'comment', 'price', 'quantity', 'updated_at']
+  const head = ['cm_article_id', 'name', 'set_code', 'color_code', 'number', 'rarity', 'ink', 'language', 'condition', 'is_foil', 'comment', 'price', 'quantity', 'updated_at']
   const lines = [head.join(';')]
   for (const it of items) {
     lines.push(head.map((k) => esc((it as unknown as Record<string, unknown>)[k])).join(';'))

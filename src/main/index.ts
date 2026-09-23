@@ -163,6 +163,10 @@ app.whenReady().then(() => {
           backfillFrenchImages().catch(() => {})
         })
         backfillFrenchImages().catch(() => {})
+        // Rareté + encre du stock (données officielles, aucune requête CM)
+        import('./stock')
+          .then((m) => m.enrichStockMeta())
+          .catch(() => {})
       })
   }, 15_000)
 

@@ -34,7 +34,7 @@ writeFileSync(
 mkdirSync(join(userData, 'cache', 'images'), { recursive: true })
 
 import { findSetNumByName, getLorcardsFrImageByName } from '../src/main/lorcards'
-import { getOfficialFrImage } from '../src/main/lorcanajson'
+import { getOfficialFrImage, frRarity, frInk, normName } from '../src/main/lorcanajson'
 
 describe('findSetNumByName — encre des promos DIS/D23 par le nom FR', () => {
   it("retrouve le chapitre et numéro d'origine depuis le nom du PDF", () => {
@@ -101,5 +101,30 @@ describe('getOfficialFrImage — visuels officiels LorcanaJSON', () => {
   it('promo sans code, ou numéro invalide → null (pas de réseau en test)', async () => {
     expect(await getOfficialFrImage('', '6', null, images)).toBeNull()
     expect(await getOfficialFrImage('', 'abc', 'PR3', images)).toBeNull()
+  })
+})
+
+describe('conversions LorcanaJSON (libellés FR officiels → canonique app)', () => {
+  it('raretés (dont Très Rare → Super_rare, Spécial → Promo, Iconique)', () => {
+    expect(frRarity('Commune')).toBe('Common')
+    expect(frRarity('Inhabituelle')).toBe('Uncommon')
+    expect(frRarity('Très Rare')).toBe('Super_rare')
+    expect(frRarity('Spécial')).toBe('Promo')
+    expect(frRarity('Iconique')).toBe('Iconic')
+    expect(frRarity('Enchantée')).toBe('Enchanted')
+    expect(frRarity(undefined)).toBe('')
+  })
+
+  it('encres, bi-encre = première couleur (règle métier)', () => {
+    expect(frInk('Ambre')).toBe('Amber')
+    expect(frInk('Améthyste-Saphir')).toBe('Amethyst')
+    expect(frInk('')).toBe('')
+  })
+
+  it('normName rapproche les noms CM des noms officiels', () => {
+    expect(normName('Buzz l’Éclair - Assure la couverture')).toBe(
+      normName("Buzz l'Éclair - Assure la couverture")
+    )
+    expect(normName('Elsa - Le cinquième esprit (V.1)')).toBe(normName('Elsa - Le cinquième esprit'))
   })
 })
