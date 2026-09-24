@@ -20,11 +20,12 @@ export interface LjMeta {
   rarity: string
   /** encre canonique (Amber…) — bi-encre : la PREMIÈRE couleur */
   ink: string
-  /** le set contient plusieurs versions du nom AVEC DES RARETÉS DIFFÉRENTES
-   *  (base + Enchantée/Iconique…) : un nom Cardmarket « (V.x) » ne peut alors
-   *  pas recevoir de rareté. Si toutes les versions partagent la même rareté
-   *  (ex. sets promo : tout est « Promo »), il n'y a pas d'ambiguïté. */
-  multi: boolean
+  /** raretés de TOUTES les versions du nom dans ce set, ordonnées par numéro
+   *  de collection — la convention Cardmarket « (V.x) » suit ce même ordre
+   *  (vérifié sur données réelles : (V.1) = base pas chère, (V.2) =
+   *  Enchantée chère), donc (V.x) → versions[x-1]. Vide = ordre inconnu
+   *  (repli par nom sur plusieurs sets). */
+  versions: string[]
 }
 
 export interface LjIndex {
@@ -120,7 +121,7 @@ async function download(): Promise<LjIndex | null> {
     const built = buildMetaIndex(data.cards ?? [])
     const idx: LjIndex = {
       fetchedAt: new Date().toISOString(),
-      metaV: 4,
+      metaV: 5,
       std: {},
       promo: {},
       meta: built.meta,
@@ -152,7 +153,7 @@ async function ensureIndex(forceRefresh = false): Promise<LjIndex | null> {
   if (process.env.VITEST) return null
   if (!index) index = loadDisk()
   // Ancien cache sans les métadonnées (ou format antérieur) : on re-télécharge
-  if (index && (!index.meta || index.metaV !== 4)) index = null
+  if (index && (!index.meta || index.metaV !== 5)) index = null
   const fresh = index && Date.now() - Date.parse(index.fetchedAt) < STALE_MS
   if (index && fresh && !forceRefresh) return index
   if (!loading) {
@@ -178,53 +179,47 @@ export interface LjCardInput {
  * Construit l'index des métadonnées par nom. ⚠ PIÈGE (bug réel signalé) : les
  * versions spéciales (Enchantée, Iconique…) portent le MÊME nom que la carte
  * de base dans le MÊME set — un simple écrasement étiquetait des cartes de
- * base « Iconique ». Règle : la rareté retenue est celle du PLUS PETIT numéro
- * (= la carte de base), et `multi` mémorise que le set contient des raretés
- * DIFFÉRENTES pour ce nom (même rareté partout = pas d'ambiguïté, ex. promos).
+ * base « Iconique ». Règle : `versions` liste les raretés du nom dans ce set,
+ * ORDONNÉES PAR NUMÉRO (base d'abord) — c'est l'ordre des « (V.x) » de
+ * Cardmarket, vérifié sur données réelles.
  */
 export function buildMetaIndex(cards: LjCardInput[]): {
   meta: Record<string, LjMeta>
   metaByName: Record<string, LjMeta>
 } {
-  const parSet = new Map<
-    string,
-    { rarity: string; ink: string; number: number; raretes: Set<string> }
-  >()
+  const parSet = new Map<string, { ink: string; entrees: { num: number; rarity: string }[] }>()
   for (const c of cards) {
     if (!c.fullName) continue
     const nom = normName(c.fullName)
     const setKey = c.promoGrouping ? String(c.promoGrouping).toUpperCase() : String(c.setCode ?? '')
     if (!nom || !setKey) continue
     const key = `${nom}|${setKey}`
-    const num = c.number ?? 9999
-    const r = frRarity(c.rarity)
     const cur = parSet.get(key)
+    const entree = { num: c.number ?? 9999, rarity: frRarity(c.rarity) }
     if (!cur) {
-      parSet.set(key, { rarity: r, ink: frInk(c.color), number: num, raretes: new Set([r]) })
+      parSet.set(key, { ink: frInk(c.color), entrees: [entree] })
     } else {
-      cur.raretes.add(r)
-      if (num < cur.number) {
-        cur.number = num
-        cur.rarity = r
-      }
+      cur.entrees.push(entree)
       if (!cur.ink) cur.ink = frInk(c.color)
     }
   }
   const meta: Record<string, LjMeta> = {}
   const metaByName: Record<string, LjMeta> = {}
   for (const [key, v] of parSet) {
-    // multi = ambiguïté RÉELLE : des raretés différentes dans le set
-    meta[key] = { rarity: v.rarity, ink: v.ink, multi: v.raretes.size > 1 }
+    v.entrees.sort((a, b) => a.num - b.num)
+    const versions = v.entrees.map((e) => e.rarity)
+    meta[key] = { rarity: versions[0] ?? '', ink: v.ink, versions }
     const nom = key.slice(0, key.lastIndexOf('|'))
     const parNom = metaByName[nom]
     if (!parNom) {
-      metaByName[nom] = { rarity: v.rarity, ink: v.ink, multi: v.raretes.size > 1 }
+      metaByName[nom] = { rarity: versions[0] ?? '', ink: v.ink, versions: [...versions] }
     } else {
-      // Réimpression dans un autre set : l'encre reste sûre ; la rareté
-      // seulement si toutes les bases sont d'accord
-      if (parNom.rarity && parNom.rarity !== v.rarity) parNom.rarity = ''
+      // Réimpression dans un autre set : l'encre reste sûre ; la rareté de
+      // base seulement si tous les sets sont d'accord ; l'ordre des versions
+      // devient inconnu (quel set Cardmarket vise-t-il ?) → vidé
+      if (parNom.rarity && parNom.rarity !== versions[0]) parNom.rarity = ''
       if (!parNom.ink) parNom.ink = v.ink
-      if (v.raretes.size > 1) parNom.multi = true
+      parNom.versions = []
     }
   }
   return { meta, metaByName }
@@ -232,9 +227,11 @@ export function buildMetaIndex(cards: LjCardInput[]): {
 
 /**
  * Choix des métadonnées pour une carte du STOCK (fonction pure, testée) :
- * set exact d'abord, nom seul en repli. Un nom Cardmarket « (V.x) » désigne
- * une VARIANTE : si le set compte plusieurs versions, la rareté est omise
- * (on ne sait pas laquelle) — l'encre reste valable dans tous les cas.
+ * set exact d'abord, nom seul en repli. Convention Cardmarket vérifiée sur
+ * données réelles : « (V.x) » suit l'ordre des numéros de collection —
+ * (V.1) = carte de base, (V.2) = variante suivante (Enchantée…). La rareté
+ * d'un (V.x) est donc versions[x−1] ; hors limites ou ordre inconnu → vide,
+ * jamais une rareté devinée. L'encre reste valable dans tous les cas.
  */
 export function pickMeta(
   idx: Pick<LjIndex, 'meta' | 'metaByName'>,
@@ -244,7 +241,7 @@ export function pickMeta(
 ): LjMeta | null {
   const nom = normName(name)
   if (!nom) return null
-  const estVariante = /\(V\.\d+\)/i.test(name)
+  const variante = name.match(/\(V\.(\d+)\)/i)
   const setKey = setCode
     ? String(parseInt(setCode, 10) || setCode)
     : colorCode
@@ -252,7 +249,10 @@ export function pickMeta(
       : ''
   const m = (setKey ? idx.meta[`${nom}|${setKey}`] : undefined) ?? idx.metaByName[nom]
   if (!m) return null
-  if (estVariante && m.multi) return { ...m, rarity: '' }
+  if (variante) {
+    const x = parseInt(variante[1], 10)
+    return { ...m, rarity: m.versions[x - 1] ?? '' }
+  }
   return m
 }
 

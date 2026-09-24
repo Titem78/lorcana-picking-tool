@@ -144,10 +144,13 @@ describe('buildMetaIndex / pickMeta — variantes Iconique/Enchantée (bug signa
     expect(pickMeta(idx, 'Hadès - Cherchant un accord', '10', null)?.rarity).toBe('Legendary')
   })
 
-  it('un nom (V.x) dans un set multi-versions : rareté omise, encre conservée', () => {
-    const m = pickMeta(idx, 'Hadès - Cherchant un accord (V.1)', '10', null)
-    expect(m?.rarity).toBe('')
-    expect(m?.ink).toBe('Amethyst')
+  it('(V.x) suit l’ordre des numéros : V.1 = base, V.2 = variante (convention CM vérifiée)', () => {
+    const v1 = pickMeta(idx, 'Hadès - Cherchant un accord (V.1)', '10', null)
+    expect(v1?.rarity).toBe('Legendary')
+    expect(v1?.ink).toBe('Amethyst')
+    expect(pickMeta(idx, 'Hadès - Cherchant un accord (V.2)', '10', null)?.rarity).toBe('Iconic')
+    // au-delà des versions connues : vide, jamais deviné
+    expect(pickMeta(idx, 'Hadès - Cherchant un accord (V.3)', '10', null)?.rarity).toBe('')
   })
 
   it('un nom (V.x) dans un set à version unique garde sa rareté', () => {

@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.7',
+    title: 'Les versions (V.1)/(V.2) entièrement identifiées',
+    items: [
+      'Découverte validée sur tes données : la numérotation Cardmarket « (V.x) » suit l’ordre des numéros de collection — (V.1) = carte de base, (V.2) = variante (Enchantée…). Les cartes (V.x) reçoivent donc maintenant leur VRAIE rareté au lieu de rester vides',
+      'Au-delà des versions connues (ou repli par nom ambigu), la rareté reste vide — jamais devinée',
+      'Complété automatiquement au prochain démarrage'
+    ]
+  },
+  {
     version: '2.43.6',
     title: 'Œ, æ : 76 cartes retrouvent leur rareté',
     items: [
