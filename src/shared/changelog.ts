@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.3',
+    title: 'Colonne Foil et lien Cardmarket dans la liste Stock',
+    items: [
+      'Colonne FOIL explicite dans la liste Stock (✨ Foil / —) : les deux lignes d’une même carte sont bien la version foil et la non-foil, plus de doute',
+      'Bouton 🛒 sur chaque ligne du Stock : ouvre la carte sur Cardmarket (2e fenêtre connectée), comme dans les autres sections',
+      'Rappel sur les raretés vides : produits scellés/accessoires (pas de rareté) et versions alternatives « (V.x) » d’un chapitre à plusieurs versions — on préfère laisser vide que risquer une rareté fausse'
+    ]
+  },
+  {
     version: '2.43.2',
     title: 'Filtres et tri partout dans le module Stock',
     items: [

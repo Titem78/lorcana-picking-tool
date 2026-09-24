@@ -609,10 +609,12 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <Th k="chapitre">Chapitre</Th>
                 <Th k="rarity">Rareté</Th>
                 <Th k="ink">Encre</Th>
+                <Th k="is_foil">Foil</Th>
                 <Th k="condition">État</Th>
                 <th>Commentaire</th>
                 <Th k="price" right>Prix</Th>
                 <Th k="quantity" right>Qté</Th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -628,11 +630,30 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                       </span>
                     )}
                   </td>
+                  <td>
+                    {it.is_foil === 1 ? (
+                      <span style={{ color: 'var(--accent)', fontWeight: 700 }}>✨ Foil</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-dim)' }}>—</span>
+                    )}
+                  </td>
                   <td>{it.condition}</td>
                   <td style={{ color: 'var(--text-dim)' }}>{it.comment}</td>
                   <td style={{ textAlign: 'right' }}>{it.price}</td>
                   <td style={{ textAlign: 'right' }}>
                     <b>{it.quantity}</b>
+                  </td>
+                  <td>
+                    <button
+                      title="Ouvrir la recherche de cette carte sur Cardmarket (2e fenêtre, session connectée)"
+                      onClick={() =>
+                        window.api.cm.openWindow(
+                          `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(it.name)}`
+                        )
+                      }
+                    >
+                      🛒
+                    </button>
                   </td>
                 </tr>
               ))}
