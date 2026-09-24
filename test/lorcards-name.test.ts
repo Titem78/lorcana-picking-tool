@@ -171,3 +171,10 @@ describe('variantes de MÊME rareté (Raiponce P4 n°15/16, toutes deux Promo)',
     expect(pickMeta(idx, 'Raiponce - S’échappe de la tour (V.2)', '', 'PR4')?.rarity).toBe('Promo')
   })
 })
+
+describe('ligatures Œ/æ (Œil des moires, 76 noms officiels concernés)', () => {
+  it('rapproche le nom officiel à ligature du nom Cardmarket en « oe »', () => {
+    expect(normName('Œil des moires')).toBe(normName('Oeil Des Moires'))
+    expect(normName('Les Moires - Œil unique')).toBe(normName('Les Moires - Oeil unique'))
+  })
+})

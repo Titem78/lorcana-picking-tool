@@ -72,6 +72,10 @@ export function frInk(c: string | undefined): string {
 export function normName(name: string): string {
   return name
     .replace(/\(V\.\d+\)/gi, '')
+    // Ligatures : l'officiel écrit « Œil des moires », Cardmarket « Oeil Des
+    // Moires » — sans conversion, 76 noms ne se rapprochaient jamais
+    .replace(/[œŒ]/g, 'oe')
+    .replace(/[æÆ]/g, 'ae')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -116,7 +120,7 @@ async function download(): Promise<LjIndex | null> {
     const built = buildMetaIndex(data.cards ?? [])
     const idx: LjIndex = {
       fetchedAt: new Date().toISOString(),
-      metaV: 3,
+      metaV: 4,
       std: {},
       promo: {},
       meta: built.meta,
@@ -148,7 +152,7 @@ async function ensureIndex(forceRefresh = false): Promise<LjIndex | null> {
   if (process.env.VITEST) return null
   if (!index) index = loadDisk()
   // Ancien cache sans les métadonnées (ou format antérieur) : on re-télécharge
-  if (index && (!index.meta || index.metaV !== 3)) index = null
+  if (index && (!index.meta || index.metaV !== 4)) index = null
   const fresh = index && Date.now() - Date.parse(index.fetchedAt) < STALE_MS
   if (index && fresh && !forceRefresh) return index
   if (!loading) {

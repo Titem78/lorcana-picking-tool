@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.6',
+    title: 'Œ, æ : 76 cartes retrouvent leur rareté',
+    items: [
+      'Les noms à ligature (« Œil des moires »…) ne se rapprochaient pas de l’écriture Cardmarket (« Oeil Des Moires ») : 76 cartes restaient sans rareté ni encre — corrigé, complété automatiquement au prochain démarrage'
+    ]
+  },
+  {
     version: '2.43.5',
     title: 'Raretés des versions (V.x) mieux identifiées',
     items: [
