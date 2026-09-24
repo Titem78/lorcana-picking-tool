@@ -159,3 +159,15 @@ describe('buildMetaIndex / pickMeta — variantes Iconique/Enchantée (bug signa
     expect(pickMeta(idx, 'Carte Inconnue', '', '')).toBeNull()
   })
 })
+
+describe('variantes de MÊME rareté (Raiponce P4 n°15/16, toutes deux Promo)', async () => {
+  const { buildMetaIndex, pickMeta } = await import('../src/main/lorcanajson')
+  const idx = buildMetaIndex([
+    { fullName: 'Raiponce - S’échappe de la tour', promoGrouping: 'P4', number: 15, rarity: 'Spécial', color: 'Émeraude' },
+    { fullName: 'Raiponce - S’échappe de la tour', promoGrouping: 'P4', number: 16, rarity: 'Spécial', color: 'Émeraude' }
+  ])
+  it('un (V.x) reçoit la rareté quand toutes les versions du set la partagent', () => {
+    expect(pickMeta(idx, 'Raiponce - S’échappe de la tour (V.1)', '', 'PR4')?.rarity).toBe('Promo')
+    expect(pickMeta(idx, 'Raiponce - S’échappe de la tour (V.2)', '', 'PR4')?.rarity).toBe('Promo')
+  })
+})

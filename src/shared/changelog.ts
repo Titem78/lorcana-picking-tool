@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.5',
+    title: 'Raretés des versions (V.x) mieux identifiées',
+    items: [
+      'Les cartes « (V.x) » d’un set où toutes les versions partagent la MÊME rareté (ex. les sets promo : tout y est Promo) reçoivent maintenant leur rareté — seuls les cas réellement ambigus (base + Enchantée/Iconique de raretés différentes) restent vides, par prudence',
+      'Les raretés manquantes se complètent automatiquement au prochain démarrage'
+    ]
+  },
+  {
     version: '2.43.3',
     title: 'Colonne Foil et lien Cardmarket dans la liste Stock',
     items: [

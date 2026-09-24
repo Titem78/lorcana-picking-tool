@@ -20,8 +20,10 @@ export interface LjMeta {
   rarity: string
   /** encre canonique (Amber…) — bi-encre : la PREMIÈRE couleur */
   ink: string
-  /** plusieurs versions du nom dans ce set (base + Enchantée/Iconique…) :
-   *  un nom Cardmarket « (V.x) » ne peut alors pas recevoir la rareté */
+  /** le set contient plusieurs versions du nom AVEC DES RARETÉS DIFFÉRENTES
+   *  (base + Enchantée/Iconique…) : un nom Cardmarket « (V.x) » ne peut alors
+   *  pas recevoir de rareté. Si toutes les versions partagent la même rareté
+   *  (ex. sets promo : tout est « Promo »), il n'y a pas d'ambiguïté. */
   multi: boolean
 }
 
@@ -114,7 +116,7 @@ async function download(): Promise<LjIndex | null> {
     const built = buildMetaIndex(data.cards ?? [])
     const idx: LjIndex = {
       fetchedAt: new Date().toISOString(),
-      metaV: 2,
+      metaV: 3,
       std: {},
       promo: {},
       meta: built.meta,
@@ -146,7 +148,7 @@ async function ensureIndex(forceRefresh = false): Promise<LjIndex | null> {
   if (process.env.VITEST) return null
   if (!index) index = loadDisk()
   // Ancien cache sans les métadonnées (ou format antérieur) : on re-télécharge
-  if (index && (!index.meta || index.metaV !== 2)) index = null
+  if (index && (!index.meta || index.metaV !== 3)) index = null
   const fresh = index && Date.now() - Date.parse(index.fetchedAt) < STALE_MS
   if (index && fresh && !forceRefresh) return index
   if (!loading) {
@@ -173,13 +175,17 @@ export interface LjCardInput {
  * versions spéciales (Enchantée, Iconique…) portent le MÊME nom que la carte
  * de base dans le MÊME set — un simple écrasement étiquetait des cartes de
  * base « Iconique ». Règle : la rareté retenue est celle du PLUS PETIT numéro
- * (= la carte de base), et `multi` mémorise qu'il existe plusieurs versions.
+ * (= la carte de base), et `multi` mémorise que le set contient des raretés
+ * DIFFÉRENTES pour ce nom (même rareté partout = pas d'ambiguïté, ex. promos).
  */
 export function buildMetaIndex(cards: LjCardInput[]): {
   meta: Record<string, LjMeta>
   metaByName: Record<string, LjMeta>
 } {
-  const parSet = new Map<string, { rarity: string; ink: string; number: number; n: number }>()
+  const parSet = new Map<
+    string,
+    { rarity: string; ink: string; number: number; raretes: Set<string> }
+  >()
   for (const c of cards) {
     if (!c.fullName) continue
     const nom = normName(c.fullName)
@@ -187,14 +193,15 @@ export function buildMetaIndex(cards: LjCardInput[]): {
     if (!nom || !setKey) continue
     const key = `${nom}|${setKey}`
     const num = c.number ?? 9999
+    const r = frRarity(c.rarity)
     const cur = parSet.get(key)
     if (!cur) {
-      parSet.set(key, { rarity: frRarity(c.rarity), ink: frInk(c.color), number: num, n: 1 })
+      parSet.set(key, { rarity: r, ink: frInk(c.color), number: num, raretes: new Set([r]) })
     } else {
-      cur.n++
+      cur.raretes.add(r)
       if (num < cur.number) {
         cur.number = num
-        cur.rarity = frRarity(c.rarity)
+        cur.rarity = r
       }
       if (!cur.ink) cur.ink = frInk(c.color)
     }
@@ -202,17 +209,18 @@ export function buildMetaIndex(cards: LjCardInput[]): {
   const meta: Record<string, LjMeta> = {}
   const metaByName: Record<string, LjMeta> = {}
   for (const [key, v] of parSet) {
-    meta[key] = { rarity: v.rarity, ink: v.ink, multi: v.n > 1 }
+    // multi = ambiguïté RÉELLE : des raretés différentes dans le set
+    meta[key] = { rarity: v.rarity, ink: v.ink, multi: v.raretes.size > 1 }
     const nom = key.slice(0, key.lastIndexOf('|'))
     const parNom = metaByName[nom]
     if (!parNom) {
-      metaByName[nom] = { rarity: v.rarity, ink: v.ink, multi: v.n > 1 }
+      metaByName[nom] = { rarity: v.rarity, ink: v.ink, multi: v.raretes.size > 1 }
     } else {
       // Réimpression dans un autre set : l'encre reste sûre ; la rareté
       // seulement si toutes les bases sont d'accord
       if (parNom.rarity && parNom.rarity !== v.rarity) parNom.rarity = ''
       if (!parNom.ink) parNom.ink = v.ink
-      if (v.n > 1) parNom.multi = true
+      if (v.raretes.size > 1) parNom.multi = true
     }
   }
   return { meta, metaByName }
