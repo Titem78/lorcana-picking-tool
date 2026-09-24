@@ -172,7 +172,10 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         rarity_code: '',
         price: (row.querySelector('.price-container .color-primary')?.textContent || row.querySelector('.color-primary')?.textContent || '').trim(),
         comment: (row.querySelector('.product-comments .text-truncate')?.textContent || row.querySelector('.product-comments [aria-label]')?.getAttribute('aria-label') || '').trim(),
-        is_foil: !!row.querySelector('[aria-label*="Foil" i],[data-bs-original-title*="Foil" i],.fonticon-foil'),
+        // ⚠ HTML récupéré par fetch : Bootstrap n'a PAS tourné, donc l'attribut
+        // reste title / data-bs-title (data-bs-original-title n'existe qu'après
+        // initialisation des tooltips sur une page vivante)
+        is_foil: !!row.querySelector('[aria-label*="Foil" i],[title*="Foil" i],[data-bs-title*="Foil" i],[data-bs-original-title*="Foil" i],[data-original-title*="Foil" i],.fonticon-foil'),
         section: 'Lorcana Cartes',
         image_url: img
       })
