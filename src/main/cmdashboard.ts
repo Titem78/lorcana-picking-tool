@@ -3,9 +3,8 @@
 // locale. AUCUNE actualisation en boucle : uniquement à l'ouverture de
 // l'onglet 📊 ou sur clic « Actualiser ».
 
-import { session } from 'electron'
 import { getDb } from './db'
-import { UA } from './cmshipping'
+import { cmFetch } from './cmshipping'
 
 export interface CmDashboard {
   ok: boolean
@@ -24,11 +23,10 @@ export interface CmDashboard {
 }
 
 async function get(url: string): Promise<string | null> {
-  const ses = session.fromPartition('persist:cardmarket')
-  const r = await ses.fetch(url, {
-    headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
-  })
-  return r.ok ? r.text() : null
+  // Onglet Cardmarket vivant d'abord (la protection anti-bot bloque parfois
+  // les fetch du processus principal), ses.fetch en repli — voir cmshipping.
+  const r = await cmFetch(url)
+  return r.status === 200 ? r.text : null
 }
 
 /** Parseurs purs (testables) --------------------------------------------------- */

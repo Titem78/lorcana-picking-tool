@@ -408,6 +408,13 @@ export function registerIpc(): void {
     logActivity(userId, 'settings.changed', { key, value })
   })
 
+  // Le webview de l'onglet Cardmarket s'enregistre comme canal de requêtes
+  // (vrai navigateur — passe la protection anti-bot, contrairement à ses.fetch)
+  ipcMain.on('cm:registerWebview', async (_e, id: number) => {
+    const { registerCmWebview } = await import('./cmshipping')
+    registerCmWebview(id)
+  })
+
   // --- Fenêtre Cardmarket séparée (même session persist:cardmarket) ------------------
   // Permet p. ex. de garder la messagerie ouverte dans une fenêtre tout en
   // naviguant dans l'onglet intégré. Aucune automatisation : fenêtre normale.

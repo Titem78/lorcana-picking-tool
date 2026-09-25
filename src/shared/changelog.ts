@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.8',
+    title: 'Bulle rouge à tort : lectures via l’onglet Cardmarket',
+    items: [
+      'La page Cardmarket était connectée mais la bulle restait rouge et le tableau de bord disait « non connecté » : la protection anti-robot de Cardmarket s’est mise à bloquer les requêtes internes de l’app — pas celles du vrai navigateur',
+      'Toutes les lectures/écritures (bulle, tableau de bord, grammage, validation d’envoi) passent maintenant PAR L’ONGLET 🌐 Cardmarket lui-même (le canal de l’inventaire général, qui fonctionne), avec repli sur l’ancien canal',
+      'Conseil : ouvre l’onglet 🌐 Cardmarket une fois après le lancement — il reste ensuite actif en arrière-plan et sert de canal à tout le reste'
+    ]
+  },
+  {
     version: '2.43.7',
     title: 'Les versions (V.1)/(V.2) entièrement identifiées',
     items: [

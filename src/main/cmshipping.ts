@@ -46,14 +46,73 @@ export function parseShippingFromHtml(html: string): CmShipping | null {
   return { method, max_g: parseInt(m[2], 10), tracked }
 }
 
+// --- Canal d'accès à Cardmarket -------------------------------------------------
+// Les fetch du processus principal (ses.fetch) peuvent être BLOQUÉS par la
+// protection anti-bot de Cardmarket alors que l'onglet 🌐 (vrai navigateur,
+// gardé vivant) passe sans problème — c'est le canal de l'inventaire général.
+// Règle : si l'onglet Cardmarket est ouvert, TOUTES les requêtes passent par
+// lui (fetch dans la page, cookies inclus) ; sinon repli sur ses.fetch.
+
+let cmWebviewId: number | null = null
+/** Appelé par l'onglet Cardmarket à chaque chargement de son webview. */
+export function registerCmWebview(id: number): void {
+  cmWebviewId = id
+}
+
+interface CmFetchOpts {
+  method?: 'GET' | 'POST'
+  body?: string
+  contentType?: string
+}
+
+async function viaWebview(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string } | null> {
+  if (cmWebviewId == null) return null
+  try {
+    const { webContents } = await import('electron')
+    const wc = webContents.fromId(cmWebviewId)
+    if (!wc || wc.isDestroyed()) return null
+    const code = `(async () => {
+      try {
+        const r = await fetch(${JSON.stringify(url)}, {
+          method: ${JSON.stringify(opts?.method ?? 'GET')},
+          ${opts?.body != null ? `body: ${JSON.stringify(opts.body)},` : ''}
+          ${opts?.contentType ? `headers: { 'Content-Type': ${JSON.stringify(opts.contentType)} },` : ''}
+          credentials: 'include',
+          cache: 'no-store'
+        })
+        return { status: r.status, text: await r.text() }
+      } catch (e) { return { status: 0, text: String(e) } }
+    })()`
+    const res = (await wc.executeJavaScript(code)) as { status: number; text: string }
+    return res && res.status > 0 ? res : null
+  } catch {
+    return null
+  }
+}
+
+/** GET/POST Cardmarket : onglet vivant d'abord, ses.fetch en repli. */
+export async function cmFetch(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string }> {
+  const w = await viaWebview(url, opts)
+  if (w) return w
+  const ses = session.fromPartition('persist:cardmarket')
+  const r = await ses.fetch(url, {
+    method: opts?.method ?? 'GET',
+    headers: {
+      'User-Agent': UA,
+      Referer: 'https://www.cardmarket.com/fr/Lorcana',
+      ...(opts?.method === 'POST' ? { Origin: 'https://www.cardmarket.com' } : {}),
+      ...(opts?.contentType ? { 'Content-Type': opts.contentType } : {})
+    },
+    ...(opts?.body != null ? { body: opts.body } : {})
+  })
+  return { status: r.status, text: await r.text().catch(() => '') }
+}
+
 /** Lit la page de la vente dans la session Cardmarket connectée. */
 export async function fetchOrderShipping(saleId: string): Promise<CmShipping | null> {
-  const ses = session.fromPartition('persist:cardmarket')
-  const res = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana/Orders/${saleId}`, {
-    headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
-  })
-  if (!res.ok) return null
-  return parseShippingFromHtml(await res.text())
+  const res = await cmFetch(`https://www.cardmarket.com/fr/Lorcana/Orders/${saleId}`)
+  if (res.status !== 200) return null
+  return parseShippingFromHtml(res.text)
 }
 
 /**
@@ -225,11 +284,8 @@ export interface ConfirmShipResult {
 }
 
 async function fetchOrderPage(saleId: string): Promise<string | null> {
-  const ses = session.fromPartition('persist:cardmarket')
-  const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana/Orders/${saleId}`, {
-    headers: { 'User-Agent': UA, Referer: 'https://www.cardmarket.com/fr/Lorcana' }
-  })
-  return r.ok ? r.text() : null
+  const r = await cmFetch(`https://www.cardmarket.com/fr/Lorcana/Orders/${saleId}`)
+  return r.status === 200 ? r.text : null
 }
 
 /** Vérifie à la demande si la vente est marquée « envoyée » côté Cardmarket. */
@@ -259,7 +315,6 @@ export async function confirmShipmentOnCm(
     .get(orderId) as { sale_id: string; tracking_number: string | null } | undefined
   if (!row) return { ok: false, message: 'Commande introuvable' }
 
-  const ses = session.fromPartition('persist:cardmarket')
   const pageUrl = `https://www.cardmarket.com/fr/Lorcana/Orders/${row.sale_id}`
   const getPage = (): Promise<string | null> => fetchOrderPage(row.sale_id)
 
@@ -273,18 +328,12 @@ export async function confirmShipmentOnCm(
 
   const post = async (action: string, fields: Record<string, string>): Promise<boolean> => {
     const body = new URLSearchParams({ __cmtkn: token, idShipment: row.sale_id, ...fields })
-    const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana/PostGetAction/${action}`, {
+    const r = await cmFetch(`https://www.cardmarket.com/fr/Lorcana/PostGetAction/${action}`, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'User-Agent': UA,
-        Referer: pageUrl,
-        Origin: 'https://www.cardmarket.com',
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
+      contentType: 'application/x-www-form-urlencoded',
       body: body.toString()
     })
-    return r.ok
+    return r.status >= 200 && r.status < 400
   }
 
   const tracking = (row.tracking_number ?? '').trim()
@@ -322,15 +371,11 @@ export async function confirmShipmentOnCm(
 /** Sommes-nous connectés à Cardmarket ? (bulle verte/rouge de la barre latérale) */
 export async function isLoggedIn(): Promise<boolean> {
   try {
-    const ses = session.fromPartition('persist:cardmarket')
     // Anti-cache indispensable : une copie « déconnectée » de la page pouvait
     // resservir et faire passer la bulle au rouge à tort
-    const r = await ses.fetch(`https://www.cardmarket.com/fr/Lorcana?nc=${Date.now()}`, {
-      headers: { 'User-Agent': UA, 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
-    })
-    if (!r.ok) return false
-    const html = await r.text()
-    return /D[ÉE]CONNEXION|\/Logout/i.test(html)
+    const r = await cmFetch(`https://www.cardmarket.com/fr/Lorcana?nc=${Date.now()}`)
+    if (r.status !== 200) return false
+    return /D[ÉE]CONNEXION|\/Logout/i.test(r.text)
   } catch {
     return false
   }

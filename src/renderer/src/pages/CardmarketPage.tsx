@@ -48,6 +48,9 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
 
   // Chaque navigation dans l'onglet (ex. juste après la connexion) déclenche
   // une re-vérification de la bulle de connexion, avec un petit délai.
+  // Le webview s'ENREGISTRE aussi comme canal de requêtes du processus
+  // principal (bulle, tableau de bord, grammage…) : c'est un vrai navigateur,
+  // qui passe la protection anti-bot là où ses.fetch se fait bloquer.
   useEffect(() => {
     const wv = webviewRef.current
     if (!wv) return
@@ -56,10 +59,20 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
       window.clearTimeout(timer)
       timer = window.setTimeout(() => window.dispatchEvent(new CustomEvent('cm-recheck')), 2500)
     }
+    const onReady = (): void => {
+      try {
+        window.api.cm.registerWebview(wv.getWebContentsId())
+      } catch {
+        /* webview pas encore attaché */
+      }
+      onNav()
+    }
+    wv.addEventListener('dom-ready', onReady)
     wv.addEventListener('did-navigate', onNav)
     wv.addEventListener('did-navigate-in-page', onNav)
     return () => {
       window.clearTimeout(timer)
+      wv.removeEventListener('dom-ready', onReady)
       wv.removeEventListener('did-navigate', onNav)
       wv.removeEventListener('did-navigate-in-page', onNav)
     }

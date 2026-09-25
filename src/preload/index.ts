@@ -169,7 +169,8 @@ const api = {
       ipcRenderer.invoke('cm:saveCreds', userId, username, password),
     clearCreds: (userId: number) => ipcRenderer.invoke('cm:clearCreds', userId),
     hasCreds: () => ipcRenderer.invoke('cm:hasCreds'),
-    fillLogin: (webContentsId: number) => ipcRenderer.invoke('cm:fillLogin', webContentsId)
+    fillLogin: (webContentsId: number) => ipcRenderer.invoke('cm:fillLogin', webContentsId),
+    registerWebview: (webContentsId: number) => ipcRenderer.send('cm:registerWebview', webContentsId)
   },
 
   watcher: {
