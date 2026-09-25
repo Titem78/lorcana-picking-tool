@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.9',
+    title: 'Audit anti-robot complet : plus rien à faire manuellement',
+    items: [
+      'Plus besoin d’ouvrir l’onglet 🌐 : si nécessaire, l’app ouvre elle-même un navigateur invisible (même session) qui résout la vérification Cloudflare et sert de canal — bulle, tableau de bord, grammage et validation d’envoi fonctionnent dès le lancement',
+      'Audit complet réalisé : imports, inventaire et compta passaient déjà par de vrais navigateurs ; les visuels d’annonces sont sur un autre réseau (CloudFront), non concerné — vérifié',
+      'Contexte : Cardmarket a durci sa protection anti-robots Cloudflare (politique officielle) — l’app se comporte désormais partout comme un vrai navigateur'
+    ]
+  },
+  {
     version: '2.43.8',
     title: 'Bulle rouge à tort : lectures via l’onglet Cardmarket',
     items: [

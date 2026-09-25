@@ -65,12 +65,12 @@ interface CmFetchOpts {
   contentType?: string
 }
 
-async function viaWebview(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string } | null> {
-  if (cmWebviewId == null) return null
+async function fetchDansPage(
+  wc: Electron.WebContents,
+  url: string,
+  opts?: CmFetchOpts
+): Promise<{ status: number; text: string } | null> {
   try {
-    const { webContents } = await import('electron')
-    const wc = webContents.fromId(cmWebviewId)
-    if (!wc || wc.isDestroyed()) return null
     const code = `(async () => {
       try {
         const r = await fetch(${JSON.stringify(url)}, {
@@ -90,9 +90,52 @@ async function viaWebview(url: string, opts?: CmFetchOpts): Promise<{ status: nu
   }
 }
 
-/** GET/POST Cardmarket : onglet vivant d'abord, ses.fetch en repli. */
+async function viaWebview(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string } | null> {
+  if (cmWebviewId == null) return null
+  try {
+    const { webContents } = await import('electron')
+    const wc = webContents.fromId(cmWebviewId)
+    if (!wc || wc.isDestroyed()) return null
+    return await fetchDansPage(wc, url, opts)
+  } catch {
+    return null
+  }
+}
+
+// Canal de SECOURS quand l'onglet Cardmarket n'a pas encore été ouvert :
+// une fenêtre navigateur CACHÉE (même session) charge la page d'accueil une
+// fois — vrai Chromium, le challenge Cloudflare s'y résout tout seul — puis
+// sert de canal aux requêtes. Créée à la demande, réutilisée ensuite.
+let fenetreCanal: Electron.BrowserWindow | null = null
+let fenetrePrete: Promise<void> | null = null
+async function viaFenetreCachee(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string } | null> {
+  try {
+    const { BrowserWindow } = await import('electron')
+    if (!fenetreCanal || fenetreCanal.isDestroyed()) {
+      fenetrePrete = null
+      const win = new BrowserWindow({
+        show: false,
+        webPreferences: { partition: 'persist:cardmarket', contextIsolation: true, nodeIntegration: false }
+      })
+      fenetreCanal = win
+      fenetrePrete = new Promise<void>((res) => {
+        // délai après chargement : laisse le challenge Cloudflare se résoudre
+        win.webContents.once('did-finish-load', () => setTimeout(res, 3000))
+        setTimeout(res, 20_000) // garde-fou : jamais bloquant
+        win.loadURL('https://www.cardmarket.com/fr/Lorcana').catch(() => res())
+      })
+    }
+    await fenetrePrete
+    if (!fenetreCanal || fenetreCanal.isDestroyed()) return null
+    return await fetchDansPage(fenetreCanal.webContents, url, opts)
+  } catch {
+    return null
+  }
+}
+
+/** GET/POST Cardmarket : onglet vivant d'abord, fenêtre cachée, puis ses.fetch. */
 export async function cmFetch(url: string, opts?: CmFetchOpts): Promise<{ status: number; text: string }> {
-  const w = await viaWebview(url, opts)
+  const w = (await viaWebview(url, opts)) ?? (await viaFenetreCachee(url, opts))
   if (w) return w
   const ses = session.fromPartition('persist:cardmarket')
   const r = await ses.fetch(url, {
