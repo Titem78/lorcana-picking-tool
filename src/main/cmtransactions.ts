@@ -740,6 +740,8 @@ export async function recupererExportRange(
       sandbox: true
     }
   })
+  // Fenêtre-outil invisible (voir cmshipping) : ne doit jamais retenir l'app
+  ;(win as unknown as { estFenetreOutil: boolean }).estFenetreOutil = true
   const charge = async (path: string): Promise<void> => {
     // nc : navigation réelle ET URL unique — aucune chance de cache
     const sep = path.includes('?') ? '&' : '?'

@@ -117,6 +117,10 @@ async function viaFenetreCachee(url: string, opts?: CmFetchOpts): Promise<{ stat
         show: false,
         webPreferences: { partition: 'persist:cardmarket', contextIsolation: true, nodeIntegration: false }
       })
+      // Fenêtre-OUTIL invisible : marquée pour être détruite quand il ne
+      // reste plus qu'elle — sinon elle empêchait l'app de quitter, et le
+      // relancement se cognait dans l'instance fantôme (« ne se lance pas »)
+      ;(win as unknown as { estFenetreOutil: boolean }).estFenetreOutil = true
       fenetreCanal = win
       fenetrePrete = new Promise<void>((res) => {
         // délai après chargement : laisse le challenge Cloudflare se résoudre

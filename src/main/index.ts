@@ -30,11 +30,32 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 }
 app.on('second-instance', () => {
-  const win = BrowserWindow.getAllWindows()[0]
+  // Remonter une fenêtre VISIBLE (jamais une fenêtre-outil invisible)
+  const wins = BrowserWindow.getAllWindows()
+  const win = wins.find((w) => w.isVisible()) ?? wins[0]
   if (win) {
     if (win.isMinimized()) win.restore()
+    win.show()
     win.focus()
   }
+})
+
+// Quand il ne reste que des fenêtres-OUTILS invisibles (canal Cardmarket,
+// export compta), on les détruit : sans ça, « toutes les fenêtres fermées »
+// n'arrivait jamais, l'app restait en fantôme et le relancement échouait.
+function purgeFenetresOutils(): void {
+  setTimeout(() => {
+    const restantes = BrowserWindow.getAllWindows()
+    if (
+      restantes.length > 0 &&
+      restantes.every((w) => (w as unknown as { estFenetreOutil?: boolean }).estFenetreOutil)
+    ) {
+      for (const w of restantes) w.destroy()
+    }
+  }, 0)
+}
+app.on('browser-window-created', (_event, win) => {
+  win.on('closed', purgeFenetresOutils)
 })
 
 // Journal des pépins du processus principal et du renderer :

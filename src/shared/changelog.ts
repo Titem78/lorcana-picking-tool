@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.10',
+    title: 'L’app se relance toujours après fermeture',
+    items: [
+      'Bug signalé : parfois l’app « ne se lançait pas » juste après avoir été fermée — en réalité elle tournait encore en fantôme : une fenêtre-outil INVISIBLE (canal Cardmarket de la 2.43.9) l’empêchait de quitter, et le verrou anti-double-lancement bloquait le nouveau démarrage',
+      'Corrigé : dès qu’il ne reste que des fenêtres invisibles, elles s’autodétruisent et l’app quitte réellement ; un relancement remonte toujours une fenêtre VISIBLE',
+      'Si l’app est actuellement coincée en fantôme : ouvre le Gestionnaire des tâches et termine « Lorcana Picking Tool », puis relance (une seule fois, la mise à jour règle la suite)'
+    ]
+  },
+  {
     version: '2.43.9',
     title: 'Audit anti-robot complet : plus rien à faire manuellement',
     items: [
