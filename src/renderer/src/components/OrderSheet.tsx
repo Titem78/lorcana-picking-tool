@@ -162,9 +162,25 @@ export default function OrderSheet({
     window.api.orders.lines(initial.id).then(setLines)
     onChanged()
   }
+  // Ordre d'affichage des cartes (Réglages → Préparation) : 'pdf' = ordre de
+  // la vente Cardmarket (défaut, lecture en parallèle du PDF) ; 'picking' =
+  // chapitre + numéro, l'ordre de la pile sortie des boîtes.
+  const [ordreCartes, setOrdreCartes] = useState<'pdf' | 'picking'>('pdf')
   useEffect(() => {
     window.api.orders.lines(initial.id).then(setLines)
+    window.api.settings
+      .get('prep_sort')
+      .then((v: string | null) => setOrdreCartes(v === 'picking' ? 'picking' : 'pdf'))
   }, [initial.id])
+
+  const lignesAffichees =
+    ordreCartes === 'picking'
+      ? [...lines].sort(
+          (a, b) =>
+            (parseInt(a.set_code ?? '0', 10) || 0) - (parseInt(b.set_code ?? '0', 10) || 0) ||
+            (parseInt(a.number ?? '0', 10) || 0) - (parseInt(b.number ?? '0', 10) || 0)
+        )
+      : lines
 
   const [shipMsg, setShipMsg] = useState('')
   const [cmPending, setCmPending] = useState(false)
@@ -393,7 +409,7 @@ export default function OrderSheet({
           )}
         </h3>
         <div className="copiable" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-          {lines.map((l) => (
+          {lignesAffichees.map((l) => (
             <div
               key={l.id}
               style={{

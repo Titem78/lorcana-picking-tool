@@ -794,7 +794,38 @@ function PickingOptions({ user }: { user: User }): React.JSX.Element {
         Désactivé : la commande passe directement dans l&apos;onglet ③ Préparation (un bandeau
         l&apos;annonce désormais dans le Picking).
       </p>
+      <PrepSortOption user={user} />
     </section>
+  )
+}
+
+/** Ordre des cartes dans la fiche de contrôle d'une commande. */
+function PrepSortOption({ user }: { user: User }): React.JSX.Element {
+  const [ordre, setOrdre] = useState<'pdf' | 'picking'>('pdf')
+  useEffect(() => {
+    window.api.settings
+      .get('prep_sort')
+      .then((v: string | null) => setOrdre(v === 'picking' ? 'picking' : 'pdf'))
+  }, [])
+  const change = (v: 'pdf' | 'picking'): void => {
+    setOrdre(v)
+    window.api.settings.set(user.id, 'prep_sort', v)
+  }
+  return (
+    <div style={{ marginTop: 16 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        Ordre des cartes dans la fiche de contrôle :
+        <select value={ordre} onChange={(e) => change(e.target.value as 'pdf' | 'picking')}>
+          <option value="pdf">Ordre du PDF Cardmarket (défaut)</option>
+          <option value="picking">Ordre du picking (chapitre + numéro)</option>
+        </select>
+      </label>
+      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 6, maxWidth: 620 }}>
+        « Ordre du PDF » se lit en parallèle de la vente Cardmarket ligne à ligne ; « Ordre du
+        picking » suit la pile de cartes telle qu&apos;elle sort des boîtes (chapitre puis numéro)
+        — plus naturel pour contrôler physiquement.
+      </p>
+    </div>
   )
 }
 

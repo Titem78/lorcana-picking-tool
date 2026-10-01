@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.12',
+    title: 'Choix de l’ordre des cartes dans la fiche de contrôle',
+    items: [
+      'Réglages → 🎯 Picking : choisis l’ordre des cartes dans la fiche d’une commande — « Ordre du PDF Cardmarket » (défaut, se lit en parallèle de la vente) ou « Ordre du picking » (chapitre + numéro, l’ordre de la pile sortie des boîtes)'
+    ]
+  },
+  {
     version: '2.43.11',
     title: 'Copier-coller dans les fiches client',
     items: [
