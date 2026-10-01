@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.43.11',
+    title: 'Copier-coller dans les fiches client',
+    items: [
+      'Le texte des fiches de vente est maintenant SÉLECTIONNABLE à la souris (adresse, lignes de cartes, totaux, tableaux) — avant, rien ne se laissait copier dans toute l’app',
+      'Bouton « 📋 Copier l’adresse » : nom + adresse du client en un clic, prêt à coller sur une étiquette ou un site d’affranchissement'
+    ]
+  },
+  {
     version: '2.43.10',
     title: 'L’app se relance toujours après fermeture',
     items: [

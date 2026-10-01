@@ -28,6 +28,17 @@ body {
   user-select: none;
 }
 
+/* Les DONNÉES restent sélectionnables/copiables (adresse client, tableaux,
+   numéros de suivi…) — seul l'habillage (boutons, menus) est en user-select:
+   none pour le confort. */
+td,
+input,
+textarea,
+.copiable,
+.copiable * {
+  user-select: text;
+}
+
 #root {
   height: 100vh;
   display: flex;

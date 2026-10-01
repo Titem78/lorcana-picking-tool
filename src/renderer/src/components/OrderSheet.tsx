@@ -296,17 +296,34 @@ export default function OrderSheet({
                 </button>
               )}
             </div>
-            <div style={{ whiteSpace: 'pre-line', color: 'var(--text-dim)' }}>
+            <div className="copiable" style={{ whiteSpace: 'pre-line', color: 'var(--text-dim)' }}>
               {order.buyer_name}
               {'\n'}
               {order.buyer_address}
             </div>
+            <button
+              style={{ padding: '2px 10px', fontSize: '0.8rem', marginTop: 6 }}
+              title="Copie le nom + l'adresse (prêt à coller sur une étiquette ou un site d'affranchissement)"
+              onClick={(e) => {
+                const btn = e.currentTarget
+                navigator.clipboard
+                  .writeText(`${order.buyer_name}\n${order.buyer_address}`)
+                  .then(() => {
+                    btn.textContent = '✔ Copiée'
+                    setTimeout(() => {
+                      btn.textContent = "📋 Copier l'adresse"
+                    }, 1600)
+                  })
+              }}
+            >
+              📋 Copier l&apos;adresse
+            </button>
           </div>
           <div>
             <h3 style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: 4 }}>
               Commande
             </h3>
-            <div style={{ color: 'var(--text-dim)' }}>
+            <div className="copiable" style={{ color: 'var(--text-dim)' }}>
               {order.article_count} article(s)
               <br />
               Valeur {order.item_value} + port {order.shipping_cost}
@@ -375,7 +392,7 @@ export default function OrderSheet({
             </>
           )}
         </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        <div className="copiable" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
           {lines.map((l) => (
             <div
               key={l.id}
