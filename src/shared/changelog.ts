@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.0',
+    title: 'Prête à être partagée : licence, guide, page d’aide',
+    items: [
+      'Nouvel onglet ❓ Aide : le parcours de démarrage en 6 étapes et les questions fréquentes — pour accueillir de nouveaux utilisateurs',
+      'Le README GitHub devient un vrai guide : installation (avertissement SmartScreen expliqué), configuration pas-à-pas, FAQ',
+      'Licence PolyForm Noncommercial 1.0.0 : l’application est gratuite, le code ne peut pas être réutilisé commercialement',
+      'Les liens externes de l’interface s’ouvrent dans ton navigateur par défaut'
+    ]
+  },
+  {
     version: '2.43.12',
     title: 'Choix de l’ordre des cartes dans la fiche de contrôle',
     items: [

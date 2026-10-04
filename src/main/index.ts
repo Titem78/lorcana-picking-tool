@@ -1,4 +1,4 @@
-import { app, BrowserWindow, net, protocol } from 'electron'
+import { app, BrowserWindow, net, protocol, shell } from 'electron'
 import { appendFileSync } from 'fs'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
@@ -111,6 +111,15 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // Les liens externes de l'interface (ex. page du projet dans l'Aide)
+  // s'ouvrent dans le navigateur par défaut, jamais dans une fenêtre Electron
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
 
   // Si le renderer meurt ou ne charge pas, on le note et on recharge une fois :
   // mieux qu'une fenêtre noire silencieuse.

@@ -12,6 +12,7 @@ import { CHANGELOG } from '@shared/changelog'
 import LocationsPage from './pages/LocationsPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
+import AidePage from './pages/AidePage'
 
 // L'ordre des onglets suit le flux de travail réel :
 // importer → picker → préparer/expédier → historique.
@@ -25,7 +26,8 @@ const TABS = [
   { id: 'stock', label: '📦 Stock' },
   { id: 'locations', label: '🗄️ Emplacements' },
   { id: 'compta', label: '🔄 Sync gestion co.' },
-  { id: 'settings', label: '⚙️ Réglages' }
+  { id: 'settings', label: '⚙️ Réglages' },
+  { id: 'aide', label: '❓ Aide' }
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -264,6 +266,7 @@ export default function App(): React.JSX.Element {
         {tab === 'stock' && <StockPage user={user} />}
         {tab === 'compta' && <ComptaPage user={user} />}
         {tab === 'settings' && <SettingsPage user={user} />}
+        {tab === 'aide' && <AidePage />}
       </main>
       {updateMsg && (
         <div className="toast" onClick={() => setUpdateMsg(null)}>
