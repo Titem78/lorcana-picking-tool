@@ -923,7 +923,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {lignesManquants.map((m, i) => (
+                  {lignesManquants.slice(0, 500).map((m, i) => (
                     <tr key={i}>
                       <CarteCell r={m} />
                       <td>{chapitre(m)}</td>
@@ -950,6 +950,12 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                   ))}
                 </tbody>
               </table>
+              {lignesManquants.length > 500 && (
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 8 }}>
+                  500 premières lignes affichées sur {lignesManquants.length} — utilise les
+                  puces Raretés au-dessus pour cibler (ex. seulement Légendaire).
+                </p>
+              )}
               {lignesManquants.length === 0 && (
                 <p style={{ color: 'var(--text-dim)' }}>Tout le stock est au-dessus des seuils 🎉</p>
               )}

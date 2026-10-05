@@ -263,8 +263,11 @@ export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string
       rows.push({ ...g, seuil, manque: seuil - g.quantity })
     }
   }
+  // ⚠ Pas de plafond ici : un tri « plus gros manque d'abord » tronqué
+  // faisait disparaître TOUTES les raretés à petit seuil (Légendaire,
+  // Enchantée…) derrière les centaines de Communes — bug réel signalé.
   rows.sort((a, b) => b.manque - a.manque || a.name.localeCompare(b.name))
-  return { rows: rows.slice(0, 1000), seuils }
+  return { rows, seuils }
 }
 
 // Prix « 1,50 EUR » → centimes, version SQL (approx : partie entière + décimales)

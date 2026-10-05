@@ -231,7 +231,8 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     expect(elsa?.manque).toBe(29)
     const mickey = r.rows.find((x) => x.name.includes('Mickey') && x.rarity === 'Uncommon')
     expect(mickey?.manque).toBeUndefined() // b1 : 5 en stock ≥ seuil 4 → absent
-    // tri : le plus gros manque d'abord
+    // tri : le plus gros manque d'abord, et JAMAIS tronqué (les raretés à
+    // petit seuil doivent toujours apparaître derrière les Communes)
     expect(r.rows[0].manque).toBeGreaterThanOrEqual(r.rows[r.rows.length - 1].manque)
   })
 })

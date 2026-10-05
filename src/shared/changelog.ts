@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.1',
+    title: 'Seuils : les Légendaires et raretés rares réapparaissent',
+    items: [
+      'Bug signalé : les cartes Légendaire/Promo/Enchantée/Iconique sous leur seuil n’apparaissaient jamais — la liste était plafonnée aux 1 000 plus gros manques, et les centaines de Communes (manque 20-30) évinçaient toujours les raretés à petit seuil (manque 1-2)',
+      'Corrigé : la liste est complète ; au-delà de 500 lignes affichées, utilise les puces Raretés pour cibler (ex. seulement Légendaire)'
+    ]
+  },
+  {
     version: '2.44.0',
     title: 'Prête à être partagée : licence, guide, page d’aide',
     items: [
