@@ -235,4 +235,19 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     // petit seuil doivent toujours apparaître derrière les Communes)
     expect(r.rows[0].manque).toBeGreaterThanOrEqual(r.rows[r.rows.length - 1].manque)
   })
+
+  it('une carte ÉPUISÉE (disparue du miroir) apparaît avec 0 en stock', async () => {
+    const { lowStockByRarity } = await import('../src/main/stock')
+    const db = getDb()
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_rarities', ?)"
+    ).run(JSON.stringify({ Promo: 1 }))
+    // Stitch (Promo DIS) a été vendue et son stock est tombé à zéro : la ligne
+    // n'existe PLUS dans stock_items, mais la vente des 90 derniers jours
+    // permet de la repérer.
+    const stitch = lowStockByRarity().rows.find((x) => x.name.includes('Stitch'))
+    expect(stitch?.quantity).toBe(0)
+    expect(stitch?.manque).toBe(1)
+    expect(stitch?.rarity).toBe('Promo')
+  })
 })

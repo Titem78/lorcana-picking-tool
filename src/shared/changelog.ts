@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.2',
+    title: 'Seuils : les cartes ÉPUISÉES apparaissent enfin',
+    items: [
+      'Bug signalé : une carte tombée à ZÉRO disparaissait des Seuils (quand le dernier exemplaire part, la ligne quitte le miroir de stock) — précisément celle qu’il fallait voir',
+      'Corrigé : les cartes vendues sur les 90 derniers jours mais absentes du stock remontent avec « 0 en stock » et le manque complet'
+    ]
+  },
+  {
     version: '2.44.1',
     title: 'Seuils : les Légendaires et raretés rares réapparaissent',
     items: [

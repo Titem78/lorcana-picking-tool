@@ -257,10 +257,37 @@ export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string
     )
     .all() as Omit<LowStockRow, 'seuil' | 'manque'>[]
   const rows: LowStockRow[] = []
+  const cleDe = (g: { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number }): string =>
+    `${g.name}|${g.set_code || g.color_code || ''}|${g.language ?? ''}|${g.is_foil}`
+  const enStock = new Set<string>()
   for (const g of groupes) {
+    enStock.add(cleDe(g))
     const seuil = seuils[g.rarity] ?? 0
     if (seuil > 0 && g.quantity < seuil) {
       rows.push({ ...g, seuil, manque: seuil - g.quantity })
+    }
+  }
+  // Cartes ÉPUISÉES : quand le dernier exemplaire part, la ligne DISPARAÎT du
+  // miroir — sans ce rattrapage, une carte à zéro était invisible ici (bug
+  // signalé : « seuil à 1, je n'en ai plus, elle n'apparaît pas »). On les
+  // retrouve par les ventes des 90 derniers jours.
+  const vendues = db
+    .prepare(
+      `SELECT l.name, l.set_code, l.color_code, l.language, l.is_foil,
+              COALESCE(l.rarity, l.rarity_code, '') AS rarity, MAX(l.price) AS price
+       FROM order_lines l JOIN orders o ON o.id = l.order_id
+       WHERE l.section LIKE '%arte%'
+         AND o.imported_at >= datetime('now', 'localtime', '-90 days')
+       GROUP BY l.name || '|' || COALESCE(NULLIF(l.set_code,''), NULLIF(l.color_code,''), '')
+                || '|' || COALESCE(l.language,'') || '|' || l.is_foil`
+    )
+    .all() as (Omit<LowStockRow, 'seuil' | 'manque' | 'quantity'> & { rarity: string })[]
+  for (const v of vendues) {
+    if (enStock.has(cleDe(v))) continue
+    const rarete = canonicalRarity(v.rarity)
+    const seuil = seuils[rarete] ?? 0
+    if (seuil > 0) {
+      rows.push({ ...v, rarity: rarete, quantity: 0, seuil, manque: seuil })
     }
   }
   // ⚠ Pas de plafond ici : un tri « plus gros manque d'abord » tronqué
