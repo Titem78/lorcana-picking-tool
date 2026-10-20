@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.4',
+    title: 'Fini les fausses ruptures (cartes en stock affichées à 0)',
+    items: [
+      'Cause trouvée sur les données réelles : l’inventaire balayait le stock SANS la langue des cartes (encore un piège de l’interface Cardmarket) — du coup le rapprochement avec les ventes échouait et des cartes bien en stock apparaissaient « 0 en stock » dans les Seuils',
+      'Double correctif : la langue est de nouveau lue au balayage, ET une ligne de stock sans langue compte désormais comme présente (joker) — plus jamais de fausse rupture, testé sur le cas exact signalé',
+      'Après mise à jour : relance un 📥 Inventaire général pour re-remplir les langues du stock'
+    ]
+  },
+  {
     version: '2.44.3',
     title: 'Seuils : fini les faux « 0 en stock » sur un PC sans inventaire',
     items: [

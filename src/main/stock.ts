@@ -265,11 +265,19 @@ export function lowStockByRarity(): {
     )
     .all() as Omit<LowStockRow, 'seuil' | 'manque'>[]
   const rows: LowStockRow[] = []
-  const cleDe = (g: { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number }): string =>
-    `${g.name}|${g.set_code || g.color_code || ''}|${g.language ?? ''}|${g.is_foil}`
+  // Présence en stock : TOUTES les lignes (même rareté inconnue), et une
+  // ligne sans langue vaut joker — sinon « 13 en stock » passait pour une
+  // rupture (bug réel : Adam de la Halle chez Laure).
   const enStock = new Set<string>()
+  const enStockJoker = new Set<string>()
+  const toutes = db
+    .prepare('SELECT name, set_code, color_code, language, is_foil FROM stock_items')
+    .all() as { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number }[]
+  for (const t of toutes) {
+    if (t.language) enStock.add(cleVenteLigne(t))
+    else enStockJoker.add(cleSansLangue(t))
+  }
   for (const g of groupes) {
-    enStock.add(cleDe(g))
     const seuil = seuils[g.rarity] ?? 0
     if (seuil > 0 && g.quantity < seuil) {
       rows.push({ ...g, seuil, manque: seuil - g.quantity })
@@ -291,7 +299,7 @@ export function lowStockByRarity(): {
     )
     .all() as (Omit<LowStockRow, 'seuil' | 'manque' | 'quantity'> & { rarity: string })[]
   for (const v of vendues) {
-    if (enStock.has(cleDe(v))) continue
+    if (enStock.has(cleVenteLigne(v)) || enStockJoker.has(cleSansLangue(v))) continue
     const rarete = canonicalRarity(v.rarity)
     const seuil = seuils[rarete] ?? 0
     if (seuil > 0) {
@@ -485,6 +493,18 @@ function cleVenteLigne(l: {
   return `${l.name}|${l.set_code || l.color_code || ''}|${l.language ?? ''}|${l.is_foil}`
 }
 
+/** Clé SANS la langue : certaines lignes de stock sont balayées sans langue
+ *  (bug Cardmarket/Bootstrap corrigé, mais données historiques) — une langue
+ *  VIDE vaut joker au rapprochement, jamais une fausse rupture. */
+function cleSansLangue(l: {
+  name: string
+  set_code: string | null
+  color_code: string | null
+  is_foil: number
+}): string {
+  return `${l.name}|${l.set_code || l.color_code || ''}|${l.is_foil}`
+}
+
 interface LigneVente {
   name: string
   number: string | null
@@ -522,10 +542,22 @@ export function salesStats(days: number): SalesRow[] {
   const lignes = lignesVendues(db, `-${d} days`, '+1 day')
   const precedentes = lignesVendues(db, `-${2 * d} days`, `-${d} days`)
 
-  const stock = db
-    .prepare(`SELECT ${CLE_STOCK} AS key, SUM(quantity) AS qty FROM stock_items GROUP BY key`)
-    .all() as { key: string; qty: number }[]
-  const stockByKey = new Map(stock.map((r) => [r.key, r.qty]))
+  const stockRows = db
+    .prepare('SELECT name, set_code, color_code, language, is_foil, quantity FROM stock_items')
+    .all() as { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number; quantity: number }[]
+  const stockByKey = new Map<string, number>()
+  const stockJoker = new Map<string, number>() // lignes SANS langue (joker)
+  for (const r of stockRows) {
+    if (r.language) {
+      const k = cleVenteLigne(r)
+      stockByKey.set(k, (stockByKey.get(k) ?? 0) + r.quantity)
+    } else {
+      const k = cleSansLangue(r)
+      stockJoker.set(k, (stockJoker.get(k) ?? 0) + r.quantity)
+    }
+  }
+  const stockPour = (l: { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number }): number =>
+    (stockByKey.get(cleVenteLigne(l)) ?? 0) + (stockJoker.get(cleSansLangue(l)) ?? 0)
 
   const prevByKey = new Map<string, number>()
   for (const l of precedentes) {
@@ -551,7 +583,7 @@ export function salesStats(days: number): SalesRow[] {
         orders: 0,
         revenue_cents: 0,
         last_price: l.price,
-        in_stock: stockByKey.get(key) ?? 0,
+        in_stock: stockPour(l),
         orderIds: new Set<number>()
       }
       byKey.set(key, row)
@@ -591,9 +623,9 @@ export interface DormantRow {
  */
 export function dormantStock(days: number): { rows: DormantRow[]; total_cents: number } {
   const db = getDb()
-  const vendues = new Set(
-    lignesVendues(db, `-${Math.max(1, Math.round(days))} days`, '+1 day').map(cleVenteLigne)
-  )
+  const lignesV = lignesVendues(db, `-${Math.max(1, Math.round(days))} days`, '+1 day')
+  const vendues = new Set(lignesV.map(cleVenteLigne))
+  const venduesSansLangue = new Set(lignesV.map(cleSansLangue))
   // Valeur calculée LIGNE PAR LIGNE (prix de chaque annonce × sa quantité) —
   // jamais « prix max × total », qui gonflait les groupes aux prix mélangés.
   const items = db
@@ -605,7 +637,8 @@ export function dormantStock(days: number): { rows: DormantRow[]; total_cents: n
     .all() as (DormantRow & { key: string })[]
   const groupes = new Map<string, DormantRow>()
   for (const it of items) {
-    if (vendues.has(it.key)) continue
+    if (it.language ? vendues.has(cleVenteLigne(it)) : venduesSansLangue.has(cleSansLangue(it)))
+      continue
     const valeur = prixEnCents(it.price) * it.quantity
     const g = groupes.get(it.key)
     if (!g) {

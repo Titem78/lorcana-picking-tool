@@ -253,6 +253,37 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     expect(stitch?.rarity).toBe('Promo')
   })
 
+  it('stock balayé SANS langue = joker, jamais une fausse rupture (bug Adam de la Halle)', async () => {
+    const { lowStockByRarity, salesStats } = await import('../src/main/stock')
+    const db = getDb()
+    // Cas réel : 13 ex en stock mais langue NULL (ancien balayage), vente FR
+    upsertStock(userId, [
+      { article_id: 'adam1', name: 'Adam de la Halle - Barde loyal', set_code: '12', color_code: 'WIL', condition: 'NM', is_foil: false, price: '0,04 EUR', quantity: 13 }
+    ])
+    db.prepare("UPDATE stock_items SET rarity = 'Common', language = NULL WHERE cm_article_id = 'adam1'").run()
+    const o = db
+      .prepare(
+        `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, status, imported_by)
+         VALUES ('999004', 'client4', 'Client Quatre', 'adresse', 'shipped', ?)`
+      )
+      .run(userId)
+    db.prepare(
+      `INSERT INTO order_lines (order_id, quantity, name, number, language, condition, set_code,
+         color_code, color_label, rarity_code, price, comment, is_foil, section)
+       VALUES (?, 2, 'Adam de la Halle - Barde loyal', '42', 'FR', 'NM', '12', 'WIL', '', 'C', '0,04 EUR', '', 0, 'Lorcana Cartes')`
+    ).run(Number(o.lastInsertRowid))
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_rarities', ?)"
+    ).run(JSON.stringify({ Common: 8 }))
+
+    // 13 en stock >= seuil 8 : ne doit PAS apparaître en rupture
+    const adam = lowStockByRarity().rows.find((x) => x.name.includes('Adam'))
+    expect(adam).toBeUndefined()
+    // et les Ventes voient bien les 13 exemplaires malgré la langue absente
+    const vente = salesStats(30).find((x) => x.name.includes('Adam'))
+    expect(vente?.in_stock).toBe(13)
+  })
+
   it('miroir VIDE : aucun faux « 0 en stock », le drapeau le signale', async () => {
     const { lowStockByRarity } = await import('../src/main/stock')
     const db = getDb()

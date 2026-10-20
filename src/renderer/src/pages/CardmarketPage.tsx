@@ -168,10 +168,16 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
           }
         }
       }
+      // ⚠ HTML récupéré par fetch : aria-label n'existe que sur page vivante
+      // (Bootstrap) — la langue est dans title / data-bs-title. Sans ça,
+      // 100 % du stock était balayé SANS langue (faux « 0 en stock »).
       let language = ''
-      for (const el of row.querySelectorAll('.product-attributes [aria-label]')) {
-        const l = LANG[(el.getAttribute('aria-label') || '').trim()]
-        if (l) { language = l; break }
+      for (const el of row.querySelectorAll('.product-attributes [aria-label],.product-attributes [title],.product-attributes [data-bs-title],.product-attributes [data-bs-original-title]')) {
+        for (const a of ['aria-label', 'title', 'data-bs-title', 'data-bs-original-title']) {
+          const l = LANG[(el.getAttribute(a) || '').trim()]
+          if (l) { language = l; break }
+        }
+        if (language) break
       }
       out.push({
         article_id: row.id.replace('stockRow', ''),
