@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.6',
+    title: 'Les Seuils se rafraîchissent après l’inventaire',
+    items: [
+      'Après un Inventaire général, la liste des Seuils (et Ventes/À racheter/Dormant) restait figée sur l’état d’AVANT le balayage — on pouvait encore voir d’anciennes fausses ruptures alors que la base était déjà juste. Tout se rafraîchit maintenant à la fin de l’inventaire',
+      'Nettoyage d’un vieil artefact (noms pollués par « Historique des commandes: ») qui créait une ligne fantôme',
+      'Vérifié sur les données réelles après balayage : langues remplies à 100 %, quantités justes, plus aucune fausse rupture'
+    ]
+  },
+  {
     version: '2.44.5',
     title: 'Seuils : les réimpressions ne créent plus de fausses ruptures',
     items: [

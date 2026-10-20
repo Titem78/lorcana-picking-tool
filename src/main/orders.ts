@@ -552,6 +552,13 @@ export async function enrichPendingOrders(): Promise<number> {
  */
 export async function repairNumbersInNames(): Promise<number> {
   const db = getDb()
+  // Nettoyage d'un vieil artefact d'extraction : des noms pollués par le
+  // libellé « Historique des commandes: » collé en fin — ils créaient des
+  // lignes fantômes dans les rapprochements (Seuils). Idempotent.
+  db.prepare(
+    `UPDATE order_lines SET name = TRIM(REPLACE(name, 'Historique des commandes:', ''))
+     WHERE name LIKE '%Historique des commandes:%'`
+  ).run()
   const rows = db
     .prepare(
       `SELECT id, name, set_code, color_code, language, ink, rarity, image_file, lorcast_name

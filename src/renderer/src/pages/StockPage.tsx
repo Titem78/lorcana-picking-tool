@@ -385,9 +385,18 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       setInvProgress((e as CustomEvent).detail as typeof invProgress)
     const onDone = (e: Event): void => {
       setInvMsg(String((e as CustomEvent).detail ?? ''))
-      // Rareté + encre des nouveaux articles (données officielles, hors CM)
-      window.api.stock.enrichMeta().then(() => refresh())
+      // Rafraîchir TOUTES les vues après l'inventaire — la liste des Seuils
+      // restait figée sur l'état d'avant le balayage (bug réel : fausses
+      // ruptures encore affichées alors que la base était déjà juste)
+      window.api.stock.enrichMeta().then(() => {
+        refresh()
+        chargerSeuils()
+        window.api.stock.dormant(dormantDays).then(setDormant)
+        window.api.stock.sales(days).then(setSales)
+        window.api.stock.restock(days, minSold).then(setRestock)
+      })
       refresh()
+      chargerSeuils()
     }
     window.addEventListener('inventory-progress', onProgress)
     window.addEventListener('inventory-done', onDone)
