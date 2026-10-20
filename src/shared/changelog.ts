@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.45.0',
+    title: 'Seuils : les foils et les cartes EN ne polluent plus la liste',
+    items: [
+      'Par défaut, les seuils s’appliquent aux exemplaires NORMAUX et FRANÇAIS : les versions foil (qu’on ne réassortit pas) et les cartes d’autres langues ne remplissent plus la liste avec des « manque 1 »',
+      'Deux cases à cocher dans la section Seuils pour élargir si besoin (compter les foils / toutes les langues)'
+    ]
+  },
+  {
     version: '2.44.6',
     title: 'Les Seuils se rafraîchissent après l’inventaire',
     items: [

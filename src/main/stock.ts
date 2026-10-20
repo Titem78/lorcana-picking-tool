@@ -234,9 +234,32 @@ export interface LowStockRow {
  * Cartes SOUS LE SEUIL de leur rareté (réglage « stock_min_rarities », JSON
  * {Common: 30, …}) : là où il faut recompléter depuis les boîtes.
  */
+export interface LowStockScope {
+  /** 'nonfoil' (défaut) : les seuils visent les exemplaires normaux — les
+   *  foils sont des à-côtés qu'on ne réassortit pas ; 'all' : tout compter */
+  foil: 'nonfoil' | 'all'
+  /** true : seulement les cartes françaises */
+  fr_only: boolean
+}
+
+export function lowStockScope(): LowStockScope {
+  try {
+    const raw = (
+      getDb().prepare("SELECT value FROM settings WHERE key = 'stock_min_scope'").get() as
+        | { value: string }
+        | undefined
+    )?.value
+    const v = raw ? (JSON.parse(raw) as Partial<LowStockScope>) : {}
+    return { foil: v.foil === 'all' ? 'all' : 'nonfoil', fr_only: v.fr_only !== false }
+  } catch {
+    return { foil: 'nonfoil', fr_only: true }
+  }
+}
+
 export function lowStockByRarity(): {
   rows: LowStockRow[]
   seuils: Record<string, number>
+  scope: LowStockScope
   /** le miroir de CE PC est vide : les seuils n'ont aucun sens (chaque PC a
    *  sa propre base — l'inventaire général doit être lancé ICI) */
   miroir_vide: boolean
@@ -255,8 +278,13 @@ export function lowStockByRarity(): {
   }
   const miroirVide =
     (db.prepare('SELECT COUNT(*) AS n FROM stock_items').get() as { n: number }).n === 0
+  const scope = lowStockScope()
+  const horsPerimetre = (x: { is_foil: number; language: string | null }): boolean =>
+    (scope.foil === 'nonfoil' && x.is_foil === 1) ||
+    (scope.fr_only && !!x.language && x.language !== 'FR')
   const actifs = Object.entries(seuils).filter(([, v]) => v > 0)
-  if (actifs.length === 0 || miroirVide) return { rows: [], seuils, miroir_vide: miroirVide }
+  if (actifs.length === 0 || miroirVide)
+    return { rows: [], seuils, scope, miroir_vide: miroirVide }
   const groupes = db
     .prepare(
       `SELECT name, set_code, color_code, language, is_foil, MAX(rarity) AS rarity,
@@ -283,6 +311,7 @@ export function lowStockByRarity(): {
     enStockParNom.add(`${t.name}|${t.is_foil}`)
   }
   for (const g of groupes) {
+    if (horsPerimetre(g)) continue
     const seuil = seuils[g.rarity] ?? 0
     if (seuil > 0 && g.quantity < seuil) {
       rows.push({ ...g, seuil, manque: seuil - g.quantity })
@@ -304,6 +333,7 @@ export function lowStockByRarity(): {
     )
     .all() as (Omit<LowStockRow, 'seuil' | 'manque' | 'quantity'> & { rarity: string })[]
   for (const v of vendues) {
+    if (horsPerimetre(v)) continue
     if (
       enStock.has(cleVenteLigne(v)) ||
       enStockJoker.has(cleSansLangue(v)) ||
@@ -320,7 +350,7 @@ export function lowStockByRarity(): {
   // faisait disparaître TOUTES les raretés à petit seuil (Légendaire,
   // Enchantée…) derrière les centaines de Communes — bug réel signalé.
   rows.sort((a, b) => b.manque - a.manque || a.name.localeCompare(b.name))
-  return { rows, seuils, miroir_vide: false }
+  return { rows, seuils, scope, miroir_vide: false }
 }
 
 // Prix « 1,50 EUR » → centimes, version SQL (approx : partie entière + décimales)

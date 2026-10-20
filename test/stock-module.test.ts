@@ -242,6 +242,10 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     db.prepare(
       "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_rarities', ?)"
     ).run(JSON.stringify({ Promo: 1 }))
+    // la carte du test est EN : on élargit le périmètre (par défaut FR seul)
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_scope', ?)"
+    ).run(JSON.stringify({ foil: 'nonfoil', fr_only: false }))
     // Stitch (Promo DIS) a été vendue et son stock est tombé à zéro : la ligne
     // n'existe PLUS dans stock_items, mais la vente des 90 derniers jours
     // permet de la repérer.

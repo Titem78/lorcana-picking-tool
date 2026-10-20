@@ -301,14 +301,30 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     }[]
   >([])
   const [miroirVide, setMiroirVide] = useState(false)
+  const [scope, setScope] = useState<{ foil: 'nonfoil' | 'all'; fr_only: boolean }>({
+    foil: 'nonfoil',
+    fr_only: true
+  })
   const chargerSeuils = (): void => {
     window.api.stock
       .lowStock()
-      .then((r: { rows: typeof manquants; seuils: Record<string, number>; miroir_vide: boolean }) => {
-        setManquants(r.rows)
-        setSeuils(r.seuils)
-        setMiroirVide(r.miroir_vide)
-      })
+      .then(
+        (r: {
+          rows: typeof manquants
+          seuils: Record<string, number>
+          scope: { foil: 'nonfoil' | 'all'; fr_only: boolean }
+          miroir_vide: boolean
+        }) => {
+          setManquants(r.rows)
+          setSeuils(r.seuils)
+          setScope(r.scope)
+          setMiroirVide(r.miroir_vide)
+        }
+      )
+  }
+  const sauverScope = (next: { foil: 'nonfoil' | 'all'; fr_only: boolean }): void => {
+    setScope(next)
+    window.api.settings.set(user.id, 'stock_min_scope', JSON.stringify(next)).then(chargerSeuils)
   }
   const sauverSeuil = (rarity: string, value: number): void => {
     const next = { ...seuils }
@@ -912,6 +928,24 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               (connecté à Cardmarket) : sans lui, tout paraîtrait « 0 en stock » à tort.
             </div>
           )}
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center', fontSize: '0.88rem' }}>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={scope.foil === 'nonfoil'}
+                onChange={(e) => sauverScope({ ...scope, foil: e.target.checked ? 'nonfoil' : 'all' })}
+              />
+              Ignorer les foils (seuils sur les exemplaires normaux)
+            </label>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={scope.fr_only}
+                onChange={(e) => sauverScope({ ...scope, fr_only: e.target.checked })}
+              />
+              Cartes françaises uniquement
+            </label>
+          </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
             {['Common', 'Uncommon', 'Rare', 'Super_rare', 'Epic', 'Legendary', 'Enchanted', 'Promo', 'Iconic'].map(
               (r) => (
