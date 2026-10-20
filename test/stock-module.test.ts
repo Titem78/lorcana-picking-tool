@@ -245,9 +245,27 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     // Stitch (Promo DIS) a été vendue et son stock est tombé à zéro : la ligne
     // n'existe PLUS dans stock_items, mais la vente des 90 derniers jours
     // permet de la repérer.
-    const stitch = lowStockByRarity().rows.find((x) => x.name.includes('Stitch'))
+    const r = lowStockByRarity()
+    expect(r.miroir_vide).toBe(false)
+    const stitch = r.rows.find((x) => x.name.includes('Stitch'))
     expect(stitch?.quantity).toBe(0)
     expect(stitch?.manque).toBe(1)
     expect(stitch?.rarity).toBe('Promo')
+  })
+
+  it('miroir VIDE : aucun faux « 0 en stock », le drapeau le signale', async () => {
+    const { lowStockByRarity } = await import('../src/main/stock')
+    const db = getDb()
+    const sauvegarde = db.prepare('SELECT * FROM stock_items').all()
+    db.prepare('DELETE FROM stock_items').run()
+    const r = lowStockByRarity()
+    expect(r.miroir_vide).toBe(true)
+    expect(r.rows).toHaveLength(0) // jamais la liste des ventes en entier
+    // restauration pour les autres tests éventuels
+    const cols = Object.keys(sauvegarde[0] as Record<string, unknown>)
+    const ins = db.prepare(
+      'INSERT INTO stock_items (' + cols.join(',') + ') VALUES (' + cols.map(() => '?').join(',') + ')'
+    )
+    for (const row of sauvegarde) ins.run(...cols.map((c) => (row as Record<string, unknown>)[c]))
   })
 })

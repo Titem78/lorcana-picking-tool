@@ -234,7 +234,13 @@ export interface LowStockRow {
  * Cartes SOUS LE SEUIL de leur rareté (réglage « stock_min_rarities », JSON
  * {Common: 30, …}) : là où il faut recompléter depuis les boîtes.
  */
-export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string, number> } {
+export function lowStockByRarity(): {
+  rows: LowStockRow[]
+  seuils: Record<string, number>
+  /** le miroir de CE PC est vide : les seuils n'ont aucun sens (chaque PC a
+   *  sa propre base — l'inventaire général doit être lancé ICI) */
+  miroir_vide: boolean
+} {
   const db = getDb()
   let seuils: Record<string, number> = {}
   try {
@@ -247,8 +253,10 @@ export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string
   } catch {
     seuils = {}
   }
+  const miroirVide =
+    (db.prepare('SELECT COUNT(*) AS n FROM stock_items').get() as { n: number }).n === 0
   const actifs = Object.entries(seuils).filter(([, v]) => v > 0)
-  if (actifs.length === 0) return { rows: [], seuils }
+  if (actifs.length === 0 || miroirVide) return { rows: [], seuils, miroir_vide: miroirVide }
   const groupes = db
     .prepare(
       `SELECT name, set_code, color_code, language, is_foil, MAX(rarity) AS rarity,
@@ -294,7 +302,7 @@ export function lowStockByRarity(): { rows: LowStockRow[]; seuils: Record<string
   // faisait disparaître TOUTES les raretés à petit seuil (Légendaire,
   // Enchantée…) derrière les centaines de Communes — bug réel signalé.
   rows.sort((a, b) => b.manque - a.manque || a.name.localeCompare(b.name))
-  return { rows, seuils }
+  return { rows, seuils, miroir_vide: false }
 }
 
 // Prix « 1,50 EUR » → centimes, version SQL (approx : partie entière + décimales)

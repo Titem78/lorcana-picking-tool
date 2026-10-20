@@ -300,11 +300,15 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       manque: number
     }[]
   >([])
+  const [miroirVide, setMiroirVide] = useState(false)
   const chargerSeuils = (): void => {
-    window.api.stock.lowStock().then((r: { rows: typeof manquants; seuils: Record<string, number> }) => {
-      setManquants(r.rows)
-      setSeuils(r.seuils)
-    })
+    window.api.stock
+      .lowStock()
+      .then((r: { rows: typeof manquants; seuils: Record<string, number>; miroir_vide: boolean }) => {
+        setManquants(r.rows)
+        setSeuils(r.seuils)
+        setMiroirVide(r.miroir_vide)
+      })
   }
   const sauverSeuil = (rarity: string, value: number): void => {
     const next = { ...seuils }
@@ -884,6 +888,21 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             exemplaires en vente par carte) : la liste montre toutes les cartes SOUS leur seuil,
             avec combien il en manque — à recompléter depuis les boîtes. Vide = pas de seuil.
           </p>
+          {miroirVide && (
+            <div
+              style={{
+                border: '1px solid #f0a020',
+                borderRadius: 'var(--radius)',
+                padding: '10px 14px',
+                marginBottom: 14,
+                maxWidth: 760
+              }}
+            >
+              ⚠ <b>Le miroir de stock de CE PC est vide</b> — les seuils comparent au stock
+              LOCAL, et chaque PC a sa propre base. Lance un <b>📥 Inventaire général ici</b>{' '}
+              (connecté à Cardmarket) : sans lui, tout paraîtrait « 0 en stock » à tort.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
             {['Common', 'Uncommon', 'Rare', 'Super_rare', 'Epic', 'Legendary', 'Enchanted', 'Promo', 'Iconic'].map(
               (r) => (

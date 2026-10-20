@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.3',
+    title: 'Seuils : fini les faux « 0 en stock » sur un PC sans inventaire',
+    items: [
+      'Chaque PC a sa PROPRE base : le miroir de stock n’existe que là où l’Inventaire général a été lancé. Sur un PC au miroir vide, les Seuils affichaient « 0 en stock » pour des cartes bien présentes sur Cardmarket',
+      'Corrigé : sur un miroir vide, plus aucune fausse rupture — un avertissement clair invite à lancer 📥 Inventaire général SUR CE PC',
+      'Rappel pratique : pour le stock (Seuils, Ventes, À racheter, Dormant), utilisez le PC où l’inventaire est fait — ou lancez un inventaire sur chaque poste'
+    ]
+  },
+  {
     version: '2.44.2',
     title: 'Seuils : les cartes ÉPUISÉES apparaissent enfin',
     items: [
