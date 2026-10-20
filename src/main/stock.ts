@@ -270,12 +270,17 @@ export function lowStockByRarity(): {
   // rupture (bug réel : Adam de la Halle chez Laure).
   const enStock = new Set<string>()
   const enStockJoker = new Set<string>()
+  // 3e filet : nom+foil seuls — une RÉIMPRESSION (même carte listée sous le
+  // chapitre 1 ET le 9) ne doit jamais passer pour une rupture parce que la
+  // vente et le stock ne citent pas le même chapitre
+  const enStockParNom = new Set<string>()
   const toutes = db
     .prepare('SELECT name, set_code, color_code, language, is_foil FROM stock_items')
     .all() as { name: string; set_code: string | null; color_code: string | null; language: string | null; is_foil: number }[]
   for (const t of toutes) {
     if (t.language) enStock.add(cleVenteLigne(t))
     else enStockJoker.add(cleSansLangue(t))
+    enStockParNom.add(`${t.name}|${t.is_foil}`)
   }
   for (const g of groupes) {
     const seuil = seuils[g.rarity] ?? 0
@@ -299,7 +304,12 @@ export function lowStockByRarity(): {
     )
     .all() as (Omit<LowStockRow, 'seuil' | 'manque' | 'quantity'> & { rarity: string })[]
   for (const v of vendues) {
-    if (enStock.has(cleVenteLigne(v)) || enStockJoker.has(cleSansLangue(v))) continue
+    if (
+      enStock.has(cleVenteLigne(v)) ||
+      enStockJoker.has(cleSansLangue(v)) ||
+      enStockParNom.has(`${v.name}|${v.is_foil}`)
+    )
+      continue
     const rarete = canonicalRarity(v.rarity)
     const seuil = seuils[rarete] ?? 0
     if (seuil > 0) {

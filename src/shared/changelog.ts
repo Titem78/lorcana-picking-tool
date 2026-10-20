@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.44.5',
+    title: 'Seuils : les réimpressions ne créent plus de fausses ruptures',
+    items: [
+      'Une carte RÉIMPRIMÉE (listée sous le chapitre 1 ET le 9, par ex.) pouvait passer pour « 0 en stock » si la vente et le stock ne citaient pas le même chapitre — 3e filet de sécurité : tant que le NOM est en stock (foil/non-foil respecté), aucune rupture n’est inventée',
+      'Rappel : vérifie que la version en bas de la barre latérale est bien ≥ 2.44.4 sur CHAQUE PC (bandeau « Redémarrer maintenant »), puis relance un Inventaire général'
+    ]
+  },
+  {
     version: '2.44.4',
     title: 'Fini les fausses ruptures (cartes en stock affichées à 0)',
     items: [
