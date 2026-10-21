@@ -1068,8 +1068,9 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             Suis le prix d&apos;une carte précise : ouvre sa <b>page produit</b> dans l&apos;onglet
             🌐 Cardmarket puis clique <b>📈 Suivre</b>. Relevés automatiques <b>2×/jour</b> (app
             ouverte, 30 cartes max) : disponibilité, prix plancher, tendance, moyennes 30/7/1 j,
-            et ton propre prix. L&apos;historique se construit au fil des jours — clique une ligne
-            pour le voir.
+            et ton propre prix. Le bouton <b>📊 Historique</b> montre les relevés d&apos;une carte.
+            « Mon prix » vide = ton annonce n&apos;a pas été repérée sur la page (pas d&apos;annonce,
+            ou structure à calibrer — envoie un dump 🐞 de la page produit).
           </p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
@@ -1140,6 +1141,13 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                       {d?.taken_at?.slice(0, 16) ?? 'jamais'}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className={histoDe === w.id ? 'primary' : ''}
+                        title="Voir l'historique des relevés de cette carte"
+                        onClick={() => setHistoDe(histoDe === w.id ? null : w.id)}
+                      >
+                        📊 Historique
+                      </button>{' '}
                       <button
                         title="Relever maintenant"
                         onClick={() =>

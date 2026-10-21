@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.46.1',
+    title: 'Suivi : bouton Historique visible',
+    items: [
+      'Le détail d’une carte suivie s’ouvre maintenant par un vrai bouton « 📊 Historique » (le clic sur la ligne marche toujours, mais il était invisible)',
+      '« Mon prix » vide est expliqué dans l’entête de la section — un dump 🐞 d’une page produit où tu as une annonce permettra de calibrer la détection'
+    ]
+  },
+  {
     version: '2.46.0',
     title: '📈 Suivi de prix : surveille tes cartes clés',
     items: [
