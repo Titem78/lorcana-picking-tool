@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   session: { fromPartition: () => ({}) }
 }))
 
-import { parseProductPage, euroEnCents, extractIdProduct } from '../src/main/pricewatch'
+import { parseProductPage, euroEnCents, extractIdProduct, parseMesOffres } from '../src/main/pricewatch'
 
 // Reproduit la page produit réelle (capture Mushu - Dragon furtif, 22/09)
 const PAGE_MUSHU = `
@@ -75,5 +75,38 @@ describe('extractIdProduct — identifiant produit depuis la page (lien export q
 
   it('page sans identifiant → null (jamais deviné)', () => {
     expect(extractIdProduct('<html><body>rien ici</body></html>')).toBeNull()
+  })
+})
+
+describe('parseMesOffres — NOTRE annonce sur NOTRE page « Mes offres » (cas réel Buzz 2 250 € invisible sur la page produit)', () => {
+  const HTML = `
+    <div class="row">
+      <a href="/fr/Lorcana/Products/Singles/Wilds-Unknown/Buzz-Lightyear-Jungle-Ranger-V1">Buzz l’Éclair - Ranger de la jungle (V.1)</a>
+      <span class="price-container">145,00 €</span><span class="item-count">2</span>
+    </div>
+    <div class="row">
+      <a href="/fr/Lorcana/Products/Singles/Wilds-Unknown/Buzz-Lightyear-Jungle-Ranger-V2?language=2">Buzz l’Éclair - Ranger de la jungle (V.2)</a>
+      <span title="Foil"><svg class="icon-foil"></svg></span>
+      <span class="price-container">2.250,00 €</span><span class="item-count">1</span>
+    </div>`
+
+  it('trouve la ligne par le LIEN EXACT du produit (V.2), jamais par nom', () => {
+    const offres = parseMesOffres(HTML, 'Buzz-Lightyear-Jungle-Ranger-V2')
+    expect(offres).toEqual([{ price_cents: 225000, qty: 1, foil: true }])
+  })
+
+  it('la V.1 ne remonte JAMAIS la ligne V.2 (et inversement)', () => {
+    const offres = parseMesOffres(HTML, 'Buzz-Lightyear-Jungle-Ranger-V1')
+    expect(offres).toEqual([{ price_cents: 14500, qty: 2, foil: false }])
+  })
+
+  it('aucune annonce de ce produit → liste vide, jamais deviné', () => {
+    expect(parseMesOffres(HTML, 'Mickey-Mouse-Best-in-Town-V2')).toEqual([])
+    expect(parseMesOffres('<html>Maintenance</html>', 'Buzz-Lightyear-Jungle-Ranger-V2')).toEqual([])
+  })
+
+  it('foil lu sur data-bs-title aussi (HTML fetché, piège Bootstrap connu)', () => {
+    const h = HTML.replace('title="Foil"><svg class="icon-foil">', 'data-bs-title="Version Foil"><svg>')
+    expect(parseMesOffres(h, 'Buzz-Lightyear-Jungle-Ranger-V2')[0].foil).toBe(true)
   })
 })

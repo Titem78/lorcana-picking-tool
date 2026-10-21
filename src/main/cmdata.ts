@@ -152,6 +152,74 @@ function produitsParNom(produits: Map<number, ProduitRow>): Map<string, ProduitR
   return m
 }
 
+/** nom FR (ou déjà EN) + set → nom EN normalisé du catalogue, via le pont. */
+function resoudreNomEn(
+  nom: string,
+  set: string,
+  parNom: Map<string, ProduitRow[]>,
+  pont: Awaited<ReturnType<typeof getPont>>
+): string | null {
+  const frNorm = normName(nom)
+  let enNorm: string | null = set ? (pont?.parFrSet[`${frNorm}|${set}`]?.en ?? null) : null
+  if (!enNorm && pont) {
+    for (const k of Object.keys(pont.parFrSet)) {
+      if (k.startsWith(`${frNorm}|`)) {
+        enNorm = pont.parFrSet[k].en
+        break
+      }
+    }
+  }
+  if (!enNorm && parNom.has(frNorm)) enNorm = frNorm // scellé / nom déjà anglais
+  return enNorm
+}
+
+export interface AnnonceStock {
+  qty: number
+  /** annonce la moins chère (celle qui part en premier) */
+  price_cents: number
+  foil: boolean
+}
+
+/**
+ * NOS annonces (miroir stock de l'inventaire) indexées par produit exact
+ * `idProduct|foil` — même chaîne de correspondance que le radar. Sert de
+ * source de vérité pour « Mon annonce » : la page produit ne liste que ses
+ * premières offres, une annonce chère n'y figure pas du tout.
+ */
+export async function annoncesStockParProduit(data: MarketData): Promise<Map<string, AnnonceStock>> {
+  const pont = await getPont()
+  const parNom = produitsParNom(data.produits)
+  const { prixEnCents } = await import('./stock')
+  const db = getDb()
+  const m = new Map<string, AnnonceStock>()
+  const stock = db
+    .prepare(
+      `SELECT name, COALESCE(NULLIF(set_code,''), NULLIF(color_code,''), '') AS s, is_foil,
+              quantity, price
+       FROM stock_items`
+    )
+    .all() as { name: string; s: string; is_foil: number; quantity: number; price: string | null }[]
+  for (const r of stock) {
+    const enNorm = resoudreNomEn(r.name, r.s, parNom, pont)
+    if (!enNorm) continue
+    const prods = parNom.get(enNorm)
+    if (!prods?.length) continue
+    const produit = produitPourVersion(prods, r.name)
+    if (!produit) continue
+    const cents = prixEnCents(r.price)
+    if (cents <= 0) continue
+    const cle = `${produit.idProduct}|${r.is_foil === 1}`
+    const deja = m.get(cle)
+    if (deja) {
+      deja.qty += r.quantity
+      deja.price_cents = Math.min(deja.price_cents, cents)
+    } else {
+      m.set(cle, { qty: r.quantity, price_cents: cents, foil: r.is_foil === 1 })
+    }
+  }
+  return m
+}
+
 /** Version (V.x) d'un nom : l'ordre des produits = l'ordre de création
  *  Cardmarket (vérifié : V.1 = base créée d'abord, V.2 = variante suivante). */
 export function produitPourVersion(prods: ProduitRow[], nom: string): ProduitRow | null {
@@ -234,17 +302,7 @@ export async function marketRadar(data: MarketData, seuilPct = 15): Promise<Rada
       )
       .all() as { name: string; s: string; is_foil: number; q: number }[]
     for (const r of stock) {
-      const frNorm = normName(r.name)
-      let enNorm: string | null = r.s ? (pont.parFrSet[`${frNorm}|${r.s}`]?.en ?? null) : null
-      if (!enNorm) {
-        for (const k of Object.keys(pont.parFrSet)) {
-          if (k.startsWith(`${frNorm}|`)) {
-            enNorm = pont.parFrSet[k].en
-            break
-          }
-        }
-      }
-      if (!enNorm && parNom.has(frNorm)) enNorm = frNorm // scellé/nom déjà EN
+      const enNorm = resoudreNomEn(r.name, r.s, parNom, pont)
       if (!enNorm) continue
       const prods = parNom.get(enNorm)
       if (!prods?.length) continue

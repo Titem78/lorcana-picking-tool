@@ -397,6 +397,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       avg30: number | null
       low: number | null
     } | null
+    annonce_stock: { price_cents: number; qty: number; foil: boolean } | null
     dernier: {
       taken_at: string
       available: number | null
@@ -1138,8 +1139,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             disponibilité et ton annonce. <b>Détenu hors vente</b> = exemplaires que tu
             possèdes sans les avoir mis en vente (en attente du bon moment) — avec ton
             <b> prix d&apos;achat</b>, le radar 💹 Marché calcule la plus-value du jour.
-            « Mon annonce » vide = annonce non repérée sur la page (envoie un dump 🐞 si tu
-            en as une).
+            « Mon annonce » = ton annonce vue sur la page, sinon le prix de ton
+            <b> inventaire stock</b> (la page ne montre que ses premières offres).
           </p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
@@ -1244,7 +1245,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                     <td style={{ textAlign: 'right' }}>
                       {d?.our_price_cents != null ? (
                         <span
-                          title={d.our_qty != null ? `${d.our_qty} en vente` : undefined}
+                          title={d.our_qty != null ? `${d.our_qty} en vente (vu sur la page)` : undefined}
                           style={
                             d.avg7_cents != null && d.our_price_cents > d.avg7_cents
                               ? { color: 'var(--danger, #e5534b)' }
@@ -1252,6 +1253,18 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                           }
                         >
                           {euros(d.our_price_cents)}
+                        </span>
+                      ) : w.annonce_stock ? (
+                        <span
+                          title={`${w.annonce_stock.qty} en vente — prix lu dans TON inventaire stock (l'annonce est trop loin dans la liste d'offres de la page pour y être visible)`}
+                          style={
+                            d?.avg7_cents != null && w.annonce_stock.price_cents > d.avg7_cents
+                              ? { color: 'var(--danger, #e5534b)' }
+                              : { color: 'var(--ok)' }
+                          }
+                        >
+                          {euros(w.annonce_stock.price_cents)}
+                          {w.annonce_stock.foil && <span style={{ color: 'var(--accent)' }}> ✨</span>}
                         </span>
                       ) : (
                         ''

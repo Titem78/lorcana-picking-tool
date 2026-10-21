@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.49.2',
+    title: '🎯 « Mon annonce » fiable (plus de trou)',
+    items: [
+      'Bug réel : une annonce chère (ex. 2 250 € parmi 68 offres) n’apparaît PAS dans la page produit — Cardmarket n’y met que les premières offres, le reste se charge au défilement. « Mon annonce » restait donc vide alors que l’annonce existait',
+      'Correction : ton annonce est maintenant lue sur TA page « Mes offres » filtrée par nom (une requête ciblée au moment du relevé, ligne identifiée par le lien exact du produit, version et foil compris) — aucun inventaire préalable requis',
+      'Double filet : si l’annonce est visible sur la page produit on la prend là, et le prix de ton inventaire stock sert de dernier recours ; structure de page inattendue → dump de débogage automatique, jamais de valeur devinée',
+      'Produit traqué sans identifiant (certains scellés) : rattrapé par nom unique du catalogue officiel'
+    ]
+  },
+  {
     version: '2.49.1',
     title: '🔄 Compta : paiements complémentaires reconnus',
     items: [
