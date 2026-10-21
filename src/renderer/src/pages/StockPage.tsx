@@ -378,7 +378,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       .then(setDiff)
   }, [section, fromId, toId])
 
-  // --- Section 📈 Suivi de prix ---------------------------------------------------
+  // --- Section 🎯 Tracking --------------------------------------------------------
   interface WatchRow {
     id: number
     url: string
@@ -387,6 +387,16 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     points: number
     reserve_qty: number
     buy_price_cents: number | null
+    id_product: number | null
+    is_foil: number
+    catalogue: {
+      name: string
+      trend: number | null
+      avg1: number | null
+      avg7: number | null
+      avg30: number | null
+      low: number | null
+    } | null
     dernier: {
       taken_at: string
       available: number | null
@@ -402,7 +412,6 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [watches, setWatches] = useState<WatchRow[]>([])
   const [watchMsg, setWatchMsg] = useState('')
   const [histoDe, setHistoDe] = useState<number | null>(null)
-  const [renomme, setRenomme] = useState<{ id: number; label: string } | null>(null)
   const [histo, setHisto] = useState<WatchRow['dernier'][]>([])
   const chargerSuivi = (): void => {
     window.api.pricewatch.list().then(setWatches)
@@ -430,9 +439,10 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [marche, setMarche] = useState<{ createdAt: string; achats: Oppo[]; bulles: Oppo[] } | null>(null)
   interface RadarRow {
     name: string
-    source: 'stock' | 'réserve'
-    qty: number
+    qty_en_vente: number
+    qty_detenu: number
     foil: boolean
+    exact: boolean
     trend: number
     avg1: number
     avg7: number | null
@@ -440,6 +450,18 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     buy_price_cents: number | null
   }
   const [radar, setRadar] = useState<RadarRow[] | null>(null)
+  interface ClassementRow {
+    rank: number
+    name: string
+    url: string
+    possede: boolean
+  }
+  const [tops, setTops] = useState<{
+    fetchedAt: string
+    top: ClassementRow[]
+    bargains: ClassementRow[]
+    erreur: string | null
+  } | null>(null)
   const [marcheMsg, setMarcheMsg] = useState('')
   const [marcheMin, setMarcheMin] = useState(100)
   const chargerMarche = (force = false): void => {
@@ -449,6 +471,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       setMarcheMsg(r ? '' : 'Export indisponible (hors-ligne ?) — réessaie plus tard')
     })
     window.api.market.radar().then(setRadar)
+    window.api.market.tops().then(setTops)
   }
   useEffect(() => {
     if (section === 'marche') chargerMarche()
@@ -584,7 +607,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             ['reassort', '💡 À racheter'],
             ['dormant', '😴 Dormant'],
             ['seuils', '🎯 Seuils'],
-            ['suivi', '📈 Suivi'],
+            ['suivi', '🎯 Tracking'],
             ['marche', '💹 Marché']
           ] as const
         ).map(([id, label]) => (
@@ -1108,12 +1131,15 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       {section === 'suivi' && (
         <>
           <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 820 }}>
-            Suis le prix d&apos;une carte précise : ouvre sa <b>page produit</b> dans l&apos;onglet
-            🌐 Cardmarket puis clique <b>📈 Suivre</b>. Relevés automatiques <b>2×/jour</b> (app
-            ouverte, 30 cartes max) : disponibilité, prix plancher, tendance, moyennes 30/7/1 j,
-            et ton propre prix. Le bouton <b>📊 Historique</b> montre les relevés d&apos;une carte.
-            « Mon prix » vide = ton annonce n&apos;a pas été repérée sur la page (pas d&apos;annonce,
-            ou structure à calibrer — envoie un dump 🐞 de la page produit).
+            Traque une carte ou un produit scellé précis (version exacte, foil compris) :
+            ouvre sa <b>page produit</b> dans l&apos;onglet 🌐 Cardmarket puis clique
+            <b> 🎯 Traquer</b> (30 max). Les prix viennent de l&apos;<b>export officiel
+            quotidien</b> de Cardmarket ; la page est relue <b>1×/jour</b> pour la
+            disponibilité et ton annonce. <b>Détenu hors vente</b> = exemplaires que tu
+            possèdes sans les avoir mis en vente (en attente du bon moment) — avec ton
+            <b> prix d&apos;achat</b>, le radar 💹 Marché calcule la plus-value du jour.
+            « Mon annonce » vide = annonce non repérée sur la page (envoie un dump 🐞 si tu
+            en as une).
           </p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
@@ -1127,7 +1153,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             >
               🔄 Tout actualiser maintenant
             </button>
-            <span className="badge">{watches.length} / 30 carte(s) suivie(s)</span>
+            <span className="badge">{watches.length} / 30 produit(s) traqué(s)</span>
             {watchMsg && <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{watchMsg}</span>}
           </div>
           <table className="data">
@@ -1140,9 +1166,14 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <th style={{ textAlign: 'right' }}>Moy 30 j</th>
                 <th style={{ textAlign: 'right' }}>Moy 7 j</th>
                 <th style={{ textAlign: 'right' }}>Moy 1 j</th>
-                <th style={{ textAlign: 'right' }}>Mon prix</th>
-                <th style={{ textAlign: 'right' }} title="Exemplaires possédés mais PAS mis en vente (en classeur, en attente du bon moment) — surveillés par le radar 💹 Marché">
-                  📁 Réserve
+                <th style={{ textAlign: 'right' }} title="Ton annonce repérée sur la page produit (prix, et quantité en infobulle)">
+                  Mon annonce
+                </th>
+                <th style={{ textAlign: 'right' }} title="Exemplaires possédés mais PAS mis en vente (en attente du bon moment) — surveillés par le radar 💹 Marché">
+                  Détenu hors vente
+                </th>
+                <th style={{ textAlign: 'right' }} title="Prix d'achat unitaire (optionnel) : sert au calcul de plus-value du radar 💹 Marché">
+                  Prix d'achat
                 </th>
                 <th>Dernier relevé</th>
                 <th></th>
@@ -1156,48 +1187,60 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 return (
                   <tr key={w.id} onClick={() => setHistoDe(histoDe === w.id ? null : w.id)} style={{ cursor: 'pointer' }}>
                     <td style={{ maxWidth: 260 }}>
-                      {renomme?.id === w.id ? (
-                        <input
-                          autoFocus
-                          value={renomme.label}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setRenomme({ id: w.id, label: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              window.api.pricewatch.rename(user.id, w.id, renomme.label).then(() => {
-                                setRenomme(null)
-                                chargerSuivi()
-                              })
-                            }
-                            if (e.key === 'Escape') setRenomme(null)
-                          }}
-                          style={{ width: '100%' }}
-                        />
-                      ) : (
-                        <span
-                          title={w.label}
-                          style={{
-                            display: 'block',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}
-                        >
-                          {chaud && (
-                            <span title="Tendance 7 j nettement au-dessus de la moyenne 30 j — ça monte">🔥 </span>
-                          )}
-                          {w.label}
-                        </span>
-                      )}
+                      <span
+                        title={w.catalogue ? `${w.label}\nCatalogue : ${w.catalogue.name}` : w.label}
+                        style={{
+                          display: 'block',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {chaud && (
+                          <span title="Tendance 7 j nettement au-dessus de la moyenne 30 j — ça monte">🔥 </span>
+                        )}
+                        {w.label}
+                        {w.is_foil === 1 && <span style={{ color: 'var(--accent)' }}> ✨</span>}
+                      </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>{d?.available ?? '…'}</td>
-                    <td style={{ textAlign: 'right' }}>{d?.from_cents != null ? euros(d.from_cents) : ''}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <b>{d?.trend_cents != null ? euros(d.trend_cents) : ''}</b>
+                      {d?.from_cents != null
+                        ? euros(d.from_cents)
+                        : w.catalogue?.low != null
+                          ? euros(Math.round(w.catalogue.low))
+                          : ''}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{d?.avg30_cents != null ? euros(d.avg30_cents) : ''}</td>
-                    <td style={{ textAlign: 'right' }}>{d?.avg7_cents != null ? euros(d.avg7_cents) : ''}</td>
-                    <td style={{ textAlign: 'right' }}>{d?.avg1_cents != null ? euros(d.avg1_cents) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <b>
+                        {d?.trend_cents != null
+                          ? euros(d.trend_cents)
+                          : w.catalogue?.trend != null
+                            ? euros(Math.round(w.catalogue.trend))
+                            : ''}
+                      </b>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {d?.avg30_cents != null
+                        ? euros(d.avg30_cents)
+                        : w.catalogue?.avg30 != null
+                          ? euros(Math.round(w.catalogue.avg30))
+                          : ''}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {d?.avg7_cents != null
+                        ? euros(d.avg7_cents)
+                        : w.catalogue?.avg7 != null
+                          ? euros(Math.round(w.catalogue.avg7))
+                          : ''}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {d?.avg1_cents != null
+                        ? euros(d.avg1_cents)
+                        : w.catalogue?.avg1 != null
+                          ? euros(Math.round(w.catalogue.avg1))
+                          : ''}
+                    </td>
                     <td style={{ textAlign: 'right' }}>
                       {d?.our_price_cents != null ? (
                         <span
@@ -1220,13 +1263,33 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                         min={0}
                         value={w.reserve_qty || ''}
                         placeholder="0"
-                        title="Quantité en réserve (classeur) — Entrée inutile, sauvé direct"
+                        title="Exemplaires détenus hors vente — sauvé direct"
                         onChange={(e) =>
                           window.api.pricewatch
                             .reserve(user.id, w.id, parseInt(e.target.value, 10) || 0, w.buy_price_cents)
                             .then(chargerSuivi)
                         }
                         style={{ width: 56, textAlign: 'right' }}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        key={`${w.id}-${w.buy_price_cents ?? ''}`}
+                        defaultValue={w.buy_price_cents != null ? w.buy_price_cents / 100 : ''}
+                        placeholder="€"
+                        title="Prix d'achat unitaire en € — sauvé en quittant le champ"
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value.replace(',', '.'))
+                          const cents = Number.isFinite(v) && v > 0 ? Math.round(v * 100) : null
+                          if (cents !== w.buy_price_cents)
+                            window.api.pricewatch
+                              .reserve(user.id, w.id, w.reserve_qty, cents)
+                              .then(chargerSuivi)
+                        }}
+                        style={{ width: 70, textAlign: 'right' }}
                       />
                     </td>
                     <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
@@ -1255,13 +1318,6 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                           🔄
                         </button>
                         <button
-                          title="Renommer (ex. « Buzz foil ch.12 »)"
-                          style={{ padding: '3px 8px' }}
-                          onClick={() => setRenomme({ id: w.id, label: w.label })}
-                        >
-                          ✏
-                        </button>
-                        <button
                           title="Ouvrir la page produit (2e fenêtre)"
                           style={{ padding: '3px 8px' }}
                           onClick={() => window.api.cm.openWindow(w.url)}
@@ -1287,7 +1343,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           </table>
           {watches.length === 0 && (
             <p style={{ color: 'var(--text-dim)' }}>
-              Aucune carte suivie — ouvre une page produit dans l&apos;onglet 🌐 puis clique 📈 Suivre.
+              Aucun produit traqué — ouvre une page produit dans l&apos;onglet 🌐 puis clique 🎯 Traquer.
             </p>
           )}
           {histoDe != null && histo.length > 0 && (
@@ -1350,18 +1406,18 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           {radar && radar.length > 0 && (
             <div style={{ border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
               <h3 style={{ fontSize: '0.95rem', marginBottom: 8 }}>
-                🔥 MES cartes qui montent (stock listé + réserve en classeur)
+                🔥 MES cartes qui montent (stock listé + produits traqués)
               </h3>
               <table className="data">
                 <thead>
                   <tr>
                     <th>Carte</th>
-                    <th>Où</th>
-                    <th style={{ textAlign: 'right' }}>Qté</th>
+                    <th style={{ textAlign: 'right' }}>🏪 En vente</th>
+                    <th style={{ textAlign: 'right' }} title="Exemplaires détenus hors vente (🎯 Tracking)">📁 Détenu</th>
                     <th style={{ textAlign: 'right' }}>Tendance</th>
                     <th style={{ textAlign: 'right' }}>Moy 1 j</th>
                     <th style={{ textAlign: 'right' }}>Écart</th>
-                    <th style={{ textAlign: 'right' }}>Plus-value</th>
+                    <th style={{ textAlign: 'right' }} title="(Moy 1 j − prix d'achat) × exemplaires possédés — demande un prix d'achat dans 🎯 Tracking">Plus-value</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1369,13 +1425,21 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                   {radar.slice(0, 20).map((r, i) => (
                     <tr key={i}>
                       <td style={{ maxWidth: 240 }}>
-                        <span title={r.name} style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span
+                          title={
+                            r.exact
+                              ? `${r.name} — produit traqué : correspondance exacte`
+                              : `${r.name} — correspondance par nom + version (V.x)`
+                          }
+                          style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        >
+                          {r.exact && <span title="Produit traqué : correspondance exacte">🎯 </span>}
                           {r.name}
                           {r.foil && <span style={{ color: 'var(--accent)' }}> ✨</span>}
                         </span>
                       </td>
-                      <td>{r.source === 'stock' ? '🏪 en vente' : '📁 réserve'}</td>
-                      <td style={{ textAlign: 'right' }}>{r.qty}</td>
+                      <td style={{ textAlign: 'right' }}>{r.qty_en_vente || ''}</td>
+                      <td style={{ textAlign: 'right' }}>{r.qty_detenu || ''}</td>
                       <td style={{ textAlign: 'right' }}>{euros(Math.round(r.trend))}</td>
                       <td style={{ textAlign: 'right' }}>
                         <b>{euros(Math.round(r.avg1))}</b>
@@ -1385,7 +1449,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                       </td>
                       <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>
                         {r.buy_price_cents != null
-                          ? `${euros(Math.round((r.avg1 - r.buy_price_cents) * r.qty))}`
+                          ? `${euros(Math.round((r.avg1 - r.buy_price_cents) * (r.qty_en_vente + r.qty_detenu)))}`
                           : ''}
                       </td>
                       <td>
@@ -1409,9 +1473,9 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
           )}
           {radar && radar.length === 0 && (
             <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 12 }}>
-              🔥 Aucune de TES cartes (stock + réserve) ne décolle aujourd&apos;hui. Astuce :
-              déclare une « réserve » sur tes cartes suivies (📈 Suivi) pour surveiller aussi
-              celles qui attendent en classeur.
+              🔥 Aucune de TES cartes (stock listé + produits traqués) ne décolle
+              aujourd&apos;hui. Astuce : dans 🎯 Tracking, note tes exemplaires « détenus hors
+              vente » pour surveiller aussi ceux qui attendent le bon moment.
             </p>
           )}
           {marche && (
@@ -1480,6 +1544,67 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 </div>
               ))}
             </div>
+          )}
+          {tops && (tops.top.length > 0 || tops.bargains.length > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'start', marginTop: 18 }}>
+              {(
+                [
+                  ['🏆 Top ventes de la semaine', tops.top, 'top'],
+                  ['💎 Meilleures offres du moment', tops.bargains, 'bargains']
+                ] as const
+              ).map(([titre, lignes, type]) => (
+                <div key={type}>
+                  <h3 style={{ fontSize: '0.95rem', marginBottom: 8 }}>
+                    {titre}{' '}
+                    <span style={{ color: 'var(--text-dim)', fontWeight: 400, fontSize: '0.8rem' }}>
+                      — classement officiel Cardmarket
+                      {tops.fetchedAt ? ` (relevé le ${tops.fetchedAt.slice(8, 10)}/${tops.fetchedAt.slice(5, 7)})` : ''}
+                    </span>
+                  </h3>
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 34 }}>#</th>
+                        <th>Carte / produit</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lignes.slice(0, 20).map((r) => (
+                        <tr key={r.rank}>
+                          <td style={{ color: 'var(--text-dim)' }}>{r.rank}</td>
+                          <td style={{ maxWidth: 260 }}>
+                            <span title={r.name} style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {r.name}
+                              {r.possede && (
+                                <span title="Tu l'as (stock listé ou produit traqué)" style={{ color: 'var(--ok)' }}>
+                                  {' '}
+                                  ✅
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              title="Ouvrir sur Cardmarket (2e fenêtre)"
+                              style={{ padding: '3px 8px' }}
+                              onClick={() => window.api.cm.openWindow(r.url)}
+                            >
+                              🛒
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+          {tops?.erreur && (
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: 10 }}>
+              Classements officiels : {tops.erreur}
+            </p>
           )}
         </>
       )}

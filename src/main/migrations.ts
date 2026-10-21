@@ -292,5 +292,13 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE price_watch ADD COLUMN reserve_qty INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE price_watch ADD COLUMN buy_price_cents INTEGER;
+  `,
+
+  // 020 — tracking EXACT : identifiant produit Cardmarket (lu sur la page au
+  // premier relevé) → prix de l'export quotidien par VERSION, et drapeau foil
+  // (détecté dans l'URL filtrée isFoil=Y, modifiable)
+  `
+  ALTER TABLE price_watch ADD COLUMN id_product INTEGER;
+  ALTER TABLE price_watch ADD COLUMN is_foil INTEGER NOT NULL DEFAULT 0;
   `
 ]

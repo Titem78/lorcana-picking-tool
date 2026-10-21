@@ -7,7 +7,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => mkdtempSync(join(tmpdir(), 'lorcana-cmdata-')) }
 }))
 
-import { scanOpportunites, type GuideRow, type ProduitRow } from '../src/main/cmdata'
+import { scanOpportunites, produitPourVersion, type GuideRow, type ProduitRow } from '../src/main/cmdata'
 
 const produit = (id: number, name: string): ProduitRow => ({
   idProduct: id,
@@ -79,5 +79,26 @@ describe('scanOpportunites — logique de détection (spec utilisateur)', () => 
     expect(noms).not.toContain('Carte Morte')
     expect(noms).not.toContain('Carte Vrac')
     expect(noms).not.toContain('Carte Calme')
+  })
+})
+
+describe('produitPourVersion — (V.x) = ordre de création Cardmarket (vérifié : V.1 base, V.2 variante)', () => {
+  const prods: ProduitRow[] = [
+    { idProduct: 10, name: 'Hades - Seeking an Agreement', idExpansion: 5, dateAdded: '2025-01-01' },
+    { idProduct: 20, name: 'Hades - Seeking an Agreement', idExpansion: 5, dateAdded: '2025-02-01' }
+  ]
+
+  it('sans suffixe → premier produit (la carte de base)', () => {
+    expect(produitPourVersion(prods, 'Hadès - Cherchant un accord')?.idProduct).toBe(10)
+  })
+
+  it('(V.1) → base, (V.2) → variante (souvent la version spéculative)', () => {
+    expect(produitPourVersion(prods, 'Hadès - Cherchant un accord (V.1)')?.idProduct).toBe(10)
+    expect(produitPourVersion(prods, 'Hadès - Cherchant un accord (V.2)')?.idProduct).toBe(20)
+  })
+
+  it('version au-delà du connu → null, jamais un autre produit', () => {
+    expect(produitPourVersion(prods, 'Hadès - Cherchant un accord (V.3)')).toBeNull()
+    expect(produitPourVersion([], 'Nimporte quoi')).toBeNull()
   })
 })

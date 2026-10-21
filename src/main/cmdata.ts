@@ -11,6 +11,8 @@ import { join } from 'path'
 const GUIDE_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_19.json'
 const PRODUCTS_URL =
   'https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_19.json'
+const NONSINGLES_URL =
+  'https://downloads.s3.cardmarket.com/productCatalog/productList/products_nonsingles_19.json'
 const UA = 'LorcanaPickingTool/2.0 (+local)'
 const STALE_MS = 20 * 3600_000 // l'export est régénéré quotidiennement
 const MISS_MS = 3600_000
@@ -89,8 +91,13 @@ export async function getMarketData(force = false): Promise<MarketData | null> {
       let prods = (await telecharge(PRODUCTS_URL, 'cm-products.json')) as {
         products?: ProduitRow[]
       } | null
+      // le SCELLÉ aussi (boosters, displays…) : l'export de prix le couvre
+      let scelles = (await telecharge(NONSINGLES_URL, 'cm-products-ns.json')) as {
+        products?: ProduitRow[]
+      } | null
       if (!guide?.priceGuides) guide = lisDisque('cm-price-guide.json') as typeof guide
       if (!prods?.products) prods = lisDisque('cm-products.json') as typeof prods
+      if (!scelles?.products) scelles = lisDisque('cm-products-ns.json') as typeof scelles
       if (!guide?.priceGuides || !prods?.products) {
         dernierEchec = Date.now()
         return cache
@@ -98,7 +105,9 @@ export async function getMarketData(force = false): Promise<MarketData | null> {
       cache = {
         createdAt: guide.createdAt ?? new Date().toISOString(),
         guide: guide.priceGuides,
-        produits: new Map(prods.products.map((p) => [p.idProduct, p]))
+        produits: new Map(
+          [...prods.products, ...(scelles?.products ?? [])].map((p) => [p.idProduct, p])
+        )
       }
       return cache
     })()
@@ -117,9 +126,12 @@ import { normName, getPont } from './lorcanajson'
 
 export interface RadarRow {
   name: string
-  source: 'stock' | 'réserve'
-  qty: number
+  /** quantités par origine : annonce en vente / détenu hors vente */
+  qty_en_vente: number
+  qty_detenu: number
   foil: boolean
+  /** correspondance exacte (identifiant produit) ou par nom/version */
+  exact: boolean
   trend: number
   avg1: number
   avg7: number | null
@@ -140,82 +152,108 @@ function produitsParNom(produits: Map<number, ProduitRow>): Map<string, ProduitR
   return m
 }
 
+/** Version (V.x) d'un nom : l'ordre des produits = l'ordre de création
+ *  Cardmarket (vérifié : V.1 = base créée d'abord, V.2 = variante suivante). */
+export function produitPourVersion(prods: ProduitRow[], nom: string): ProduitRow | null {
+  if (!prods.length) return null
+  const m = nom.match(/\(V\.(\d+)\)\s*$/i)
+  const index = m ? parseInt(m[1], 10) - 1 : 0
+  return prods[index] ?? null
+}
+
 /**
- * Cartes POSSÉDÉES dont le prix du jour décolle au-dessus de la tendance
- * (seuil %) — triées par écart décroissant. Les versions d'un même nom ne
- * sont pas différenciables côté export (pas de numéro) : on prend la carte
- * de BASE (premier produit), le nom affiché permet de vérifier.
+ * Cartes POSSÉDÉES dont le prix du jour décolle au-dessus de la tendance :
+ * 1) produits TRAQUÉS (identifiant produit = correspondance EXACTE, versions
+ *    et foil compris) — détenu hors vente et/ou annonce en vente ;
+ * 2) stock listé (miroir) par nom + suffixe (V.x) → version correcte ;
+ * dédoublonné par identifiant produit (le traqué prime sur le stock).
  */
-export async function marketRadar(
-  data: MarketData,
-  seuilPct = 15
-): Promise<RadarRow[]> {
+export async function marketRadar(data: MarketData, seuilPct = 15): Promise<RadarRow[]> {
   const pont = await getPont()
-  if (!pont) return []
   const parNom = produitsParNom(data.produits)
   const guideParId = new Map(data.guide.map((g) => [g.idProduct, g]))
   const db = getDb()
-
-  const sources: { name: string; set: string; foil: boolean; qty: number; source: 'stock' | 'réserve'; buy: number | null }[] = []
-  for (const r of db
-    .prepare(
-      `SELECT name, COALESCE(NULLIF(set_code,''), NULLIF(color_code,''), '') AS s, is_foil,
-              SUM(quantity) AS q
-       FROM stock_items GROUP BY name, s, is_foil`
-    )
-    .all() as { name: string; s: string; is_foil: number; q: number }[]) {
-    sources.push({ name: r.name, set: r.s, foil: r.is_foil === 1, qty: r.q, source: 'stock', buy: null })
-  }
-  for (const w of db
-    .prepare('SELECT label, reserve_qty, buy_price_cents FROM price_watch WHERE active = 1 AND reserve_qty > 0')
-    .all() as { label: string; reserve_qty: number; buy_price_cents: number | null }[]) {
-    // la réserve n'a pas de set déclaré : résolu par le nom seul (FR ou EN)
-    sources.push({ name: w.label, set: '', foil: /foil/i.test(w.label), qty: w.reserve_qty, source: 'réserve', buy: w.buy_price_cents })
-  }
-
   const rows: RadarRow[] = []
-  const vus = new Set<string>()
-  for (const s of sources) {
-    const frNorm = normName(s.name)
-    // FR → EN via le pont (set connu, sinon tout set où le nom existe)
-    let enNorm: string | null = null
-    if (s.set) enNorm = pont.parFrSet[`${frNorm}|${s.set}`]?.en ?? null
-    if (!enNorm) {
-      for (const k of Object.keys(pont.parFrSet)) {
-        if (k.startsWith(`${frNorm}|`)) {
-          enNorm = pont.parFrSet[k].en
-          break
-        }
-      }
-    }
-    // le libellé est peut-être déjà le nom anglais (catalogue, page EN…)
-    if (!enNorm && parNom.has(frNorm)) enNorm = frNorm
-    if (!enNorm) continue
-    const prods = parNom.get(enNorm)
-    if (!prods?.length) continue
-    const g = guideParId.get(prods[0].idProduct)
-    if (!g) continue
-    const trend = s.foil ? g['trend-foil'] : g.trend
-    const avg1 = s.foil ? g['avg1-foil'] : g.avg1
-    const avg7 = s.foil ? g['avg7-foil'] : g.avg7
-    if (trend == null || avg1 == null || trend <= 0) continue
+  const couverts = new Set<string>() // `${idProduct}|${foil}`
+
+  const evalue = (
+    idProduct: number,
+    foil: boolean,
+    nom: string,
+    exact: boolean,
+    enVente: number,
+    detenu: number,
+    buy: number | null
+  ): void => {
+    const g = guideParId.get(idProduct)
+    if (!g) return
+    const trend = foil ? g['trend-foil'] : g.trend
+    const avg1 = foil ? g['avg1-foil'] : g.avg1
+    const avg7 = foil ? g['avg7-foil'] : g.avg7
+    if (trend == null || avg1 == null || trend <= 0) return
+    const cle = `${idProduct}|${foil}`
+    if (couverts.has(cle)) return
+    couverts.add(cle)
     const pct = ((avg1 - trend) / trend) * 100
-    if (pct < seuilPct) continue
-    const cle = `${enNorm}|${s.foil}|${s.source}`
-    if (vus.has(cle)) continue
-    vus.add(cle)
+    if (pct < seuilPct) return
     rows.push({
-      name: s.name,
-      source: s.source,
-      qty: s.qty,
-      foil: s.foil,
+      name: nom,
+      qty_en_vente: enVente,
+      qty_detenu: detenu,
+      foil,
+      exact,
       trend,
       avg1,
       avg7,
       ecart_pct: pct,
-      buy_price_cents: s.buy
+      buy_price_cents: buy
     })
   }
+
+  // 1) produits TRAQUÉS — exacts
+  const traques = db
+    .prepare(
+      `SELECT w.id, w.label, w.id_product, w.is_foil, w.reserve_qty, w.buy_price_cents,
+              (SELECT p.our_qty FROM price_points p WHERE p.watch_id = w.id
+               ORDER BY p.taken_at DESC LIMIT 1) AS en_vente
+       FROM price_watch w WHERE w.active = 1 AND w.id_product IS NOT NULL`
+    )
+    .all() as { label: string; id_product: number; is_foil: number; reserve_qty: number; buy_price_cents: number | null; en_vente: number | null }[]
+  for (const t of traques) {
+    const nom = data.produits.get(t.id_product)?.name ?? t.label
+    evalue(t.id_product, t.is_foil === 1, nom, true, t.en_vente ?? 0, t.reserve_qty, t.buy_price_cents)
+  }
+
+  // 2) stock listé — par nom + (V.x), via le pont FR→EN
+  if (pont) {
+    const stock = db
+      .prepare(
+        `SELECT name, COALESCE(NULLIF(set_code,''), NULLIF(color_code,''), '') AS s, is_foil,
+                SUM(quantity) AS q
+         FROM stock_items GROUP BY name, s, is_foil`
+      )
+      .all() as { name: string; s: string; is_foil: number; q: number }[]
+    for (const r of stock) {
+      const frNorm = normName(r.name)
+      let enNorm: string | null = r.s ? (pont.parFrSet[`${frNorm}|${r.s}`]?.en ?? null) : null
+      if (!enNorm) {
+        for (const k of Object.keys(pont.parFrSet)) {
+          if (k.startsWith(`${frNorm}|`)) {
+            enNorm = pont.parFrSet[k].en
+            break
+          }
+        }
+      }
+      if (!enNorm && parNom.has(frNorm)) enNorm = frNorm // scellé/nom déjà EN
+      if (!enNorm) continue
+      const prods = parNom.get(enNorm)
+      if (!prods?.length) continue
+      const produit = produitPourVersion(prods, r.name)
+      if (!produit) continue
+      evalue(produit.idProduct, r.is_foil === 1, r.name, false, r.q, 0, null)
+    }
+  }
+
   rows.sort((a, b) => b.ecart_pct - a.ecart_pct)
   return rows.slice(0, 60)
 }

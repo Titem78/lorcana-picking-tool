@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   session: { fromPartition: () => ({}) }
 }))
 
-import { parseProductPage, euroEnCents } from '../src/main/pricewatch'
+import { parseProductPage, euroEnCents, extractIdProduct } from '../src/main/pricewatch'
 
 // Reproduit la page produit réelle (capture Mushu - Dragon furtif, 22/09)
 const PAGE_MUSHU = `
@@ -57,5 +57,23 @@ describe('parseProductPage — chiffres de la page produit (captures réelles)',
     expect(euroEnCents('2.550,00 €')).toBe(255000)
     expect(euroEnCents('6,88 €')).toBe(688)
     expect(euroEnCents('')).toBeNull()
+  })
+})
+
+describe('extractIdProduct — identifiant produit depuis la page (lien export quotidien)', () => {
+  it('lit la forme JSON embarquée ("idProduct":12345)', () => {
+    expect(extractIdProduct('<script>var x = {"idProduct": 839434, "n": 1}</script>')).toBe(839434)
+  })
+
+  it('lit le champ de formulaire caché', () => {
+    expect(extractIdProduct('<input type="hidden" name="idProduct" value="4521">')).toBe(4521)
+  })
+
+  it('lit le paramètre d’URL en dernier recours', () => {
+    expect(extractIdProduct('<a href="/x?idProduct=777888&foo=1">lien</a>')).toBe(777888)
+  })
+
+  it('page sans identifiant → null (jamais deviné)', () => {
+    expect(extractIdProduct('<html><body>rien ici</body></html>')).toBeNull()
   })
 })

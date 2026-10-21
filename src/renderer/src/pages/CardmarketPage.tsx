@@ -578,7 +578,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         </span>
         <button
           disabled={busy}
-          title="Depuis une PAGE PRODUIT (fiche d'une carte) : ajoute cette carte au suivi de prix — relevés automatiques 2×/jour, historique dans 📦 Stock → 📈 Suivi"
+          title="Depuis une PAGE PRODUIT (fiche d'une carte ou d'un produit scellé) : le traque — prix officiels quotidiens + relevé de page 1×/jour, tout dans 📦 Stock → 🎯 Tracking"
           onClick={async () => {
             const wv = webviewRef.current
             if (!wv) return
@@ -597,7 +597,7 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
             setMsg(r.message)
           }}
         >
-          📈 Suivre
+          🎯 Traquer
         </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande

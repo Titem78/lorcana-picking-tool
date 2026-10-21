@@ -514,6 +514,11 @@ export function registerIpc(): void {
     return { createdAt: data.createdAt, achats, bulles }
   })
 
+  ipcMain.handle('market:tops', async (_e, force?: boolean) => {
+    const ct = await import('./cmtop')
+    return ct.getClassements(force ?? false)
+  })
+
   ipcMain.handle('market:radar', async () => {
     const cd = await import('./cmdata')
     const data = await cd.getMarketData(false)
@@ -538,17 +543,13 @@ export function registerIpc(): void {
     }
     return r
   })
-  ipcMain.handle('pricewatch:rename', async (_e, userId: number, id: number, label: string) => {
-    const pw = await import('./pricewatch')
-    pw.renameWatch(userId, id, label)
-  })
   ipcMain.handle('pricewatch:remove', async (_e, userId: number, id: number) => {
     const pw = await import('./pricewatch')
     pw.removeWatch(userId, id)
   })
   ipcMain.handle('pricewatch:list', async () => {
     const pw = await import('./pricewatch')
-    return pw.listWatches()
+    return pw.listWatchesEnrichies()
   })
   ipcMain.handle('pricewatch:history', async (_e, id: number) => {
     const pw = await import('./pricewatch')

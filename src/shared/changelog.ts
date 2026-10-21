@@ -9,6 +9,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.49.0',
+    title: '🎯 Tracking : correspondance exacte + classements officiels',
+    items: [
+      'La section 📈 Suivi devient 🎯 TRACKING (bouton « 🎯 Traquer » sur une page produit) : chaque produit traqué est maintenant relié à son identifiant Cardmarket exact — version (V.x) et foil comprises, zéro ambiguïté de nom',
+      'Les prix du tableau viennent de l’EXPORT OFFICIEL quotidien (tendance, moyennes 30/7/1 j, plancher — colonnes foil si le produit l’est) ; la page n’est plus relue qu’1×/jour pour la disponibilité et ton annonce',
+      'Vocabulaire clarifié : « Mon annonce » (ton prix + quantité en vente) et « Détenu hors vente » (exemplaires gardés en attendant le bon moment, avec prix d’achat pour la plus-value) — fini la « réserve »',
+      '🔥 Radar 💹 Marché : les produits traqués sont croisés par identifiant exact (fini la carte de base par défaut — les V.2/Enchantées sont les bonnes) ; le stock listé suit sa version (V.x) ; une seule ligne par produit avec 🏪 en vente et 📁 détenu',
+      '🏆 NOUVEAU : classements officiels Cardmarket dans 💹 Marché — Top ventes de la semaine et 💎 Meilleures offres (relevés 1×/semaine), avec ✅ sur ce que tu possèdes déjà',
+      'Le scellé (boosters, displays…) est maintenant traquable et analysable comme les cartes',
+      'Le bouton ✏ Renommer disparaît (inutile : le nom officiel du catalogue est en infobulle)'
+    ]
+  },
+  {
     version: '2.48.0',
     title: '🔥 Radar sur TES cartes + la réserve en classeur',
     items: [
