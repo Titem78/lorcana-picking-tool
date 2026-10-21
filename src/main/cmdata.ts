@@ -17,6 +17,9 @@ const UA = 'LorcanaPickingTool/2.0 (+local)'
 const STALE_MS = 20 * 3600_000 // l'export est régénéré quotidiennement
 const MISS_MS = 3600_000
 
+// ⚠ L'export BRUT est en EUROS décimaux (vérifié : low 1350 = plancher
+// 1 350,00 € sur la page produit). On convertit TOUT en CENTIMES au
+// chargement — chaque consommateur (scan, radar, tracking) parle centimes.
 export interface GuideRow {
   idProduct: number
   avg: number | null
@@ -44,6 +47,23 @@ export interface MarketData {
   createdAt: string
   guide: GuideRow[]
   produits: Map<number, ProduitRow>
+}
+
+const CHAMPS_PRIX = [
+  'avg', 'low', 'trend', 'avg1', 'avg7', 'avg30',
+  'avg-foil', 'low-foil', 'trend-foil', 'avg1-foil', 'avg7-foil', 'avg30-foil'
+] as const
+
+/** export brut (euros décimaux) → centimes entiers, null préservé. */
+export function guideEnCentimes(rows: GuideRow[]): GuideRow[] {
+  return rows.map((r) => {
+    const n = { ...r }
+    for (const c of CHAMPS_PRIX) {
+      const v = n[c]
+      if (v != null) n[c] = Math.round(v * 100)
+    }
+    return n
+  })
 }
 
 let cache: MarketData | null = null
@@ -104,7 +124,7 @@ export async function getMarketData(force = false): Promise<MarketData | null> {
       }
       cache = {
         createdAt: guide.createdAt ?? new Date().toISOString(),
-        guide: guide.priceGuides,
+        guide: guideEnCentimes(guide.priceGuides),
         produits: new Map(
           [...prods.products, ...(scelles?.products ?? [])].map((p) => [p.idProduct, p])
         )

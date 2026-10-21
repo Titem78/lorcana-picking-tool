@@ -199,6 +199,12 @@ export function addWatch(userId: number, url: string, label: string): { ok: bool
   return { ok: true, message: `📈 « ${label.trim() || propre} » est suivie — premier relevé en cours…` }
 }
 
+/** Bascule un suivi en foil / normal : les prix catalogue suivent. */
+export function setWatchFoil(userId: number, id: number, foil: boolean): void {
+  getDb().prepare('UPDATE price_watch SET is_foil = ? WHERE id = ?').run(foil ? 1 : 0, id)
+  logActivity(userId, 'pricewatch.foil', { id, foil })
+}
+
 export function removeWatch(userId: number, id: number): void {
   getDb().prepare('UPDATE price_watch SET active = 0 WHERE id = ?').run(id)
   logActivity(userId, 'pricewatch.removed', { id })
@@ -319,6 +325,25 @@ export async function fetchWatch(id: number): Promise<{ ok: boolean; message: st
   }
   if (idp && !w.id_product) {
     db.prepare('UPDATE price_watch SET id_product = ? WHERE id = ?').run(idp, id)
+  }
+  if (idp && w.is_foil !== 1) {
+    // auto-foil des cas SANS ambiguïté : le marché « normal » du produit est
+    // VIDE dans l'export (variantes foil-only type Enchantée/Épique) — si des
+    // annonces farfelues polluent le côté normal, on ne devine pas (bascule
+    // manuelle ✨ dans le tableau)
+    try {
+      const { getMarketData } = await import('./cmdata')
+      const data = await getMarketData()
+      const g = data?.guide.find((x) => x.idProduct === idp)
+      const normalVide = g && !g.trend && !g.avg1 && !g.avg7 && !g.avg30
+      const foilExiste = g && (g['trend-foil'] != null || g['avg7-foil'] != null)
+      if (normalVide && foilExiste) {
+        db.prepare('UPDATE price_watch SET is_foil = 1 WHERE id = ?').run(id)
+        w.is_foil = 1
+      }
+    } catch {
+      /* détection de confort, jamais bloquante */
+    }
   }
   if (pseudo && p.our_price_cents == null) {
     // la page produit ne liste que ses premières offres → NOTRE annonce se

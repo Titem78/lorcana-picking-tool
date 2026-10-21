@@ -7,7 +7,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => mkdtempSync(join(tmpdir(), 'lorcana-cmdata-')) }
 }))
 
-import { scanOpportunites, produitPourVersion, type GuideRow, type ProduitRow } from '../src/main/cmdata'
+import { scanOpportunites, produitPourVersion, guideEnCentimes, type GuideRow, type ProduitRow } from '../src/main/cmdata'
 
 const produit = (id: number, name: string): ProduitRow => ({
   idProduct: id,
@@ -100,5 +100,18 @@ describe('produitPourVersion — (V.x) = ordre de création Cardmarket (vérifi�
   it('version au-delà du connu → null, jamais un autre produit', () => {
     expect(produitPourVersion(prods, 'Hadès - Cherchant un accord (V.3)')).toBeNull()
     expect(produitPourVersion([], 'Nimporte quoi')).toBeNull()
+  })
+})
+
+describe('guideEnCentimes — l’export brut est en EUROS décimaux (bug d’unité réel)', () => {
+  it('convertit tout en centimes entiers, null préservé (cas réel Buzz V.2)', () => {
+    const [r] = guideEnCentimes([
+      ligne(885822, { low: 1350, trend: 0.15, avg1: 0.15, 'trend-foil': 1965.74, 'avg1-foil': 2499.49, 'avg7-foil': 1931.12 })
+    ])
+    expect(r.low).toBe(135000) // = plancher 1 350,00 € vérifié sur la page produit
+    expect(r.trend).toBe(15)
+    expect(r['trend-foil']).toBe(196574)
+    expect(r['avg1-foil']).toBe(249949)
+    expect(r.avg7).toBeNull()
   })
 })

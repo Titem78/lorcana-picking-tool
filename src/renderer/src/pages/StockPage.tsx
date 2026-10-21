@@ -1341,6 +1341,20 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                           🔄
                         </button>
                         <button
+                          className={w.is_foil === 1 ? 'primary' : ''}
+                          title={
+                            w.is_foil === 1
+                              ? 'Suivi en FOIL (prix des colonnes foil) — cliquer pour repasser en normal'
+                              : 'Suivi en NORMAL — cliquer si ce produit est une foil (Enchantée, Épique…) : les prix basculeront sur les colonnes foil'
+                          }
+                          style={{ padding: '3px 8px' }}
+                          onClick={() =>
+                            window.api.pricewatch.foil(user.id, w.id, w.is_foil !== 1).then(chargerSuivi)
+                          }
+                        >
+                          ✨
+                        </button>
+                        <button
                           title="Ouvrir la page produit (2e fenêtre)"
                           style={{ padding: '3px 8px' }}
                           onClick={() => window.api.cm.openWindow(w.url)}

@@ -547,6 +547,10 @@ export function registerIpc(): void {
     const pw = await import('./pricewatch')
     pw.removeWatch(userId, id)
   })
+  ipcMain.handle('pricewatch:foil', async (_e, userId: number, id: number, foil: boolean) => {
+    const pw = await import('./pricewatch')
+    pw.setWatchFoil(userId, id, foil)
+  })
   ipcMain.handle('pricewatch:list', async () => {
     const pw = await import('./pricewatch')
     return pw.listWatchesEnrichies()

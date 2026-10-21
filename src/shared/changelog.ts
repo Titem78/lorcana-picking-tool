@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.49.4',
+    title: '💹 Prix de l’export corrigés (×100) + bascule foil',
+    items: [
+      'BUG D’UNITÉ : l’export officiel Cardmarket est en euros, le code le lisait en centimes — les prix de 💹 Marché s’affichaient divisés par 100, le filtre « Tendance ≥ 1 € » filtrait en réalité ≥ 100 €, et la plus-value du radar mélangeait les unités. Tout est converti en centimes au chargement, une fois pour toutes',
+      '✨ Nouveau bouton par produit traqué : bascule le suivi en foil/normal (les moyennes affichées suivent les bonnes colonnes). Utile pour les variantes qui n’existent qu’en foil (Enchantée, Épique…) traquées depuis la page sans filtre',
+      'Auto-détection des cas sans ambiguïté : si le marché « normal » du produit est VIDE dans l’export et que le foil existe, le suivi passe foil tout seul au relevé — si des annonces farfelues polluent le côté normal (ex. 0,15 €), on ne devine pas : bascule manuelle ✨'
+    ]
+  },
+  {
     version: '2.49.3',
     title: '🎯 Couleur de « Mon annonce » : comparée au prix DU JOUR',
     items: [
