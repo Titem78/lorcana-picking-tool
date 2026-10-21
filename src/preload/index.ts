@@ -138,6 +138,15 @@ const api = {
     lowStock: () => ipcRenderer.invoke('stock:lowStock')
   },
 
+  pricewatch: {
+    add: (userId: number, url: string, label: string) =>
+      ipcRenderer.invoke('pricewatch:add', userId, url, label),
+    remove: (userId: number, id: number) => ipcRenderer.invoke('pricewatch:remove', userId, id),
+    list: () => ipcRenderer.invoke('pricewatch:list'),
+    history: (id: number) => ipcRenderer.invoke('pricewatch:history', id),
+    refresh: (id?: number) => ipcRenderer.invoke('pricewatch:refresh', id)
+  },
+
   cmtx: {
     pickFile: () => ipcRenderer.invoke('cmtx:pickFile'),
     analyze: (content: string, name: string, periode: string) =>

@@ -504,6 +504,35 @@ export function registerIpc(): void {
   ipcMain.handle('stock:dormant', (_e, days: number) => stock.dormantStock(days ?? 90))
   ipcMain.handle('stock:enrichMeta', () => stock.enrichStockMeta())
   ipcMain.handle('stock:lowStock', () => stock.lowStockByRarity())
+
+  // --- Suivi de prix (📈) -------------------------------------------------------
+  ipcMain.handle('pricewatch:add', async (_e, userId: number, url: string, label: string) => {
+    const pw = await import('./pricewatch')
+    const r = pw.addWatch(userId, url, label)
+    if (r.ok) {
+      // premier relevé immédiat, en arrière-plan
+      pw.refreshDueWatches().catch(() => {})
+    }
+    return r
+  })
+  ipcMain.handle('pricewatch:remove', async (_e, userId: number, id: number) => {
+    const pw = await import('./pricewatch')
+    pw.removeWatch(userId, id)
+  })
+  ipcMain.handle('pricewatch:list', async () => {
+    const pw = await import('./pricewatch')
+    return pw.listWatches()
+  })
+  ipcMain.handle('pricewatch:history', async (_e, id: number) => {
+    const pw = await import('./pricewatch')
+    return pw.watchHistory(id)
+  })
+  ipcMain.handle('pricewatch:refresh', async (_e, id?: number) => {
+    const pw = await import('./pricewatch')
+    if (id) return pw.fetchWatch(id)
+    const n = await pw.refreshDueWatches(true)
+    return { ok: true, message: `✔ ${n} relevé(s) effectué(s)` }
+  })
   ipcMain.handle('stock:buyListCsv', async (e, rows: Parameters<typeof stock.buyListCsv>[0]) => {
     const { dialog } = await import('electron')
     const { writeFileSync } = await import('fs')

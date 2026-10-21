@@ -149,7 +149,7 @@ function CarteCell({ r }: { r: { name: string; number?: string | null; is_foil: 
  */
 export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [section, setSection] = useState<
-    'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant' | 'seuils'
+    'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant' | 'seuils' | 'suivi'
   >('stock')
 
   // --- Section Stock -----------------------------------------------------------
@@ -378,6 +378,41 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
       .then(setDiff)
   }, [section, fromId, toId])
 
+  // --- Section 📈 Suivi de prix ---------------------------------------------------
+  interface WatchRow {
+    id: number
+    url: string
+    label: string
+    created_at: string
+    points: number
+    dernier: {
+      taken_at: string
+      available: number | null
+      from_cents: number | null
+      trend_cents: number | null
+      avg30_cents: number | null
+      avg7_cents: number | null
+      avg1_cents: number | null
+      our_price_cents: number | null
+      our_qty: number | null
+    } | null
+  }
+  const [watches, setWatches] = useState<WatchRow[]>([])
+  const [watchMsg, setWatchMsg] = useState('')
+  const [histoDe, setHistoDe] = useState<number | null>(null)
+  const [histo, setHisto] = useState<WatchRow['dernier'][]>([])
+  const chargerSuivi = (): void => {
+    window.api.pricewatch.list().then(setWatches)
+  }
+  useEffect(() => {
+    if (section === 'suivi') chargerSuivi()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section])
+  useEffect(() => {
+    if (histoDe != null) window.api.pricewatch.history(histoDe).then(setHisto)
+    else setHisto([])
+  }, [histoDe])
+
   const lancerInventaire = (): void => {
     // Drapeau (si l'onglet Cardmarket n'a jamais été ouvert : lu à son
     // montage) + événement (s'il est déjà vivant en arrière-plan)
@@ -506,7 +541,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             ['inventaires', '📸 Inventaires'],
             ['reassort', '💡 À racheter'],
             ['dormant', '😴 Dormant'],
-            ['seuils', '🎯 Seuils']
+            ['seuils', '🎯 Seuils'],
+            ['suivi', '📈 Suivi']
           ] as const
         ).map(([id, label]) => (
           <button
@@ -1021,6 +1057,152 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
               {lignesManquants.length === 0 && (
                 <p style={{ color: 'var(--text-dim)' }}>Tout le stock est au-dessus des seuils 🎉</p>
               )}
+            </>
+          )}
+        </>
+      )}
+
+      {section === 'suivi' && (
+        <>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 820 }}>
+            Suis le prix d&apos;une carte précise : ouvre sa <b>page produit</b> dans l&apos;onglet
+            🌐 Cardmarket puis clique <b>📈 Suivre</b>. Relevés automatiques <b>2×/jour</b> (app
+            ouverte, 30 cartes max) : disponibilité, prix plancher, tendance, moyennes 30/7/1 j,
+            et ton propre prix. L&apos;historique se construit au fil des jours — clique une ligne
+            pour le voir.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => {
+                setWatchMsg('Relevé en cours…')
+                window.api.pricewatch.refresh().then((r: { message: string }) => {
+                  setWatchMsg(r.message)
+                  chargerSuivi()
+                })
+              }}
+            >
+              🔄 Tout actualiser maintenant
+            </button>
+            <span className="badge">{watches.length} / 30 carte(s) suivie(s)</span>
+            {watchMsg && <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{watchMsg}</span>}
+          </div>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Carte suivie</th>
+                <th style={{ textAlign: 'right' }}>Dispo</th>
+                <th style={{ textAlign: 'right' }}>Plancher</th>
+                <th style={{ textAlign: 'right' }}>Tendance</th>
+                <th style={{ textAlign: 'right' }}>Moy 30 j</th>
+                <th style={{ textAlign: 'right' }}>Moy 7 j</th>
+                <th style={{ textAlign: 'right' }}>Moy 1 j</th>
+                <th style={{ textAlign: 'right' }}>Mon prix</th>
+                <th>Dernier relevé</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {watches.map((w) => {
+                const d = w.dernier
+                const chaud =
+                  d?.avg7_cents != null && d?.avg30_cents != null && d.avg7_cents > d.avg30_cents * 1.15
+                return (
+                  <tr key={w.id} onClick={() => setHistoDe(histoDe === w.id ? null : w.id)} style={{ cursor: 'pointer' }}>
+                    <td>
+                      {chaud && <span title="Tendance 7 j nettement au-dessus de la moyenne 30 j — ça monte">🔥 </span>}
+                      {w.label}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{d?.available ?? '…'}</td>
+                    <td style={{ textAlign: 'right' }}>{d?.from_cents != null ? euros(d.from_cents) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <b>{d?.trend_cents != null ? euros(d.trend_cents) : ''}</b>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{d?.avg30_cents != null ? euros(d.avg30_cents) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>{d?.avg7_cents != null ? euros(d.avg7_cents) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>{d?.avg1_cents != null ? euros(d.avg1_cents) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {d?.our_price_cents != null ? (
+                        <span
+                          title={d.our_qty != null ? `${d.our_qty} en vente` : undefined}
+                          style={
+                            d.avg7_cents != null && d.our_price_cents > d.avg7_cents
+                              ? { color: 'var(--danger, #e5534b)' }
+                              : { color: 'var(--ok)' }
+                          }
+                        >
+                          {euros(d.our_price_cents)}
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                      {d?.taken_at?.slice(0, 16) ?? 'jamais'}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        title="Relever maintenant"
+                        onClick={() =>
+                          window.api.pricewatch.refresh(w.id).then((r: { message: string }) => {
+                            setWatchMsg(r.message)
+                            chargerSuivi()
+                          })
+                        }
+                      >
+                        🔄
+                      </button>{' '}
+                      <button title="Ouvrir la page produit (2e fenêtre)" onClick={() => window.api.cm.openWindow(w.url)}>
+                        🛒
+                      </button>{' '}
+                      <button
+                        title="Ne plus suivre"
+                        onClick={() => {
+                          if (confirmDialog(`Ne plus suivre « ${w.label} » ? (l'historique est conservé)`))
+                            window.api.pricewatch.remove(user.id, w.id).then(chargerSuivi)
+                        }}
+                      >
+                        🗑
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {watches.length === 0 && (
+            <p style={{ color: 'var(--text-dim)' }}>
+              Aucune carte suivie — ouvre une page produit dans l&apos;onglet 🌐 puis clique 📈 Suivre.
+            </p>
+          )}
+          {histoDe != null && histo.length > 0 && (
+            <>
+              <h3 style={{ fontSize: '0.95rem', margin: '18px 0 8px' }}>
+                Historique — {watches.find((w) => w.id === histoDe)?.label}
+              </h3>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th style={{ textAlign: 'right' }}>Dispo</th>
+                    <th style={{ textAlign: 'right' }}>Plancher</th>
+                    <th style={{ textAlign: 'right' }}>Tendance</th>
+                    <th style={{ textAlign: 'right' }}>Moy 7 j</th>
+                    <th style={{ textAlign: 'right' }}>Mon prix</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {histo.map((h, i) => (
+                    <tr key={i}>
+                      <td>{h?.taken_at?.slice(0, 16)}</td>
+                      <td style={{ textAlign: 'right' }}>{h?.available ?? ''}</td>
+                      <td style={{ textAlign: 'right' }}>{h?.from_cents != null ? euros(h.from_cents) : ''}</td>
+                      <td style={{ textAlign: 'right' }}>{h?.trend_cents != null ? euros(h.trend_cents) : ''}</td>
+                      <td style={{ textAlign: 'right' }}>{h?.avg7_cents != null ? euros(h.avg7_cents) : ''}</td>
+                      <td style={{ textAlign: 'right' }}>{h?.our_price_cents != null ? euros(h.our_price_cents) : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </>
           )}
         </>

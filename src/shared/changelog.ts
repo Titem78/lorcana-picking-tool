@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.46.0',
+    title: '📈 Suivi de prix : surveille tes cartes clés',
+    items: [
+      'Ouvre la page produit d’une carte dans l’onglet 🌐 Cardmarket et clique « 📈 Suivre » : la version exacte est mémorisée (30 cartes max)',
+      'Relevés automatiques 2×/jour quand l’app est ouverte (étalés, discrets) : disponibilité, prix plancher, tendance, prix moyens 30/7/1 jours — et TON prix avec sa quantité, vert/rouge selon qu’il est sous ou sur la moyenne 7 j',
+      'Nouvelle section 📦 Stock → 📈 Suivi : tableau des cartes suivies, 🔥 quand la tendance monte nettement, historique des relevés par carte (clique une ligne) — pour choisir le bon moment de vendre',
+      'Boutons « Actualiser maintenant » (global et par carte) pour un relevé immédiat'
+    ]
+  },
+  {
     version: '2.45.1',
     title: 'Seuils : deux derniers pièges de noms éliminés',
     items: [

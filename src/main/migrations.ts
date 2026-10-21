@@ -259,5 +259,30 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE stock_items ADD COLUMN rarity TEXT;
   ALTER TABLE stock_items ADD COLUMN ink TEXT;
+  `,
+
+  // 018 — suivi de prix (« 📈 Suivre cette carte ») : cartes suivies et
+  // relevés horodatés depuis la page produit Cardmarket
+  `
+  CREATE TABLE price_watch (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    active INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE TABLE price_points (
+    watch_id INTEGER NOT NULL REFERENCES price_watch(id) ON DELETE CASCADE,
+    taken_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    available INTEGER,
+    from_cents INTEGER,
+    trend_cents INTEGER,
+    avg30_cents INTEGER,
+    avg7_cents INTEGER,
+    avg1_cents INTEGER,
+    our_price_cents INTEGER,
+    our_qty INTEGER
+  );
+  CREATE INDEX idx_price_points_watch ON price_points(watch_id, taken_at);
   `
 ]

@@ -158,6 +158,16 @@ app.whenReady().then(() => {
   setTimeout(syncOdoo, 10_000)
   setInterval(syncOdoo, 30 * 60 * 1000)
 
+  // Suivi de prix 📈 : vérification toutes les heures, mais une carte n'est
+  // relevée que si son dernier relevé date de plus de 12 h (app ouverte)
+  const tickPriceWatch = (): void => {
+    import('./pricewatch')
+      .then((m) => m.refreshDueWatches())
+      .catch(() => {})
+  }
+  setTimeout(tickPriceWatch, 3 * 60_000)
+  setInterval(tickPriceWatch, 3600_000)
+
   // Dossier surveillé (import automatique des PDF de vente)
   startWatcher()
 

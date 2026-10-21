@@ -576,6 +576,25 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
         <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem', flex: 1 }}>
           Connecte-toi, ouvre une vente, puis :
         </span>
+        <button
+          disabled={busy}
+          title="Depuis une PAGE PRODUIT (fiche d'une carte) : ajoute cette carte au suivi de prix — relevés automatiques 2×/jour, historique dans 📦 Stock → 📈 Suivi"
+          onClick={async () => {
+            const wv = webviewRef.current
+            if (!wv) return
+            const url = wv.getURL()
+            const titre = ((await wv
+              .executeJavaScript(`document.querySelector('h1')?.textContent?.trim() || ''`)
+              .catch(() => '')) ?? '') as string
+            const r = (await window.api.pricewatch.add(user.id, url, titre)) as {
+              ok: boolean
+              message: string
+            }
+            setMsg(r.message)
+          }}
+        >
+          📈 Suivre
+        </button>
         <button className="primary" disabled={busy} onClick={importCurrent}>
           ⬇ Importer cette commande
         </button>
