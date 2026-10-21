@@ -149,7 +149,7 @@ function CarteCell({ r }: { r: { name: string; number?: string | null; is_foil: 
  */
 export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [section, setSection] = useState<
-    'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant' | 'seuils' | 'suivi'
+    'stock' | 'ventes' | 'inventaires' | 'reassort' | 'dormant' | 'seuils' | 'suivi' | 'marche'
   >('stock')
 
   // --- Section Stock -----------------------------------------------------------
@@ -414,6 +414,32 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     else setHisto([])
   }, [histoDe])
 
+  // --- Section 💹 Marché (export quotidien officiel Cardmarket) -------------------
+  interface Oppo {
+    idProduct: number
+    name: string
+    foil: boolean
+    trend: number
+    avg1: number
+    avg7: number | null
+    low: number | null
+    ecart_pct: number
+  }
+  const [marche, setMarche] = useState<{ createdAt: string; achats: Oppo[]; bulles: Oppo[] } | null>(null)
+  const [marcheMsg, setMarcheMsg] = useState('')
+  const [marcheMin, setMarcheMin] = useState(100)
+  const chargerMarche = (force = false): void => {
+    setMarcheMsg('Chargement de l\u2019export quotidien\u2026')
+    window.api.market.scan(force, marcheMin).then((r: typeof marche) => {
+      setMarche(r)
+      setMarcheMsg(r ? '' : 'Export indisponible (hors-ligne ?) \u2014 r\u00e9essaie plus tard')
+    })
+  }
+  useEffect(() => {
+    if (section === 'marche') chargerMarche()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, marcheMin])
+
   const lancerInventaire = (): void => {
     // Drapeau (si l'onglet Cardmarket n'a jamais été ouvert : lu à son
     // montage) + événement (s'il est déjà vivant en arrière-plan)
@@ -543,7 +569,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             ['reassort', '💡 À racheter'],
             ['dormant', '😴 Dormant'],
             ['seuils', '🎯 Seuils'],
-            ['suivi', '📈 Suivi']
+            ['suivi', '📈 Suivi'],
+            ['marche', '💹 Marché']
           ] as const
         ).map(([id, label]) => (
           <button
@@ -1260,6 +1287,99 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 </tbody>
               </table>
             </>
+          )}
+        </>
+      )}
+
+      {section === 'marche' && (
+        <>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 10, maxWidth: 860 }}>
+            Analyse de <b>tout le catalogue Lorcana</b> à partir de l&apos;export quotidien
+            officiel de Cardmarket (prix de VENTE réels — un seul téléchargement par jour, zéro
+            requête sur le site). <b>Opportunités d&apos;achat</b> : le prix du jour est nettement
+            sous la tendance (des vendeurs viennent de brader). <b>Bulles</b> : le prix du jour
+            s&apos;emballe au-dessus de la tendance — à ne pas acheter… et à VENDRE si tu l&apos;as
+            en stock.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={marcheMin} onChange={(e) => setMarcheMin(parseInt(e.target.value, 10))}>
+              <option value={100}>Tendance ≥ 1 €</option>
+              <option value={500}>Tendance ≥ 5 €</option>
+              <option value={2000}>Tendance ≥ 20 €</option>
+              <option value={10000}>Tendance ≥ 100 €</option>
+            </select>
+            <button onClick={() => chargerMarche(true)}>🔄 Re-télécharger l&apos;export</button>
+            {marche && (
+              <span className="badge">données du {marche.createdAt.slice(0, 10)}</span>
+            )}
+            {marcheMsg && <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{marcheMsg}</span>}
+          </div>
+          {marche && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'start' }}>
+              {(
+                [
+                  ['💰 Opportunités d\u2019achat (prix du jour sous la tendance)', marche.achats, 'achat'],
+                  ['🫧 Bulles / hype (prix du jour au-dessus — vendre ?)', marche.bulles, 'bulle']
+                ] as const
+              ).map(([titre, lignes, type]) => (
+                <div key={type}>
+                  <h3 style={{ fontSize: '0.95rem', marginBottom: 8 }}>{titre}</h3>
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Carte</th>
+                        <th style={{ textAlign: 'right' }}>Tendance</th>
+                        <th style={{ textAlign: 'right' }}>Moy 1 j</th>
+                        <th style={{ textAlign: 'right' }}>Écart</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lignes.slice(0, 30).map((o) => (
+                        <tr key={`${o.idProduct}|${o.foil}`}>
+                          <td style={{ maxWidth: 220 }}>
+                            <span
+                              title={o.name}
+                              style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                              {o.name}
+                              {o.foil && <span style={{ color: 'var(--accent)' }}> ✨</span>}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>{euros(Math.round(o.trend))}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <b>{euros(Math.round(o.avg1))}</b>
+                          </td>
+                          <td
+                            style={{
+                              textAlign: 'right',
+                              fontWeight: 700,
+                              color: type === 'achat' ? 'var(--ok)' : 'var(--danger, #e5534b)'
+                            }}
+                          >
+                            {type === 'achat' ? '−' : '+'}
+                            {Math.round(o.ecart_pct)} %
+                          </td>
+                          <td>
+                            <button
+                              title="Ouvrir la recherche sur Cardmarket (2e fenêtre)"
+                              style={{ padding: '3px 8px' }}
+                              onClick={() =>
+                                window.api.cm.openWindow(
+                                  `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(o.name)}`
+                                )
+                              }
+                            >
+                              🛒
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
           )}
         </>
       )}

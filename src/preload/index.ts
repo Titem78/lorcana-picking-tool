@@ -138,6 +138,11 @@ const api = {
     lowStock: () => ipcRenderer.invoke('stock:lowStock')
   },
 
+  market: {
+    scan: (force?: boolean, minTrendCents?: number) =>
+      ipcRenderer.invoke('market:scan', force, minTrendCents)
+  },
+
   pricewatch: {
     add: (userId: number, url: string, label: string) =>
       ipcRenderer.invoke('pricewatch:add', userId, url, label),

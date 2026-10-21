@@ -506,6 +506,14 @@ export function registerIpc(): void {
   ipcMain.handle('stock:lowStock', () => stock.lowStockByRarity())
 
   // --- Suivi de prix (📈) -------------------------------------------------------
+  ipcMain.handle('market:scan', async (_e, force?: boolean, minTrendCents?: number) => {
+    const cd = await import('./cmdata')
+    const data = await cd.getMarketData(force ?? false)
+    if (!data) return null
+    const { achats, bulles } = cd.scanOpportunites(data, { minTrendCents })
+    return { createdAt: data.createdAt, achats, bulles }
+  })
+
   ipcMain.handle('pricewatch:add', async (_e, userId: number, url: string, label: string) => {
     const pw = await import('./pricewatch')
     const r = pw.addWatch(userId, url, label)

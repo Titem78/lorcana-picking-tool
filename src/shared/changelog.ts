@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.47.0',
+    title: '💹 Marché : opportunités d’achat et bulles sur tout le catalogue',
+    items: [
+      'Découverte : Cardmarket publie un EXPORT OFFICIEL QUOTIDIEN de tous ses prix de vente réels (tendance, moyennes 1/7/30 j, plancher, versions foil) — un seul téléchargement par jour, zéro requête sur le site',
+      'Nouvelle section 📦 Stock → 💹 Marché : 💰 opportunités d’ACHAT (prix du jour nettement sous la tendance = des vendeurs bradent) et 🫧 BULLES (prix du jour qui s’emballe = à ne pas acheter, à vendre si tu l’as), avec le % d’écart et le filtre par niveau de prix',
+      'La règle d’or appliquée : seules les cartes avec des ventes réelles récentes (moyenne 7 j présente) sont analysées — pas de faux signaux sur des marchés morts'
+    ]
+  },
+  {
     version: '2.46.2',
     title: 'Suivi : présentation propre',
     items: [
