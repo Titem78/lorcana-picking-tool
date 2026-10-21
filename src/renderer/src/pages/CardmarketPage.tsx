@@ -583,8 +583,12 @@ export default function CardmarketPage({ user }: { user: User }): React.JSX.Elem
             const wv = webviewRef.current
             if (!wv) return
             const url = wv.getURL()
+            // premier nœud texte du h1 UNIQUEMENT : le reste (set, nom EN,
+            // « Cartes ») est un sous-titre imbriqué qui polluait le libellé
             const titre = ((await wv
-              .executeJavaScript(`document.querySelector('h1')?.textContent?.trim() || ''`)
+              .executeJavaScript(
+                `(document.querySelector('h1')?.childNodes[0]?.textContent || document.querySelector('h1')?.textContent || '').trim()`
+              )
               .catch(() => '')) ?? '') as string
             const r = (await window.api.pricewatch.add(user.id, url, titre)) as {
               ok: boolean

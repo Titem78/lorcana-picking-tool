@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.46.2',
+    title: 'Suivi : présentation propre',
+    items: [
+      'Le nom capturé par « 📈 Suivre » est maintenant le nom de la carte seul (plus le titre complet de la page avec set et nom anglais)',
+      'Libellés RENOMMABLES (bouton ✏, ex. « Buzz foil ch.12 »), noms longs coupés proprement, boutons d’action compacts, date courte'
+    ]
+  },
+  {
     version: '2.46.1',
     title: 'Suivi : bouton Historique visible',
     items: [

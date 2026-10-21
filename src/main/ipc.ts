@@ -515,6 +515,10 @@ export function registerIpc(): void {
     }
     return r
   })
+  ipcMain.handle('pricewatch:rename', async (_e, userId: number, id: number, label: string) => {
+    const pw = await import('./pricewatch')
+    pw.renameWatch(userId, id, label)
+  })
   ipcMain.handle('pricewatch:remove', async (_e, userId: number, id: number) => {
     const pw = await import('./pricewatch')
     pw.removeWatch(userId, id)

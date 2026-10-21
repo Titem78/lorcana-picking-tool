@@ -400,6 +400,7 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
   const [watches, setWatches] = useState<WatchRow[]>([])
   const [watchMsg, setWatchMsg] = useState('')
   const [histoDe, setHistoDe] = useState<number | null>(null)
+  const [renomme, setRenomme] = useState<{ id: number; label: string } | null>(null)
   const [histo, setHisto] = useState<WatchRow['dernier'][]>([])
   const chargerSuivi = (): void => {
     window.api.pricewatch.list().then(setWatches)
@@ -1109,9 +1110,40 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                   d?.avg7_cents != null && d?.avg30_cents != null && d.avg7_cents > d.avg30_cents * 1.15
                 return (
                   <tr key={w.id} onClick={() => setHistoDe(histoDe === w.id ? null : w.id)} style={{ cursor: 'pointer' }}>
-                    <td>
-                      {chaud && <span title="Tendance 7 j nettement au-dessus de la moyenne 30 j — ça monte">🔥 </span>}
-                      {w.label}
+                    <td style={{ maxWidth: 260 }}>
+                      {renomme?.id === w.id ? (
+                        <input
+                          autoFocus
+                          value={renomme.label}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setRenomme({ id: w.id, label: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              window.api.pricewatch.rename(user.id, w.id, renomme.label).then(() => {
+                                setRenomme(null)
+                                chargerSuivi()
+                              })
+                            }
+                            if (e.key === 'Escape') setRenomme(null)
+                          }}
+                          style={{ width: '100%' }}
+                        />
+                      ) : (
+                        <span
+                          title={w.label}
+                          style={{
+                            display: 'block',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {chaud && (
+                            <span title="Tendance 7 j nettement au-dessus de la moyenne 30 j — ça monte">🔥 </span>
+                          )}
+                          {w.label}
+                        </span>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right' }}>{d?.available ?? '…'}</td>
                     <td style={{ textAlign: 'right' }}>{d?.from_cents != null ? euros(d.from_cents) : ''}</td>
@@ -1137,40 +1169,56 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                         ''
                       )}
                     </td>
-                    <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                      {d?.taken_at?.slice(0, 16) ?? 'jamais'}
+                    <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                      {d?.taken_at ? `${d.taken_at.slice(8, 10)}/${d.taken_at.slice(5, 7)} ${d.taken_at.slice(11, 16)}` : 'jamais'}
                     </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <button
-                        className={histoDe === w.id ? 'primary' : ''}
-                        title="Voir l'historique des relevés de cette carte"
-                        onClick={() => setHistoDe(histoDe === w.id ? null : w.id)}
-                      >
-                        📊 Historique
-                      </button>{' '}
-                      <button
-                        title="Relever maintenant"
-                        onClick={() =>
-                          window.api.pricewatch.refresh(w.id).then((r: { message: string }) => {
-                            setWatchMsg(r.message)
-                            chargerSuivi()
-                          })
-                        }
-                      >
-                        🔄
-                      </button>{' '}
-                      <button title="Ouvrir la page produit (2e fenêtre)" onClick={() => window.api.cm.openWindow(w.url)}>
-                        🛒
-                      </button>{' '}
-                      <button
-                        title="Ne plus suivre"
-                        onClick={() => {
-                          if (confirmDialog(`Ne plus suivre « ${w.label} » ? (l'historique est conservé)`))
-                            window.api.pricewatch.remove(user.id, w.id).then(chargerSuivi)
-                        }}
-                      >
-                        🗑
-                      </button>
+                    <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className={histoDe === w.id ? 'primary' : ''}
+                          title="Historique des relevés"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => setHistoDe(histoDe === w.id ? null : w.id)}
+                        >
+                          📊
+                        </button>
+                        <button
+                          title="Relever maintenant"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() =>
+                            window.api.pricewatch.refresh(w.id).then((r: { message: string }) => {
+                              setWatchMsg(r.message)
+                              chargerSuivi()
+                            })
+                          }
+                        >
+                          🔄
+                        </button>
+                        <button
+                          title="Renommer (ex. « Buzz foil ch.12 »)"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => setRenomme({ id: w.id, label: w.label })}
+                        >
+                          ✏
+                        </button>
+                        <button
+                          title="Ouvrir la page produit (2e fenêtre)"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => window.api.cm.openWindow(w.url)}
+                        >
+                          🛒
+                        </button>
+                        <button
+                          title="Ne plus suivre"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => {
+                            if (confirmDialog(`Ne plus suivre « ${w.label} » ? (l'historique est conservé)`))
+                              window.api.pricewatch.remove(user.id, w.id).then(chargerSuivi)
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

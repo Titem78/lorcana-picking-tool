@@ -107,6 +107,12 @@ export function addWatch(userId: number, url: string, label: string): { ok: bool
   return { ok: true, message: `📈 « ${label.trim() || propre} » est suivie — premier relevé en cours…` }
 }
 
+export function renameWatch(userId: number, id: number, label: string): void {
+  if (!label.trim()) return
+  getDb().prepare('UPDATE price_watch SET label = ? WHERE id = ?').run(label.trim(), id)
+  logActivity(userId, 'pricewatch.renamed', { id, label: label.trim() })
+}
+
 export function removeWatch(userId: number, id: number): void {
   getDb().prepare('UPDATE price_watch SET active = 0 WHERE id = ?').run(id)
   logActivity(userId, 'pricewatch.removed', { id })

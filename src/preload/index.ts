@@ -142,6 +142,8 @@ const api = {
     add: (userId: number, url: string, label: string) =>
       ipcRenderer.invoke('pricewatch:add', userId, url, label),
     remove: (userId: number, id: number) => ipcRenderer.invoke('pricewatch:remove', userId, id),
+    rename: (userId: number, id: number, label: string) =>
+      ipcRenderer.invoke('pricewatch:rename', userId, id, label),
     list: () => ipcRenderer.invoke('pricewatch:list'),
     history: (id: number) => ipcRenderer.invoke('pricewatch:history', id),
     refresh: (id?: number) => ipcRenderer.invoke('pricewatch:refresh', id)
