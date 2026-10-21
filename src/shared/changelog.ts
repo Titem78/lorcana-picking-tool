@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.45.1',
+    title: 'Seuils : deux derniers pièges de noms éliminés',
+    items: [
+      'La page Cardmarket écrit « regroupage ! » avec une espace INSÉCABLE quand le PDF met une espace normale : 24 exemplaires en stock pouvaient passer pour une rupture — les noms sont maintenant normalisés dans tous les rapprochements',
+      'Une vente « (V.5) » ne crée plus de rupture quand la même carte (autre numérotation de version) est en stock',
+      'Vérifié sur les deux cas réels du PC de Laure'
+    ]
+  },
+  {
     version: '2.45.0',
     title: 'Seuils : les foils et les cartes EN ne polluent plus la liste',
     items: [

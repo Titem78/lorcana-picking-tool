@@ -308,7 +308,7 @@ export function lowStockByRarity(): {
   for (const t of toutes) {
     if (t.language) enStock.add(cleVenteLigne(t))
     else enStockJoker.add(cleSansLangue(t))
-    enStockParNom.add(`${t.name}|${t.is_foil}`)
+    enStockParNom.add(`${nomRacine(t.name)}|${t.is_foil}`)
   }
   for (const g of groupes) {
     if (horsPerimetre(g)) continue
@@ -337,7 +337,7 @@ export function lowStockByRarity(): {
     if (
       enStock.has(cleVenteLigne(v)) ||
       enStockJoker.has(cleSansLangue(v)) ||
-      enStockParNom.has(`${v.name}|${v.is_foil}`)
+      enStockParNom.has(`${nomRacine(v.name)}|${v.is_foil}`)
     )
       continue
     const rarete = canonicalRarity(v.rarity)
@@ -523,6 +523,19 @@ export interface SalesRow {
 const CLE_STOCK = `name || '|' || COALESCE(NULLIF(set_code, ''), NULLIF(color_code, ''), '') || '|' || COALESCE(language,'') || '|' || is_foil`
 
 /** Même clé côté ventes (order_lines) : chapitre, sinon code promo. */
+/** Nom normalisé pour comparaison : la page Cardmarket écrit « regroupage !»
+ *  avec une ESPACE INSÉCABLE quand le PDF met une espace normale — sans cette
+ *  normalisation, 24 ex en stock passaient pour une rupture (bug réel). */
+function nomCle(name: string): string {
+  return name.replace(/ /g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** Nom SANS le suffixe (V.x) : pour le filet « même carte en stock » — la
+ *  numérotation (V.x) de Cardmarket diverge entre annonces et ventes. */
+function nomRacine(name: string): string {
+  return nomCle(name).replace(/\s*\(V\.\d+\)\s*$/i, '')
+}
+
 function cleVenteLigne(l: {
   name: string
   set_code: string | null
@@ -530,7 +543,7 @@ function cleVenteLigne(l: {
   language: string | null
   is_foil: number
 }): string {
-  return `${l.name}|${l.set_code || l.color_code || ''}|${l.language ?? ''}|${l.is_foil}`
+  return `${nomCle(l.name)}|${l.set_code || l.color_code || ''}|${l.language ?? ''}|${l.is_foil}`
 }
 
 /** Clé SANS la langue : certaines lignes de stock sont balayées sans langue
@@ -542,7 +555,7 @@ function cleSansLangue(l: {
   color_code: string | null
   is_foil: number
 }): string {
-  return `${l.name}|${l.set_code || l.color_code || ''}|${l.is_foil}`
+  return `${nomCle(l.name)}|${l.set_code || l.color_code || ''}|${l.is_foil}`
 }
 
 interface LigneVente {

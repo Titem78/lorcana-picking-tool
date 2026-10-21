@@ -288,6 +288,40 @@ describe('seuils par rareté (besoin Laure : 30 co/unco en vente)', () => {
     expect(vente?.in_stock).toBe(13)
   })
 
+  it("espace insécable et suffixe (V.x) : jamais de fausse rupture (cas PC Laure)", async () => {
+    const { lowStockByRarity } = await import('../src/main/stock')
+    const db = getDb()
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_rarities', ?)"
+    ).run(JSON.stringify({ Common: 1 }))
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('stock_min_scope', ?)"
+    ).run(JSON.stringify({ foil: 'nonfoil', fr_only: true }))
+    // Stock balayé depuis la page CM : espace INSÉCABLE avant le « ! »
+    upsertStock(userId, [
+      { article_id: 'nb1', name: 'Les filles, regroupage !', set_code: '13', color_code: 'ATV', language: 'FR', condition: 'NM', is_foil: false, price: '0,05 EUR', quantity: 24 },
+      { article_id: 'v51', name: 'Chiot Dalmatien - Frétille de joie', set_code: '8', color_code: 'JAF', language: 'FR', condition: 'NM', is_foil: false, price: '0,04 EUR', quantity: 22 }
+    ])
+    db.prepare("UPDATE stock_items SET rarity = 'Common' WHERE cm_article_id IN ('nb1','v51')").run()
+    const o = db
+      .prepare(
+        `INSERT INTO orders (sale_id, buyer_username, buyer_name, buyer_address, status, imported_by)
+         VALUES ('999005', 'client5', 'Client Cinq', 'adresse', 'shipped', ?)`
+      )
+      .run(userId)
+    const ins = db.prepare(
+      `INSERT INTO order_lines (order_id, quantity, name, number, language, condition, set_code,
+         color_code, color_label, rarity_code, price, comment, is_foil, section)
+       VALUES (?, 1, ?, '1', 'FR', 'NM', ?, 'XXX', '', 'C', '0,05 EUR', '', 0, 'Lorcana Cartes')`
+    )
+    // Vente côté PDF : espace NORMALE + suffixe (V.5) inconnu du stock
+    ins.run(Number(o.lastInsertRowid), 'Les filles, regroupage !', '13')
+    ins.run(Number(o.lastInsertRowid), 'Chiot Dalmatien - Frétille de joie (V.5)', '8')
+    const noms = lowStockByRarity().rows.map((x) => x.name)
+    expect(noms.some((n) => n.includes('regroupage'))).toBe(false)
+    expect(noms.some((n) => n.includes('Chiot Dalmatien'))).toBe(false)
+  })
+
   it('miroir VIDE : aucun faux « 0 en stock », le drapeau le signale', async () => {
     const { lowStockByRarity } = await import('../src/main/stock')
     const db = getDb()
