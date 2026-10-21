@@ -284,5 +284,13 @@ export const MIGRATIONS: string[] = [
     our_qty INTEGER
   );
   CREATE INDEX idx_price_points_watch ON price_points(watch_id, taken_at);
+  `,
+
+  // 019 — RÉSERVE : exemplaires possédés mais PAS mis en vente (en classeur,
+  // en attente du bon moment) — déclarés sur les cartes suivies, pour que le
+  // radar du marché les surveille aussi ; prix d'achat facultatif (plus-value)
+  `
+  ALTER TABLE price_watch ADD COLUMN reserve_qty INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE price_watch ADD COLUMN buy_price_cents INTEGER;
   `
 ]

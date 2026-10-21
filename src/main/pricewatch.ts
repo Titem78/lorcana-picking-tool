@@ -18,6 +18,8 @@ export interface PriceWatch {
   label: string
   created_at: string
   active: number
+  reserve_qty: number
+  buy_price_cents: number | null
 }
 
 export interface PricePoint {

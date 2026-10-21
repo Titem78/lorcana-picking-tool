@@ -514,6 +514,21 @@ export function registerIpc(): void {
     return { createdAt: data.createdAt, achats, bulles }
   })
 
+  ipcMain.handle('market:radar', async () => {
+    const cd = await import('./cmdata')
+    const data = await cd.getMarketData(false)
+    if (!data) return null
+    return cd.marketRadar(data)
+  })
+
+  ipcMain.handle('pricewatch:reserve', async (_e, userId: number, id: number, qty: number, buyCents: number | null) => {
+    const { getDb, logActivity } = await import('./db')
+    getDb()
+      .prepare('UPDATE price_watch SET reserve_qty = ?, buy_price_cents = ? WHERE id = ?')
+      .run(Math.max(0, Math.round(qty) || 0), buyCents, id)
+    logActivity(userId, 'pricewatch.reserve', { id, qty, buyCents })
+  })
+
   ipcMain.handle('pricewatch:add', async (_e, userId: number, url: string, label: string) => {
     const pw = await import('./pricewatch')
     const r = pw.addWatch(userId, url, label)

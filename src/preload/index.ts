@@ -140,7 +140,8 @@ const api = {
 
   market: {
     scan: (force?: boolean, minTrendCents?: number) =>
-      ipcRenderer.invoke('market:scan', force, minTrendCents)
+      ipcRenderer.invoke('market:scan', force, minTrendCents),
+    radar: () => ipcRenderer.invoke('market:radar')
   },
 
   pricewatch: {
@@ -149,6 +150,8 @@ const api = {
     remove: (userId: number, id: number) => ipcRenderer.invoke('pricewatch:remove', userId, id),
     rename: (userId: number, id: number, label: string) =>
       ipcRenderer.invoke('pricewatch:rename', userId, id, label),
+    reserve: (userId: number, id: number, qty: number, buyCents: number | null) =>
+      ipcRenderer.invoke('pricewatch:reserve', userId, id, qty, buyCents),
     list: () => ipcRenderer.invoke('pricewatch:list'),
     history: (id: number) => ipcRenderer.invoke('pricewatch:history', id),
     refresh: (id?: number) => ipcRenderer.invoke('pricewatch:refresh', id)

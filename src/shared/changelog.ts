@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.48.0',
+    title: '🔥 Radar sur TES cartes + la réserve en classeur',
+    items: [
+      '💹 Marché affiche désormais en premier « MES cartes qui montent » : le croisement entre l’export de prix du jour et ce que TU possèdes — ton stock en vente ET ta réserve',
+      '📁 RÉSERVE : sur chaque carte suivie (📈 Suivi), déclare la quantité que tu gardes en classeur en attendant le bon moment (+ prix d’achat facultatif) — le radar la surveille et affiche la plus-value potentielle',
+      'Le pont de noms français ↔ anglais est automatique (données officielles) : ton stock en français se retrouve dans l’export anglais de Cardmarket tout seul'
+    ]
+  },
+  {
     version: '2.47.0',
     title: '💹 Marché : opportunités d’achat et bulles sur tout le catalogue',
     items: [

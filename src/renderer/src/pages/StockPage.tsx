@@ -385,6 +385,8 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     label: string
     created_at: string
     points: number
+    reserve_qty: number
+    buy_price_cents: number | null
     dernier: {
       taken_at: string
       available: number | null
@@ -426,14 +428,27 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
     ecart_pct: number
   }
   const [marche, setMarche] = useState<{ createdAt: string; achats: Oppo[]; bulles: Oppo[] } | null>(null)
+  interface RadarRow {
+    name: string
+    source: 'stock' | 'réserve'
+    qty: number
+    foil: boolean
+    trend: number
+    avg1: number
+    avg7: number | null
+    ecart_pct: number
+    buy_price_cents: number | null
+  }
+  const [radar, setRadar] = useState<RadarRow[] | null>(null)
   const [marcheMsg, setMarcheMsg] = useState('')
   const [marcheMin, setMarcheMin] = useState(100)
   const chargerMarche = (force = false): void => {
     setMarcheMsg('Chargement de l\u2019export quotidien\u2026')
     window.api.market.scan(force, marcheMin).then((r: typeof marche) => {
       setMarche(r)
-      setMarcheMsg(r ? '' : 'Export indisponible (hors-ligne ?) \u2014 r\u00e9essaie plus tard')
+      setMarcheMsg(r ? '' : 'Export indisponible (hors-ligne ?) — réessaie plus tard')
     })
+    window.api.market.radar().then(setRadar)
   }
   useEffect(() => {
     if (section === 'marche') chargerMarche()
@@ -1126,6 +1141,9 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 <th style={{ textAlign: 'right' }}>Moy 7 j</th>
                 <th style={{ textAlign: 'right' }}>Moy 1 j</th>
                 <th style={{ textAlign: 'right' }}>Mon prix</th>
+                <th style={{ textAlign: 'right' }} title="Exemplaires possédés mais PAS mis en vente (en classeur, en attente du bon moment) — surveillés par le radar 💹 Marché">
+                  📁 Réserve
+                </th>
                 <th>Dernier relevé</th>
                 <th></th>
               </tr>
@@ -1195,6 +1213,21 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                       ) : (
                         ''
                       )}
+                    </td>
+                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="number"
+                        min={0}
+                        value={w.reserve_qty || ''}
+                        placeholder="0"
+                        title="Quantité en réserve (classeur) — Entrée inutile, sauvé direct"
+                        onChange={(e) =>
+                          window.api.pricewatch
+                            .reserve(user.id, w.id, parseInt(e.target.value, 10) || 0, w.buy_price_cents)
+                            .then(chargerSuivi)
+                        }
+                        style={{ width: 56, textAlign: 'right' }}
+                      />
                     </td>
                     <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                       {d?.taken_at ? `${d.taken_at.slice(8, 10)}/${d.taken_at.slice(5, 7)} ${d.taken_at.slice(11, 16)}` : 'jamais'}
@@ -1314,6 +1347,73 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
             )}
             {marcheMsg && <span style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{marcheMsg}</span>}
           </div>
+          {radar && radar.length > 0 && (
+            <div style={{ border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16 }}>
+              <h3 style={{ fontSize: '0.95rem', marginBottom: 8 }}>
+                🔥 MES cartes qui montent (stock listé + réserve en classeur)
+              </h3>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Carte</th>
+                    <th>Où</th>
+                    <th style={{ textAlign: 'right' }}>Qté</th>
+                    <th style={{ textAlign: 'right' }}>Tendance</th>
+                    <th style={{ textAlign: 'right' }}>Moy 1 j</th>
+                    <th style={{ textAlign: 'right' }}>Écart</th>
+                    <th style={{ textAlign: 'right' }}>Plus-value</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {radar.slice(0, 20).map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ maxWidth: 240 }}>
+                        <span title={r.name} style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {r.name}
+                          {r.foil && <span style={{ color: 'var(--accent)' }}> ✨</span>}
+                        </span>
+                      </td>
+                      <td>{r.source === 'stock' ? '🏪 en vente' : '📁 réserve'}</td>
+                      <td style={{ textAlign: 'right' }}>{r.qty}</td>
+                      <td style={{ textAlign: 'right' }}>{euros(Math.round(r.trend))}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <b>{euros(Math.round(r.avg1))}</b>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--ok)' }}>
+                        +{Math.round(r.ecart_pct)} %
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-dim)' }}>
+                        {r.buy_price_cents != null
+                          ? `${euros(Math.round((r.avg1 - r.buy_price_cents) * r.qty))}`
+                          : ''}
+                      </td>
+                      <td>
+                        <button
+                          title="Ouvrir sur Cardmarket (2e fenêtre) pour vendre"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() =>
+                            window.api.cm.openWindow(
+                              `https://www.cardmarket.com/fr/Lorcana/Products/Search?searchString=${encodeURIComponent(r.name.replace(/\s*\(V\.\d+\)\s*$/i, ''))}`
+                            )
+                          }
+                        >
+                          🛒
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {radar && radar.length === 0 && (
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginBottom: 12 }}>
+              🔥 Aucune de TES cartes (stock + réserve) ne décolle aujourd&apos;hui. Astuce :
+              déclare une « réserve » sur tes cartes suivies (📈 Suivi) pour surveiller aussi
+              celles qui attendent en classeur.
+            </p>
+          )}
           {marche && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'start' }}>
               {(

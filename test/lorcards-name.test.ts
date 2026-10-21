@@ -181,3 +181,24 @@ describe('ligatures Œ/æ (Œil des moires, 76 noms officiels concernés)', () =
     expect(normName('Les Moires - Œil unique')).toBe(normName('Les Moires - Oeil unique'))
   })
 })
+
+describe('pont FR ↔ EN (export de prix anglais vs stock français)', async () => {
+  const { buildPont } = await import('../src/main/lorcanajson')
+  const pont = buildPont(
+    [
+      { fullName: 'Mickey Mouse - Brave petit tailleur', setCode: '1', number: 115, rarity: 'Légendaire', color: 'Rubis' },
+      { fullName: 'Elsa - Le cinquième esprit', setCode: '5', number: 48, rarity: 'Très Rare', color: 'Améthyste' }
+    ],
+    [
+      { fullName: 'Mickey Mouse - Brave Little Tailor', setCode: '1', number: 115 },
+      { fullName: 'Elsa - The Fifth Spirit', setCode: '5', number: 48 }
+    ]
+  )
+  it('joint les deux langues par set/numéro', () => {
+    expect(pont.parFrSet['mickey mouse brave petit tailleur|1']?.en).toBe(
+      'mickey mouse brave little tailor'
+    )
+    expect(pont.parFrSet['elsa le cinquieme esprit|5']?.en).toBe('elsa the fifth spirit')
+    expect(pont.setsParEn['elsa the fifth spirit']).toEqual(['5'])
+  })
+})

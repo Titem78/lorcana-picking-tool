@@ -106,6 +106,120 @@ export async function getMarketData(force = false): Promise<MarketData | null> {
   return cache ?? (await chargement)
 }
 
+// --- Radar « mes cartes » --------------------------------------------------------
+// Croise l'export de prix avec CE QUE TU POSSÈDES : le stock LISTÉ (miroir)
+// ET la RÉSERVE (cartes suivies avec une quantité en classeur, en attente du
+// bon moment). Chaîne de correspondance : nom FR → pont LorcanaJSON → nom EN
+// + set → produit du catalogue (l'export parle anglais).
+
+import { getDb } from './db'
+import { normName, getPont } from './lorcanajson'
+
+export interface RadarRow {
+  name: string
+  source: 'stock' | 'réserve'
+  qty: number
+  foil: boolean
+  trend: number
+  avg1: number
+  avg7: number | null
+  ecart_pct: number
+  buy_price_cents: number | null
+}
+
+/** index produits par « nom EN normalisé » (toutes versions confondues). */
+function produitsParNom(produits: Map<number, ProduitRow>): Map<string, ProduitRow[]> {
+  const m = new Map<string, ProduitRow[]>()
+  for (const p of produits.values()) {
+    const k = normName(p.name)
+    const l = m.get(k) ?? []
+    l.push(p)
+    m.set(k, l)
+  }
+  for (const l of m.values()) l.sort((a, b) => a.dateAdded.localeCompare(b.dateAdded))
+  return m
+}
+
+/**
+ * Cartes POSSÉDÉES dont le prix du jour décolle au-dessus de la tendance
+ * (seuil %) — triées par écart décroissant. Les versions d'un même nom ne
+ * sont pas différenciables côté export (pas de numéro) : on prend la carte
+ * de BASE (premier produit), le nom affiché permet de vérifier.
+ */
+export async function marketRadar(
+  data: MarketData,
+  seuilPct = 15
+): Promise<RadarRow[]> {
+  const pont = await getPont()
+  if (!pont) return []
+  const parNom = produitsParNom(data.produits)
+  const guideParId = new Map(data.guide.map((g) => [g.idProduct, g]))
+  const db = getDb()
+
+  const sources: { name: string; set: string; foil: boolean; qty: number; source: 'stock' | 'réserve'; buy: number | null }[] = []
+  for (const r of db
+    .prepare(
+      `SELECT name, COALESCE(NULLIF(set_code,''), NULLIF(color_code,''), '') AS s, is_foil,
+              SUM(quantity) AS q
+       FROM stock_items GROUP BY name, s, is_foil`
+    )
+    .all() as { name: string; s: string; is_foil: number; q: number }[]) {
+    sources.push({ name: r.name, set: r.s, foil: r.is_foil === 1, qty: r.q, source: 'stock', buy: null })
+  }
+  for (const w of db
+    .prepare('SELECT label, reserve_qty, buy_price_cents FROM price_watch WHERE active = 1 AND reserve_qty > 0')
+    .all() as { label: string; reserve_qty: number; buy_price_cents: number | null }[]) {
+    // la réserve n'a pas de set déclaré : résolu par le nom seul (FR ou EN)
+    sources.push({ name: w.label, set: '', foil: /foil/i.test(w.label), qty: w.reserve_qty, source: 'réserve', buy: w.buy_price_cents })
+  }
+
+  const rows: RadarRow[] = []
+  const vus = new Set<string>()
+  for (const s of sources) {
+    const frNorm = normName(s.name)
+    // FR → EN via le pont (set connu, sinon tout set où le nom existe)
+    let enNorm: string | null = null
+    if (s.set) enNorm = pont.parFrSet[`${frNorm}|${s.set}`]?.en ?? null
+    if (!enNorm) {
+      for (const k of Object.keys(pont.parFrSet)) {
+        if (k.startsWith(`${frNorm}|`)) {
+          enNorm = pont.parFrSet[k].en
+          break
+        }
+      }
+    }
+    // le libellé est peut-être déjà le nom anglais (catalogue, page EN…)
+    if (!enNorm && parNom.has(frNorm)) enNorm = frNorm
+    if (!enNorm) continue
+    const prods = parNom.get(enNorm)
+    if (!prods?.length) continue
+    const g = guideParId.get(prods[0].idProduct)
+    if (!g) continue
+    const trend = s.foil ? g['trend-foil'] : g.trend
+    const avg1 = s.foil ? g['avg1-foil'] : g.avg1
+    const avg7 = s.foil ? g['avg7-foil'] : g.avg7
+    if (trend == null || avg1 == null || trend <= 0) continue
+    const pct = ((avg1 - trend) / trend) * 100
+    if (pct < seuilPct) continue
+    const cle = `${enNorm}|${s.foil}|${s.source}`
+    if (vus.has(cle)) continue
+    vus.add(cle)
+    rows.push({
+      name: s.name,
+      source: s.source,
+      qty: s.qty,
+      foil: s.foil,
+      trend,
+      avg1,
+      avg7,
+      ecart_pct: pct,
+      buy_price_cents: s.buy
+    })
+  }
+  rows.sort((a, b) => b.ecart_pct - a.ecart_pct)
+  return rows.slice(0, 60)
+}
+
 export interface Opportunite {
   idProduct: number
   name: string

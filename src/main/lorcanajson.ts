@@ -325,3 +325,102 @@ export async function getOfficialFrImage(
     return null
   }
 }
+
+// --- Pont de noms FR ↔ EN -------------------------------------------------------
+// L'export de prix Cardmarket parle ANGLAIS, notre stock parle FRANÇAIS :
+// on joint les deux fichiers officiels (fr + en) par set/numéro pour obtenir
+// « nomFR normalisé|set » → { nom EN normalisé, numéro }.
+
+export interface PontEntree {
+  en: string
+  num: number
+}
+
+interface PontIndex {
+  v: number
+  construit: string
+  /** `${normName(fr)}|${set}` → { en: normName(en), num } */
+  parFrSet: Record<string, PontEntree>
+  /** normName(en) → sets où ce nom existe (détection d'unicité) */
+  setsParEn: Record<string, string[]>
+}
+
+const PONT_V = 1
+let pont: PontIndex | null = null
+let pontChargement: Promise<PontIndex | null> | null = null
+
+function pontFichier(): string {
+  return join(app.getPath('userData'), 'cache', 'lorcanajson-pont.json')
+}
+
+export function buildPont(
+  fr: LjCardInput[],
+  en: LjCardInput[]
+): Pick<PontIndex, 'parFrSet' | 'setsParEn'> {
+  const cle = (c: LjCardInput): string =>
+    `${c.promoGrouping ? String(c.promoGrouping).toUpperCase() : String(c.setCode ?? '')}/${c.number ?? ''}`
+  const enParSetNum = new Map<string, string>()
+  for (const c of en) {
+    if (c.fullName && c.number != null) enParSetNum.set(cle(c), normName(c.fullName))
+  }
+  const parFrSet: Record<string, PontEntree> = {}
+  const setsParEn: Record<string, string[]> = {}
+  for (const c of fr) {
+    if (!c.fullName || c.number == null) continue
+    const setKey = c.promoGrouping ? String(c.promoGrouping).toUpperCase() : String(c.setCode ?? '')
+    const enNom = enParSetNum.get(cle(c))
+    if (!enNom || !setKey) continue
+    const k = `${normName(c.fullName)}|${setKey}`
+    // plusieurs versions du même nom dans un set : on garde le plus petit
+    // numéro (la base) — les variantes partagent le nom EN de toute façon
+    if (!(k in parFrSet) || (c.number ?? 9999) < parFrSet[k].num) {
+      parFrSet[k] = { en: enNom, num: c.number }
+    }
+    const liste = (setsParEn[enNom] ??= [])
+    if (!liste.includes(setKey)) liste.push(setKey)
+  }
+  return { parFrSet, setsParEn }
+}
+
+/** Pont FR↔EN (construit une fois, mis en cache 7 j comme le reste). */
+export async function getPont(): Promise<Pick<PontIndex, 'parFrSet' | 'setsParEn'> | null> {
+  if (process.env.VITEST) return null
+  if (pont && pont.v === PONT_V && Date.now() - Date.parse(pont.construit) < STALE_MS) return pont
+  if (!pontChargement) {
+    pontChargement = (async () => {
+      pontChargement = null
+      try {
+        const disque = JSON.parse(readFileSync(pontFichier(), 'utf-8')) as PontIndex
+        if (disque.v === PONT_V && Date.now() - Date.parse(disque.construit) < STALE_MS) {
+          pont = disque
+          return pont
+        }
+      } catch {
+        /* pas de cache */
+      }
+      try {
+        const [fr, en] = await Promise.all(
+          ['fr', 'en'].map(async (lang) => {
+            const r = await fetch(`https://lorcanajson.org/files/current/${lang}/allCards.json`, {
+              headers: { 'User-Agent': UA, Accept: 'application/json' },
+              signal: AbortSignal.timeout(60_000)
+            })
+            if (!r.ok) throw new Error(String(r.status))
+            return ((await r.json()) as { cards?: LjCardInput[] }).cards ?? []
+          })
+        )
+        const construit = buildPont(fr, en)
+        pont = { v: PONT_V, construit: new Date().toISOString(), ...construit }
+        try {
+          writeFileSync(pontFichier(), JSON.stringify(pont), 'utf-8')
+        } catch {
+          /* cache seulement */
+        }
+        return pont
+      } catch {
+        return pont
+      }
+    })()
+  }
+  return pont ?? (await pontChargement)
+}
