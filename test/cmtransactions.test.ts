@@ -75,6 +75,20 @@ describe('lecture du fichier', () => {
     expect(() => lireExport('Category;Total\nSales;100')).toThrow(/Montrer toutes les transactions/)
   })
 
+  it('« Extra Payments from shipments » (paiement complémentaire, cas réel Laure 01/09/2026) = ligne INDIVIDUELLE rattachée à la commande, jamais fondue dans les frais', () => {
+    const ok = csv([
+      '01.09.2026 22:53:46;1021949395;Sales;Extra Payments from shipments;AnthoFo95;1297810920;12,30;512,25;524,55'
+    ])
+    const { mvts } = lireExport(ok)
+    expect(mvts[0].type).toBe('Extra Payments from shipments')
+    expect(mvts[0].individuel).toBe(true)
+    const lignes = preparer(mvts, '2026-09')
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0].libelle).toBe('Extra Payments from shipments - AnthoFo95 - 1297810920')
+    expect(lignes[0].montant).toBe(12.3)
+    expect(lignes[0].cle).toBe('cardmarket:1021949395')
+  })
+
   it('classement sur Type, jamais Category (Trustee porte Category=Purchases)', () => {
     const ok = csv([
       '01.06.2026 10:00:00;111;Purchases;Trustee service fees;Cardmarket;T1;-0,50;100,00;99,50'

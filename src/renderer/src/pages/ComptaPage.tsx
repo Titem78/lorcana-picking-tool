@@ -306,7 +306,8 @@ export default function ComptaPage({ user }: { user: User }): React.JSX.Element 
       <h1>🔄 Sync gestion commerciale — transactions Cardmarket → Odoo</h1>
       <p style={{ color: 'var(--text-dim)', maxWidth: 720, marginBottom: 16 }}>
         Une fois par mois : récupère le relevé Cardmarket (Transaction Summary), vérifie
-        l&apos;aperçu, puis importe dans le journal 517. Ventes, achats, remboursements et
+        l&apos;aperçu, puis importe dans le journal 517. Ventes, paiements complémentaires
+        d&apos;une commande, achats, remboursements et
         retraits font une ligne chacun ; commissions et frais Trustee sont fondus dans une
         ligne « Frais Cardmarket » datée de fin de mois. Triple anti-doublon : réimporter ne
         crée jamais deux fois la même ligne.

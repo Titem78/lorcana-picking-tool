@@ -61,6 +61,11 @@ export const DEFAULT_CMTX_CONFIG: CmTxConfig = {
     Sales: { actif: true, inverser_signe: false, individuel: true },
     Purchases: { actif: true, inverser_signe: false, individuel: true },
     'Refunds for shipments': { actif: true, inverser_signe: false, individuel: true },
+    // Paiement complémentaire du client sur une commande (ex. cartes ajoutées
+    // via messagerie) : une ligne à lui, rattachée à la commande par la
+    // référence — SURTOUT PAS fondu dans les frais du mois (signalé par Laure,
+    // vente réelle du 01/09/2026 : +12,30 € sur la commande 1297810920)
+    'Extra Payments from shipments': { actif: true, inverser_signe: false, individuel: true },
     Withdrawals: { actif: true, inverser_signe: false, individuel: true },
     'Cardmarket refunds': { actif: true, inverser_signe: false, individuel: true },
     Commissions: { actif: true, inverser_signe: false, individuel: false },
@@ -94,7 +99,16 @@ export function getCmTxConfig(): CmTxConfig {
     const r = getDb().prepare("SELECT value FROM settings WHERE key = 'cmtx_config'").get() as
       | { value: string }
       | undefined
-    if (r?.value) return { ...DEFAULT_CMTX_CONFIG, ...(JSON.parse(r.value) as Partial<CmTxConfig>) }
+    if (r?.value) {
+      const surcharge = JSON.parse(r.value) as Partial<CmTxConfig>
+      // fusion PROFONDE des types : une surcharge partielle ne doit jamais
+      // masquer un type ajouté plus tard aux défauts (= faux « type inconnu »)
+      return {
+        ...DEFAULT_CMTX_CONFIG,
+        ...surcharge,
+        types: { ...DEFAULT_CMTX_CONFIG.types, ...(surcharge.types ?? {}) }
+      }
+    }
   } catch {
     /* défauts */
   }

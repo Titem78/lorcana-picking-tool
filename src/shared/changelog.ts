@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.49.1',
+    title: '🔄 Compta : paiements complémentaires reconnus',
+    items: [
+      'Nouveau type Cardmarket « Extra Payments from shipments » (le client paie un supplément sur sa commande, ex. cartes ajoutées par messagerie) : désormais reconnu à l’import compta — une ligne individuelle rattachée à la commande par sa référence, comme une vente, jamais fondue dans les frais du mois',
+      'Sécurité : une configuration compta personnalisée ne peut plus masquer les types ajoutés dans les mises à jour (fusion propre avec les défauts)'
+    ]
+  },
+  {
     version: '2.49.0',
     title: '🎯 Tracking : correspondance exacte + classements officiels',
     items: [
