@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.49.3',
+    title: '🎯 Couleur de « Mon annonce » : comparée au prix DU JOUR',
+    items: [
+      'Le rouge s’affichait dès que ton annonce dépassait la moyenne 7 jours — faux signal pendant une hausse (cas réel : annonce 2 250 € alors que le prix moyen du jour était 2 499 € = annonce SOUS le marché)',
+      'Désormais : vert = au niveau ou sous le prix moyen du jour (bien placé pour vendre), orange = au-dessus (positionné pour la hausse, partira moins vite) — l’infobulle donne la référence exacte. Plus de rouge alarmiste'
+    ]
+  },
+  {
     version: '2.49.2',
     title: '🎯 « Mon annonce » fiable (plus de trou)',
     items: [

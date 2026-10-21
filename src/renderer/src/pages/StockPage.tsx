@@ -1185,6 +1185,24 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                 const d = w.dernier
                 const chaud =
                   d?.avg7_cents != null && d?.avg30_cents != null && d.avg7_cents > d.avg30_cents * 1.15
+                // référence de l'annonce = prix moyen DU JOUR (sinon 7 j) :
+                // au-dessus de la moy 7 j pendant une hausse n'est PAS un
+                // problème (cas réel : annonce 2 250 € sous la moy 1 j 2 499 €)
+                const refAnnonce =
+                  d?.avg1_cents ??
+                  (w.catalogue?.avg1 != null ? Math.round(w.catalogue.avg1) : null) ??
+                  d?.avg7_cents ??
+                  (w.catalogue?.avg7 != null ? Math.round(w.catalogue.avg7) : null)
+                const styleAnnonce = (prix: number): { color: string } =>
+                  refAnnonce != null && prix > refAnnonce
+                    ? { color: 'var(--warn, #d29922)' }
+                    : { color: 'var(--ok)' }
+                const titreAnnonce = (prix: number): string =>
+                  refAnnonce == null
+                    ? ''
+                    : prix > refAnnonce
+                      ? ` — au-dessus du prix moyen du jour (${euros(refAnnonce)}) : positionné pour la hausse, partira moins vite`
+                      : ` — au niveau ou sous le prix moyen du jour (${euros(refAnnonce)}) : bien placé pour vendre`
                 return (
                   <tr key={w.id} onClick={() => setHistoDe(histoDe === w.id ? null : w.id)} style={{ cursor: 'pointer' }}>
                     <td style={{ maxWidth: 260 }}>
@@ -1245,23 +1263,15 @@ export default function StockPage({ user }: { user: User }): React.JSX.Element {
                     <td style={{ textAlign: 'right' }}>
                       {d?.our_price_cents != null ? (
                         <span
-                          title={d.our_qty != null ? `${d.our_qty} en vente (vu sur la page)` : undefined}
-                          style={
-                            d.avg7_cents != null && d.our_price_cents > d.avg7_cents
-                              ? { color: 'var(--danger, #e5534b)' }
-                              : { color: 'var(--ok)' }
-                          }
+                          title={`${d.our_qty != null ? `${d.our_qty} en vente` : 'Ton annonce'}${titreAnnonce(d.our_price_cents)}`}
+                          style={styleAnnonce(d.our_price_cents)}
                         >
                           {euros(d.our_price_cents)}
                         </span>
                       ) : w.annonce_stock ? (
                         <span
-                          title={`${w.annonce_stock.qty} en vente — prix lu dans TON inventaire stock (l'annonce est trop loin dans la liste d'offres de la page pour y être visible)`}
-                          style={
-                            d?.avg7_cents != null && w.annonce_stock.price_cents > d.avg7_cents
-                              ? { color: 'var(--danger, #e5534b)' }
-                              : { color: 'var(--ok)' }
-                          }
+                          title={`${w.annonce_stock.qty} en vente (prix lu dans ton inventaire stock)${titreAnnonce(w.annonce_stock.price_cents)}`}
+                          style={styleAnnonce(w.annonce_stock.price_cents)}
                         >
                           {euros(w.annonce_stock.price_cents)}
                           {w.annonce_stock.foil && <span style={{ color: 'var(--accent)' }}> ✨</span>}
